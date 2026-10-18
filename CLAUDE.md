@@ -15,7 +15,8 @@ Build the next steps in order; each should end with something demonstrable.
 
 ## Commands
 
-Prerequisites: JDK 25 (set `JAVA_HOME`), Node 24 with npm 11, Docker with Compose v2.
+Prerequisites: JDK 25 (set `JAVA_HOME`; the Maven enforcer rejects other JDKs, e.g.
+`winget install EclipseAdoptium.Temurin.25.JDK`), Node 24 with npm 11, Docker with Compose v2.
 On Windows run the `.ps1` scripts from PowerShell; on Linux or macOS use the matching `.sh` files.
 
 ### Backend (`backend/`, Maven wrapper)

@@ -22,6 +22,7 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-17 | Hotspot captive portal is plain HTML, not Angular | Must load inside the walled garden on cheap phones | docs/02 |
 | 2026-10-17 | Core on Hetzner, with a PostgreSQL replica, RADIUS node B and WireGuard hub B in a Nairobi data centre | Cost for the core; in-country logins survive link outages | docs/08 |
 | 2026-10-17 | Money as integer KES minor units; UTC timestamps; UUIDv7 IDs | Exact arithmetic, no time-zone bugs, time-ordered keys | context/conventions.md |
+| 2026-10-18 | `outbox_event` is transport, not append-only: app role gets INSERT and column-level UPDATE on `published_at`, `attempts`, `last_error`; no DELETE; owner job purges published rows after 7 days | The relay must mark rows sent (docs/02); ledger and audit log stay append-only | context/conventions.md |
 
 ## How to add a row
 
