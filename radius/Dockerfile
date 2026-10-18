@@ -1,6 +1,12 @@
 # FreeRADIUS 3.2 with rlm_sql reading the platform's PostgreSQL views (ADR 0004).
 FROM freeradius/freeradius-server:3.2.10
 
+# Pick up Ubuntu security fixes newer than the upstream image (the CI image scan gates on them).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libssl3 openssl \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY raddb/mods-available/sql /etc/freeradius/mods-available/sql
 COPY raddb/sites-available/corebalt /etc/freeradius/sites-available/corebalt
 COPY raddb/clients.conf /etc/freeradius/clients.conf
