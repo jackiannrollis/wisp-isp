@@ -84,3 +84,5 @@ spring:
 logging:
   level:
     com.corebalt.isp: DEBUG
+    # The relay opens a transaction per tenant every second; keep its begin/commit lines out.
+    com.corebalt.isp.shared.tenant.TenantAwareJpaTransactionManager: INFO

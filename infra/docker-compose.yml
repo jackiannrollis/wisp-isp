@@ -1,0 +1,146 @@
+# Local development stack for the Corebalt ISP Platform (docs/02, Environments).
+# Usage (from the repo root): infra/scripts/up.ps1 or infra/scripts/up.sh; see CLAUDE.md.
+# Settings and passwords come from infra/.env (copy infra/.env.example).
+
+name: ${COMPOSE_PROJECT_NAME:-corebalt-isp}
+
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in infra/.env}
+      POSTGRES_DB: postgres
+      ISP_DB_OWNER_PASSWORD: ${ISP_DB_OWNER_PASSWORD:?set in infra/.env}
+      ISP_DB_APP_PASSWORD: ${ISP_DB_APP_PASSWORD:?set in infra/.env}
+      RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD:?set in infra/.env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d isp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-isp}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set in infra/.env}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  # Cache and rate limits only (ADR 0003); nothing depends on it for correctness yet.
+  redis:
+    image: redis:8.8
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ../backend
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
+      ISP_DB_OWNER_USER: isp_owner
+      ISP_DB_OWNER_PASSWORD: ${ISP_DB_OWNER_PASSWORD}
+      ISP_DB_APP_USER: isp_app
+      ISP_DB_APP_PASSWORD: ${ISP_DB_APP_PASSWORD}
+      ISP_RABBITMQ_HOST: rabbitmq
+      ISP_RABBITMQ_USER: ${RABBITMQ_USER:-isp}
+      ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # FreeRADIUS reads the views the backend's Flyway migrations create, so it starts after the API
+  # is healthy. Logins never depend on the API at runtime (ADR 0004); only on the database.
+  freeradius:
+    build:
+      context: ../radius
+    # Debug output (freeradius -X) prints connection settings including the DB password; use it
+    # only ad hoc on a lab machine: docker compose run --rm freeradius -X
+    environment:
+      RADIUS_DB_HOST: postgres
+      RADIUS_DB_PORT: "5432"
+      RADIUS_DB_NAME: isp
+      RADIUS_DB_USER: isp_radius
+      RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD}
+      RADIUS_LAB_SECRET: ${RADIUS_LAB_SECRET:?set in infra/.env}
+    ports:
+      - "${RADIUS_AUTH_PORT:-1812}:1812/udp"
+      - "${RADIUS_ACCT_PORT:-1813}:1813/udp"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.11.7
+    ports:
+      - "${CADDY_HTTP_PORT:-8088}:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+
+  # One-off migrations without starting the API: infra/scripts/migrate.(ps1|sh).
+  flyway:
+    image: flyway/flyway:11
+    profiles: ["tools"]
+    command: ["migrate"]
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/isp
+      FLYWAY_USER: isp_owner
+      FLYWAY_PASSWORD: ${ISP_DB_OWNER_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ../backend/src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # MikroTik CHR (Cloud Hosted Router) for PPPoE, CoA and restricted-mode tests: step 2 of the v1
+  # build order (docs/09). CHR is a VM image, not an official container; the lab will run it with
+  # QEMU (e.g. a community CHR-in-Docker image) or in Hyper-V/VirtualBox, peered over WireGuard.
+  # Kept commented out until the network lab defines the image, licence and WireGuard hub.
+  #
+  # mikrotik-chr:
+  #   image: <chr-in-qemu image chosen in step 2>
+  #   privileged: true
+  #   devices:
+  #     - /dev/net/tun
+  #     - /dev/kvm
+  #   ports:
+  #     - "8291:8291"   # Winbox
+  #     - "8728:8728"   # API
+  #     - "2222:22"     # SSH
+  #   volumes:
+  #     - ./chr:/routeros
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
