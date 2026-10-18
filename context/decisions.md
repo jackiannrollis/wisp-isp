@@ -23,6 +23,7 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-17 | Core on Hetzner, with a PostgreSQL replica, RADIUS node B and WireGuard hub B in a Nairobi data centre | Cost for the core; in-country logins survive link outages | docs/08 |
 | 2026-10-17 | Money as integer KES minor units; UTC timestamps; UUIDv7 IDs | Exact arithmetic, no time-zone bugs, time-ordered keys | context/conventions.md |
 | 2026-10-18 | `outbox_event` is transport, not append-only: app role gets INSERT and column-level UPDATE on `published_at`, `attempts`, `last_error`; no DELETE; owner job purges published rows after 7 days | The relay must mark rows sent (docs/02); ledger and audit log stay append-only | context/conventions.md |
+| 2026-10-19 | Local builds accept JDK 25 or newer (enforcer `[25,)`); bytecode stays `--release 25`; CI and the Docker image keep building and testing on JDK 25 | Developers may run newer JDKs (27 locally); Java 25 LTS remains the production runtime (ADR 0001) | backend/pom.xml, CLAUDE.md |
 
 ## How to add a row
 

@@ -17,7 +17,7 @@ Status: step 1 of the v1 build order (foundation). See `docs/09-roadmap.md`.
 
 ## Run it locally
 
-Requires JDK 25, Node 24 and Docker Desktop.
+Requires JDK 25 or newer (point `JAVA_HOME` at it), Node 24 and Docker Desktop.
 
 ```powershell
 Copy-Item infra\.env.example infra\.env   # then edit the passwords

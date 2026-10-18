@@ -187,8 +187,8 @@
                         <configuration>
                             <rules>
                                 <requireJavaVersion>
-                                    <version>[25,26)</version>
-                                    <message>Build with JDK 25 (LTS), see CLAUDE.md.</message>
+                                    <version>[25,)</version>
+                                    <message>Build with JDK 25 or newer (bytecode targets Java 25), see CLAUDE.md.</message>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>
