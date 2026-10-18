@@ -1,0 +1,55 @@
+// Global theme tokens. Tenant branding (--brand-primary, --brand-on-primary) is set at startup
+// by TenantThemeService on <html>; the values below are the defaults used until then.
+
+:root {
+  color-scheme: light dark;
+
+  --brand-primary: #0f766e;
+  --brand-on-primary: #ffffff;
+
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text: #0f172a;
+  --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-hover: #f1f5f9;
+
+  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0b1120;
+    --color-surface: #111827;
+    --color-text: #e5e7eb;
+    --color-muted: #9ca3af;
+    --color-border: #1f2937;
+    --color-hover: #1e293b;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+a {
+  color: var(--brand-primary);
+}
+
+.muted {
+  color: var(--color-muted);
+}
