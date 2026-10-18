@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: isp-platform
+  threads:
+    virtual:
+      enabled: true
+  # The application connects as isp_app, which owns no tables, so row-level security applies.
+  datasource:
+    url: ${ISP_DB_URL:jdbc:postgresql://localhost:5432/isp}
+    username: ${ISP_DB_APP_USER:isp_app}
+    password: ${ISP_DB_APP_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20
+  # Flyway runs as the owner role; the application role cannot change the schema.
+  flyway:
+    url: ${ISP_DB_URL:jdbc:postgresql://localhost:5432/isp}
+    user: ${ISP_DB_OWNER_USER:isp_owner}
+    password: ${ISP_DB_OWNER_PASSWORD:}
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  rabbitmq:
+    host: ${ISP_RABBITMQ_HOST:localhost}
+    port: ${ISP_RABBITMQ_PORT:5672}
+    username: ${ISP_RABBITMQ_USER:isp}
+    password: ${ISP_RABBITMQ_PASSWORD:}
+    publisher-confirm-type: simple
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+springdoc:
+  api-docs:
+    path: /api/docs
+  swagger-ui:
+    path: /swagger-ui.html
+  paths-to-match: /api/v1/**
+
+logging:
+  # Structured JSON; the MDC (tenantId, correlationId) is included in every line.
+  structured:
+    format:
+      console: logstash
+  level:
+    root: INFO
+    com.corebalt.isp: INFO
+
+isp:
+  outbox:
+    relay:
+      enabled: true
+      interval: 1s
+      batch-size: 100
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+logging:
+  level:
+    com.corebalt.isp: DEBUG
