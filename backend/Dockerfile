@@ -11,7 +11,9 @@ RUN --mount=type=cache,target=/root/.m2 sh ./mvnw -B -q -DskipTests package \
     && cp target/isp-platform-*.jar /workspace/app.jar
 
 FROM eclipse-temurin:25-jre
-RUN groupadd --system isp && useradd --system --gid isp --no-create-home isp
+# pebble (Canonical's service manager, a Go binary) is unused here and carries Go stdlib CVEs.
+RUN rm -f /usr/bin/pebble \
+    && groupadd --system isp && useradd --system --gid isp --no-create-home isp
 WORKDIR /app
 COPY --from=build /workspace/app.jar /app/app.jar
 USER isp
