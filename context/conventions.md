@@ -67,7 +67,8 @@ context/            this folder
 
 - Snake_case names; table prefix is the owning module (`billing_ledger_entry`); primary key `id`; foreign keys named `<table>_id`.
 - `tenant_id` on every tenant-scoped table with an RLS policy; composite indexes start with `tenant_id`.
-- `created_at`, `updated_at` on mutable tables; append-only tables (`ledger_entry`, `audit_log`, `outbox_event`) have no `updated_at` and no update or delete grants for the application role.
+- `created_at`, `updated_at` on mutable tables; append-only tables (`ledger_entry`, `audit_log`) have no `updated_at` and no update or delete grants for the application role.
+- `outbox_event`: the application role may INSERT, and UPDATE only `published_at`, `attempts` and `last_error` (column-level grants); no DELETE. Published rows older than 7 days are purged by an owner-role maintenance job.
 - Encrypted columns are `bytea` with a `_enc` suffix and a `key_version`.
 - FreeRADIUS uses its own role with select on two views and insert/update on `radacct` only.
 
