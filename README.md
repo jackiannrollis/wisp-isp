@@ -1,0 +1,32 @@
+# Corebalt ISP Platform
+
+Multi-tenant SaaS for Kenyan ISPs, WISPs and Wi-Fi vendors: customers, packages, subscriptions,
+wallet billing, M-Pesa payments and router control in one platform, where **billing state is
+network entitlement**. Paid means online, expired past grace means a walled garden with a pay
+page, and a payment restores access within seconds with no staff involved.
+
+| Part | Stack |
+|---|---|
+| `backend/` | Java 25, Spring Boot 4.1, Spring Modulith, PostgreSQL 17 with row-level security, RabbitMQ with a transactional outbox |
+| `frontend/` | Angular 22: `admin` dashboard and customer `portal` |
+| `radius/` | FreeRADIUS 3.2 reading PostgreSQL views (`radius_client`, `v_radius_auth`) |
+| `infra/` | Docker Compose for local development, Caddy, scripts |
+| `docs/`, `context/` | Product and architecture documentation, ADRs, domain rules and conventions |
+
+Status: step 1 of the v1 build order (foundation). See `docs/09-roadmap.md`.
+
+## Run it locally
+
+Requires JDK 25, Node 24 and Docker Desktop.
+
+```powershell
+Copy-Item infra\.env.example infra\.env   # then edit the passwords
+infra\scripts\up.ps1                      # PostgreSQL, RabbitMQ, Redis, API, FreeRADIUS, Caddy
+cd frontend; npm ci; npm run start:admin  # http://localhost:4200
+```
+
+On Linux or macOS use `cp` and `infra/scripts/up.sh`. Check the API at
+`http://localhost:8080/actuator/health` and the docs at `http://localhost:8080/swagger-ui.html`.
+
+Run every check with `infra\scripts\test.ps1` (or `test.sh`). `CLAUDE.md` lists all build, test and
+run commands and the review rules.
