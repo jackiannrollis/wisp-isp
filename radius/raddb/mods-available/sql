@@ -1,0 +1,77 @@
+# rlm_sql for the Corebalt ISP Platform (ADR 0004, N2).
+#
+# FreeRADIUS reads exactly two views from PostgreSQL and writes only radacct:
+#   radius_client   routers (NAS) allowed to talk to this node
+#   v_radius_auth   check and reply attributes per username and router (T3)
+# Both are defined by Flyway migrations in backend/; see docs/06-network-access-control.md.
+# Views are versioned (v_radius_auth_v2, ...): switch the name here, never alter a view in place.
+#
+# Connection settings come from the environment, never from this file:
+#   RADIUS_DB_HOST, RADIUS_DB_PORT, RADIUS_DB_NAME, RADIUS_DB_USER, RADIUS_DB_PASSWORD
+
+sql {
+	dialect = "postgresql"
+	driver = "rlm_sql_postgresql"
+
+	server = "$ENV{RADIUS_DB_HOST}"
+	port = "$ENV{RADIUS_DB_PORT}"
+	login = "$ENV{RADIUS_DB_USER}"
+	password = "$ENV{RADIUS_DB_PASSWORD}"
+	radius_db = "$ENV{RADIUS_DB_NAME}"
+
+	postgresql {
+		send_application_name = yes
+	}
+
+	# Routers come from the database (reloaded on router onboarding).
+	read_clients = yes
+	client_table = "radius_client"
+	client_query = "\
+		SELECT id, nasname, shortname, type, secret, server \
+		FROM ${client_table}"
+
+	# The view already resolves the access profile; there are no RADIUS groups.
+	read_groups = no
+	group_attribute = "SQL-Group"
+
+	authcheck_table = "v_radius_auth"
+	authreply_table = "v_radius_auth"
+
+	# T3: a username only matches through a router of its own tenant; the view joins on nasname.
+	authorize_check_query = "\
+		SELECT id, username, attribute, value, op \
+		FROM ${authcheck_table} \
+		WHERE username = '%{SQL-User-Name}' \
+		  AND nasname = '%{NAS-IP-Address}' \
+		  AND kind = 'check' \
+		ORDER BY id"
+
+	authorize_reply_query = "\
+		SELECT id, username, attribute, value, op \
+		FROM ${authreply_table} \
+		WHERE username = '%{SQL-User-Name}' \
+		  AND nasname = '%{NAS-IP-Address}' \
+		  AND kind = 'reply' \
+		ORDER BY id"
+
+	# Accounting into radacct (monthly partitions, N7) and post-auth logging arrive with the
+	# network lab, step 2 of the v1 build order. Until then the site does not call sql there.
+	acct_table1 = "radacct"
+	acct_table2 = "radacct"
+	postauth_table = "radpostauth"
+
+	sql_user_name = "%{User-Name}"
+	safe_characters = "@abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_: /"
+
+	pool {
+		start = 2
+		min = 2
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+		max_retries = 5
+	}
+}

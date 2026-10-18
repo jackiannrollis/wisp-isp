@@ -1,0 +1,56 @@
+# Corebalt virtual server: PPPoE (PAP/CHAP) authorisation from v_radius_auth.
+#
+# Profiles (docs/06): FULL, THROTTLED and RESTRICTED are all Access-Accept with different reply
+# attributes; Access-Reject only for REJECT profiles (N3). The view decides; this file only asks.
+
+server corebalt {
+	listen {
+		type = auth
+		ipaddr = *
+		port = 1812
+	}
+
+	listen {
+		type = acct
+		ipaddr = *
+		port = 1813
+	}
+
+	authorize {
+		preprocess
+		sql
+		if (notfound) {
+			update reply {
+				&Reply-Message := "Unknown user"
+			}
+			reject
+		}
+		chap
+		pap
+	}
+
+	authenticate {
+		Auth-Type PAP {
+			pap
+		}
+		Auth-Type CHAP {
+			chap
+		}
+	}
+
+	preacct {
+		preprocess
+		acct_unique
+	}
+
+	accounting {
+		# sql (radacct) is enabled with the network lab, step 2 of the v1 build order.
+		ok
+	}
+
+	post-auth {
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+		}
+	}
+}
