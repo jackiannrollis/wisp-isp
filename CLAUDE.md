@@ -26,7 +26,7 @@ On Windows run the `.ps1` scripts from PowerShell; on Linux or macOS use the mat
 | Build and run every test (unit, Modulith verification, Testcontainers) | `./mvnw verify` (Windows: `.\mvnw.cmd verify`) |
 | Unit tests only (no Docker) | `./mvnw test` |
 | One integration test | `./mvnw verify -Dit.test=OutboxIT -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false` |
-| Run against the compose stack | `SPRING_PROFILES_ACTIVE=local ISP_DB_APP_PASSWORD=… ISP_DB_OWNER_PASSWORD=… ISP_RABBITMQ_PASSWORD=… ./mvnw spring-boot:run` |
+| Run on the host against the compose stack (stop the `backend` service first) | PowerShell: `$env:SPRING_PROFILES_ACTIVE='local'; $env:ISP_DB_APP_PASSWORD='…'; $env:ISP_DB_OWNER_PASSWORD='…'; $env:ISP_RABBITMQ_PASSWORD='…'; .\mvnw.cmd spring-boot:run` (bash: the same variables, then `./mvnw spring-boot:run`) |
 | OpenAPI | `http://localhost:8080/api/docs` (Swagger UI at `/swagger-ui.html`) |
 
 Unit tests are `*Test`, Testcontainers tests are `*IT` and extend `support/IntegrationTest`, which
