@@ -1,0 +1,25 @@
+# Build output
+target/
+dist/
+out/
+build/
+.angular/
+node_modules/
+coverage/
+
+# IDE
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Local environment (never commit real secrets)
+.env
+.env.*
+!.env.example
+*.log
+
+# Original documentation archive (the extracted docs/ and context/ are the source of truth)
+/corebalt-isp-docs.zip
