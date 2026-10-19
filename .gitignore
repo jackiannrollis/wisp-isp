@@ -23,3 +23,7 @@ Thumbs.db
 
 # Original documentation archive (the extracted docs/ and context/ are the source of truth)
 /corebalt-isp-docs.zip
+
+# Network lab: downloaded RouterOS images and rendered per-machine scripts
+/infra/lab/images/
+/infra/lab/out/

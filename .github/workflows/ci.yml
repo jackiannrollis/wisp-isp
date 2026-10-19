@@ -81,6 +81,12 @@ jobs:
           context: radius
           load: true
           tags: corebalt/isp-freeradius:${{ github.sha }}
+      - name: Build WireGuard hub image
+        uses: docker/build-push-action@v7
+        with:
+          context: infra/wireguard
+          load: true
+          tags: corebalt/isp-wireguard:${{ github.sha }}
       - name: Scan backend image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -92,6 +98,13 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: corebalt/isp-freeradius:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan WireGuard hub image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: corebalt/isp-wireguard:${{ github.sha }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
@@ -109,4 +122,5 @@ jobs:
           scanners: vuln,secret,misconfig
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          trivyignores: .trivyignore.yaml
           exit-code: "1"

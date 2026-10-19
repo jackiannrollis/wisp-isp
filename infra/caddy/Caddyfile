@@ -3,6 +3,7 @@
 #   http://localhost:8088/actuator/*   -> backend (health only is public)
 #   http://localhost:8088/portal/*     -> portal dev server on the host (ng serve, port 4201)
 #   everything else                    -> admin dev server on the host (ng serve, port 4200)
+#   http://<host>:8089/*               -> lab walled-garden pay page (network lab, step 2)
 {
 	auto_https off
 	admin off
@@ -29,4 +30,28 @@
 	handle {
 		reverse_proxy host.docker.internal:4200
 	}
+}
+
+# Network lab (step 2): the lab router redirects restricted PPPoE users' HTTP here (docs/06,
+# Restricted mode). Any host name and path gets this stub; the real pay page is the portal (step 8).
+# The HTML comment is the marker infra/lab/scripts/check-restricted.ps1 looks for.
+:8089 {
+	header {
+		Content-Type "text/html; charset=utf-8"
+		Cache-Control no-store
+		-Server
+	}
+	respond <<HTML
+		<!doctype html>
+		<html lang="en">
+		<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Pay to restore internet</title></head>
+		<body style="font-family:system-ui,sans-serif;max-width:28rem;margin:2rem auto;padding:0 1rem">
+		<!-- corebalt-lab-paypage -->
+		<h1 style="color:#0f766e;font-size:1.4rem">Your internet is paused</h1>
+		<p>Your subscription has expired. Pay with M-Pesa to restore access within seconds.</p>
+		<p><small>Corebalt network lab stub; the real pay page arrives with the customer portal (step 8).</small></p>
+		</body>
+		</html>
+		HTML 200
 }

@@ -1,0 +1,9 @@
+# Trivy exceptions. Each entry is scoped to one path and says why; review them when the file changes.
+misconfigurations:
+  - id: AVD-DS-0002
+    paths:
+      - "infra/wireguard/Dockerfile"
+    statement: >-
+      The local WireGuard hub must create wg0, which needs CAP_NET_ADMIN; file capabilities are not
+      honoured by every Docker runtime, so it runs as root. Compose drops all other capabilities,
+      mounts the root filesystem read-only and sets no-new-privileges. Local stack only.

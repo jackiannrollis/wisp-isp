@@ -75,13 +75,41 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # WireGuard hub (ADR 0006, N6): lab routers peer here; RADIUS, CoA, REST and SNMP to routers only
+  # travel through the tunnel. Peers (public keys only) live in the wireguard-data volume and are
+  # added with: docker compose exec wireguard wireguard-hub add-peer <name> <public key> <tunnel ip>/32
+  wireguard:
+    build:
+      context: ./wireguard
+    # Root inside the container, but with NET_ADMIN only (see infra/wireguard/Dockerfile).
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      WG_HUB_ADDRESS: ${WG_HUB_ADDRESS:-10.200.0.1/24}
+    ports:
+      - "${WG_PORT:-51820}:51820/udp"
+      # FreeRADIUS shares this network namespace, so its ports are published here.
+      - "${RADIUS_AUTH_PORT:-1812}:1812/udp"
+      - "${RADIUS_ACCT_PORT:-1813}:1813/udp"
+    volumes:
+      - wireguard-data:/var/lib/wireguard
+
   # FreeRADIUS reads the views the backend's Flyway migrations create, so it starts after the API
   # is healthy. Logins never depend on the API at runtime (ADR 0004); only on the database.
+  # It runs in the WireGuard hub's network namespace so routers are seen by their tunnel address
+  # (radius_client_v2.nasname) and CoA/Disconnect leave from the hub address.
   freeradius:
     build:
       context: ../radius
-    # Debug output (freeradius -X) prints connection settings including the DB password; use it
-    # only ad hoc on a lab machine: docker compose run --rm freeradius -X
+    # Logs go to stdout. Debug output (freeradius -X) prints connection settings including the DB
+    # password; use it only ad hoc on a lab machine: docker compose run --rm freeradius freeradius -X
+    command: ["freeradius", "-f", "-l", "stdout"]
+    network_mode: "service:wireguard"
     environment:
       RADIUS_DB_HOST: postgres
       RADIUS_DB_PORT: "5432"
@@ -89,10 +117,9 @@ services:
       RADIUS_DB_USER: isp_radius
       RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD}
       RADIUS_LAB_SECRET: ${RADIUS_LAB_SECRET:?set in infra/.env}
-    ports:
-      - "${RADIUS_AUTH_PORT:-1812}:1812/udp"
-      - "${RADIUS_ACCT_PORT:-1813}:1813/udp"
     depends_on:
+      wireguard:
+        condition: service_healthy
       backend:
         condition: service_healthy
 
@@ -100,6 +127,8 @@ services:
     image: caddy:2.11.7
     ports:
       - "${CADDY_HTTP_PORT:-8088}:80"
+      # Lab walled-garden pay page for restricted PPPoE users (infra/lab/README.md).
+      - "${CADDY_PAYPAGE_PORT:-8089}:8089"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     extra_hosts:
@@ -123,24 +152,10 @@ services:
       postgres:
         condition: service_healthy
 
-  # MikroTik CHR (Cloud Hosted Router) for PPPoE, CoA and restricted-mode tests: step 2 of the v1
-  # build order (docs/09). CHR is a VM image, not an official container; the lab will run it with
-  # QEMU (e.g. a community CHR-in-Docker image) or in Hyper-V/VirtualBox, peered over WireGuard.
-  # Kept commented out until the network lab defines the image, licence and WireGuard hub.
-  #
-  # mikrotik-chr:
-  #   image: <chr-in-qemu image chosen in step 2>
-  #   privileged: true
-  #   devices:
-  #     - /dev/net/tun
-  #     - /dev/kvm
-  #   ports:
-  #     - "8291:8291"   # Winbox
-  #     - "8728:8728"   # API
-  #     - "2222:22"     # SSH
-  #   volumes:
-  #     - ./chr:/routeros
+  # MikroTik CHR is not a container: the network lab runs two CHR VMs in Hyper-V (a router and a
+  # PPPoE client) that peer with the wireguard service above. See infra/lab/README.md.
 
 volumes:
   postgres-data:
   rabbitmq-data:
+  wireguard-data:
