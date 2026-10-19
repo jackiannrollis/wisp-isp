@@ -200,7 +200,8 @@ public class SmsSender {
         final int inserted = jdbc.sql("""
                         insert into notifications_alert (id, tenant_id, kind, detail, raised_at)
                         values (:id, :tenantId, :kind, :detail, :now)
-                        on conflict (tenant_id, kind) where cleared_at is null do nothing
+                        on conflict (tenant_id, kind, coalesce(subject_id, '00000000-0000-0000-0000-000000000000'::uuid))
+                            where cleared_at is null do nothing
                         """)
                 .param("id", UuidV7.next(clock))
                 .param("tenantId", TenantContext.requireTenantId())

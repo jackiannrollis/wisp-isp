@@ -36,6 +36,41 @@ public class Router {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // Monitoring (docs/06 Monitoring): written by the tunnel worker and the accounting job with SQL,
+    // read here only, so saving the entity never overwrites them.
+    @Column(name = "status", insertable = false, updatable = false)
+    private String status;
+
+    @Column(name = "rest_username", insertable = false, updatable = false)
+    private String restUsername;
+
+    @Column(name = "last_seen_at", insertable = false, updatable = false)
+    private Instant lastSeenAt;
+
+    @Column(name = "offline_since", insertable = false, updatable = false)
+    private Instant offlineSince;
+
+    @Column(name = "last_polled_at", insertable = false, updatable = false)
+    private Instant lastPolledAt;
+
+    @Column(name = "last_poll_error", insertable = false, updatable = false)
+    private String lastPollError;
+
+    @Column(name = "last_accounting_at", insertable = false, updatable = false)
+    private Instant lastAccountingAt;
+
+    @Column(name = "routeros_version", insertable = false, updatable = false)
+    private String routerosVersion;
+
+    @Column(name = "board_name", insertable = false, updatable = false)
+    private String boardName;
+
+    @Column(name = "uptime_seconds", insertable = false, updatable = false)
+    private Long uptimeSeconds;
+
+    @Column(name = "cpu_load", insertable = false, updatable = false)
+    private Integer cpuLoad;
+
     protected Router() {}
 
     public static Router register(
@@ -72,5 +107,49 @@ public class Router {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getStatus() {
+        return status == null ? "NOT_MONITORED" : status;
+    }
+
+    public String getRestUsername() {
+        return restUsername;
+    }
+
+    public Instant getLastSeenAt() {
+        return lastSeenAt;
+    }
+
+    public Instant getOfflineSince() {
+        return offlineSince;
+    }
+
+    public Instant getLastPolledAt() {
+        return lastPolledAt;
+    }
+
+    public String getLastPollError() {
+        return lastPollError;
+    }
+
+    public Instant getLastAccountingAt() {
+        return lastAccountingAt;
+    }
+
+    public String getRouterosVersion() {
+        return routerosVersion;
+    }
+
+    public String getBoardName() {
+        return boardName;
+    }
+
+    public Long getUptimeSeconds() {
+        return uptimeSeconds;
+    }
+
+    public Integer getCpuLoad() {
+        return cpuLoad;
     }
 }

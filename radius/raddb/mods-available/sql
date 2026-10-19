@@ -1,6 +1,6 @@
 # rlm_sql for the Corebalt ISP Platform (ADR 0004, N2).
 #
-# FreeRADIUS reads exactly two views from PostgreSQL and writes only radacct:
+# FreeRADIUS reads exactly two views from PostgreSQL and writes only radacct (accounting below):
 #   radius_client_v3   routers (NAS) allowed to talk to this node
 #   v_radius_auth_v4   check and reply attributes per username and router (T3)
 # Both are defined by Flyway migrations in backend/; see docs/06-network-access-control.md.
@@ -57,11 +57,43 @@ sql {
 		  AND kind = 'reply' \
 		ORDER BY id"
 
-	# Accounting into radacct (monthly partitions, N7) and post-auth logging arrive with the
-	# network lab, step 2 of the v1 build order. Until then the site does not call sql there.
+	# Accounting (docs/06 Accounting, N2, N7). radacct is partitioned by month; a trigger fills tenant,
+	# router and subscription from the sending router's tunnel address, which is why nasipaddress is
+	# Packet-Src-IP-Address and never the client-asserted NAS-IP-Address (T3). Octets fold in the
+	# Gigawords counters. When a query changes no row, rlm_sql runs the next one: an update finds the
+	# session, the insert covers a lost Start; ON CONFLICT makes a retransmitted packet harmless.
 	acct_table1 = "radacct"
 	acct_table2 = "radacct"
 	postauth_table = "radpostauth"
+
+	accounting {
+		reference = "%{tolower:type.%{%{Acct-Status-Type}:-%{Request-Processing-Stage}}.query}"
+
+		type {
+			accounting-on {
+				query = "UPDATE radacct SET acctstoptime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), acctterminatecause = 'NAS-Reboot' WHERE nasipaddress = '%{Packet-Src-IP-Address}' AND acctstoptime IS NULL"
+			}
+
+			accounting-off {
+				query = "UPDATE radacct SET acctstoptime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), acctterminatecause = 'NAS-Reboot' WHERE nasipaddress = '%{Packet-Src-IP-Address}' AND acctstoptime IS NULL"
+			}
+
+			start {
+				query = "UPDATE radacct SET acctupdatetime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}) WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND acctstoptime IS NULL"
+				query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop, acctinputoctets, acctoutputoctets, calledstationid, callingstationid, acctterminatecause, servicetype, framedprotocol, framedipaddress) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', NULLIF('%{Realm}', ''), '%{Packet-Src-IP-Address}', NULLIF('%{%{NAS-Port-ID}:-%{NAS-Port}}', ''), NULLIF('%{NAS-Port-Type}', ''), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), NULL, NULL, NULLIF('%{Acct-Authentic}', ''), NULLIF('%{Connect-Info}', ''), NULL, 0, 0, NULLIF('%{Called-Station-Id}', ''), NULLIF('%{Calling-Station-Id}', ''), NULL, NULLIF('%{Service-Type}', ''), NULLIF('%{Framed-Protocol}', ''), NULLIF('%{Framed-IP-Address}', '')::inet) ON CONFLICT (acctuniqueid, acctstarttime) DO NOTHING"
+			}
+
+			interim-update {
+				query = "UPDATE radacct SET acctupdatetime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), acctstoptime = NULL, acctterminatecause = NULL, acctsessiontime = NULLIF('%{Acct-Session-Time}', '')::bigint, acctinputoctets = (('%{%{Acct-Input-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Input-Octets}:-0}'::bigint), acctoutputoctets = (('%{%{Acct-Output-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Output-Octets}:-0}'::bigint), framedipaddress = NULLIF('%{Framed-IP-Address}', '')::inet WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND (acctstoptime IS NULL OR acctterminatecause = 'Stale')"
+				query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop, acctinputoctets, acctoutputoctets, calledstationid, callingstationid, acctterminatecause, servicetype, framedprotocol, framedipaddress) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', NULLIF('%{Realm}', ''), '%{Packet-Src-IP-Address}', NULLIF('%{%{NAS-Port-ID}:-%{NAS-Port}}', ''), NULLIF('%{NAS-Port-Type}', ''), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l} - %{%{Acct-Session-Time}:-0}), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), NULL, NULLIF('%{Acct-Session-Time}', '')::bigint, NULLIF('%{Acct-Authentic}', ''), NULLIF('%{Connect-Info}', ''), NULL, (('%{%{Acct-Input-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Input-Octets}:-0}'::bigint), (('%{%{Acct-Output-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Output-Octets}:-0}'::bigint), NULLIF('%{Called-Station-Id}', ''), NULLIF('%{Calling-Station-Id}', ''), NULL, NULLIF('%{Service-Type}', ''), NULLIF('%{Framed-Protocol}', ''), NULLIF('%{Framed-IP-Address}', '')::inet) ON CONFLICT (acctuniqueid, acctstarttime) DO NOTHING"
+			}
+
+			stop {
+				query = "UPDATE radacct SET acctupdatetime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), acctstoptime = TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), acctsessiontime = NULLIF('%{Acct-Session-Time}', '')::bigint, acctinputoctets = (('%{%{Acct-Input-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Input-Octets}:-0}'::bigint), acctoutputoctets = (('%{%{Acct-Output-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Output-Octets}:-0}'::bigint), acctterminatecause = NULLIF('%{Acct-Terminate-Cause}', ''), connectinfo_stop = NULLIF('%{Connect-Info}', '') WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND (acctstoptime IS NULL OR acctterminatecause = 'Stale')"
+				query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop, acctinputoctets, acctoutputoctets, calledstationid, callingstationid, acctterminatecause, servicetype, framedprotocol, framedipaddress) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', NULLIF('%{Realm}', ''), '%{Packet-Src-IP-Address}', NULLIF('%{%{NAS-Port-ID}:-%{NAS-Port}}', ''), NULLIF('%{NAS-Port-Type}', ''), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l} - %{%{Acct-Session-Time}:-0}), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), TO_TIMESTAMP(%{%{integer:Event-Timestamp}:-%l}), NULLIF('%{Acct-Session-Time}', '')::bigint, NULLIF('%{Acct-Authentic}', ''), NULLIF('%{Connect-Info}', ''), NULLIF('%{Connect-Info}', ''), (('%{%{Acct-Input-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Input-Octets}:-0}'::bigint), (('%{%{Acct-Output-Gigawords}:-0}'::bigint << 32) + '%{%{Acct-Output-Octets}:-0}'::bigint), NULLIF('%{Called-Station-Id}', ''), NULLIF('%{Calling-Station-Id}', ''), NULLIF('%{Acct-Terminate-Cause}', ''), NULLIF('%{Service-Type}', ''), NULLIF('%{Framed-Protocol}', ''), NULLIF('%{Framed-IP-Address}', '')::inet) ON CONFLICT (acctuniqueid, acctstarttime) DO NOTHING"
+			}
+		}
+	}
 
 	sql_user_name = "%{User-Name}"
 	safe_characters = "@abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_: /"

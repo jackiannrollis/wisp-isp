@@ -49,7 +49,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **N4** `Mikrotik-Rate-Limit` is `upload/download` (router rx/tx), e.g. `5M/10M`.
 - **N5** CoA is used for speed changes in place; Disconnect for changes of pool or address list. Three retries with backoff, then an alert.
 - **N6** All router management (RADIUS, CoA, REST, SNMP) travels only over WireGuard; no router port is exposed publicly.
-- **N7** `radacct` is partitioned monthly, kept 13 months; `usage_daily` is the only usage source for screens and reports.
+- **N7** `radacct` is partitioned monthly, kept 13 months; `network_usage_daily` is the only usage source for screens and reports.
 - **N8** Device limits are enforced only on hotspot (`shared_users`); PPPoE cannot see devices behind the customer's router.
 
 ## Notifications (docs/04)

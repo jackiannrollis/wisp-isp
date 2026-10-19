@@ -20,7 +20,8 @@ import org.springframework.stereotype.Component;
  * {@code ISP_JWT_KID} and {@code ISP_JWT_PRIVATE_KEY} (base64 PKCS#8 DER, RSA) sign new tokens;
  * {@code ISP_JWT_RETIRED_KEYS} ({@code kid=base64 X.509 DER public key}, comma-separated) are still
  * accepted for verification, so a key can be replaced without logging anyone out. All public keys
- * are published at {@code /.well-known/jwks.json}.
+ * are published at {@code /.well-known/jwks.json}. The tunnel worker issues no tokens and runs
+ * without a key ({@code isp.auth.jwt.required=false}); it then accepts none either.
  */
 @Component
 public class JwtKeys {
@@ -31,9 +32,15 @@ public class JwtKeys {
     public JwtKeys(
             @Value("${isp.auth.jwt.kid:}") final String kid,
             @Value("${isp.auth.jwt.private-key:}") final String privateKeyBase64,
-            @Value("${isp.auth.jwt.retired-keys:}") final String retired) {
+            @Value("${isp.auth.jwt.retired-keys:}") final String retired,
+            @Value("${isp.auth.jwt.required:true}") final boolean required) {
         if (kid.isBlank() || privateKeyBase64.isBlank()) {
-            throw new IllegalStateException("ISP_JWT_KID and ISP_JWT_PRIVATE_KEY must be set (see infra/.env.example)");
+            if (required) {
+                throw new IllegalStateException("ISP_JWT_KID and ISP_JWT_PRIVATE_KEY must be set (see infra/.env.example)");
+            }
+            this.signing = null;
+            this.publicSet = new JWKSet();
+            return;
         }
         try {
             final KeyFactory rsa = KeyFactory.getInstance("RSA");
@@ -67,6 +74,9 @@ public class JwtKeys {
 
     /** The key new tokens are signed with. */
     public RSAKey signing() {
+        if (signing == null) {
+            throw new IllegalStateException("this process has no token signing key");
+        }
         return signing;
     }
 

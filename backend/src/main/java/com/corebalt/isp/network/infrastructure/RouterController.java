@@ -62,6 +62,31 @@ class RouterController {
         return service.get(id);
     }
 
+    record RestCredential(@jakarta.validation.constraints.NotBlank String username,
+                          @jakarta.validation.constraints.NotBlank String password) {}
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/rest-credential")
+    @PreAuthorize("hasAuthority('network.write')")
+    @Operation(summary = "Set the RouterOS REST login the tunnel worker polls with; it can never be read back (T4)")
+    RouterDto setRestCredential(@PathVariable final UUID id, @Valid @RequestBody final RestCredential request) {
+        return service.setRestCredential(id, request.username(), request.password());
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/rest-credential")
+    @PreAuthorize("hasAuthority('network.write')")
+    @Operation(summary = "Stop monitoring the router")
+    RouterDto removeRestCredential(@PathVariable final UUID id) {
+        return service.removeRestCredential(id);
+    }
+
+    @PostMapping("/{id}/poll")
+    @PreAuthorize("hasAuthority('network.write')")
+    @Operation(summary = "Ask the tunnel worker to poll the router now (RouterPollRequested)")
+    ResponseEntity<Void> poll(@PathVariable final UUID id) {
+        service.requestPoll(id);
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/{id}/radius-secret")
     @PreAuthorize("hasAuthority('network.write')")
     @Operation(summary = "Replace the router's RADIUS secret; the new one is shown only this once")

@@ -18,7 +18,7 @@ public class NotificationQueries {
                               Instant scheduledFor, int attempts, String providerStatus, String failureReason,
                               Instant sentAt, Instant deliveredAt, Instant createdAt) {}
 
-    public record AlertView(String kind, String detail, Instant raisedAt) {}
+    public record AlertView(String kind, UUID subjectId, String detail, Instant raisedAt) {}
 
     public record PhoneFlagView(String phone, String status, String reason, Instant flaggedAt) {}
 
@@ -52,8 +52,9 @@ public class NotificationQueries {
 
     @Transactional(readOnly = true)
     public List<AlertView> openAlerts() {
-        return jdbc.sql("select kind, detail, raised_at from notifications_alert where cleared_at is null order by raised_at")
-                .query((rs, n) -> new AlertView(rs.getString(1), rs.getString(2), rs.getTimestamp(3).toInstant()))
+        return jdbc.sql("select kind, subject_id, detail, raised_at from notifications_alert where cleared_at is null order by raised_at")
+                .query((rs, n) -> new AlertView(rs.getString(1), rs.getObject(2, UUID.class), rs.getString(3),
+                        rs.getTimestamp(4).toInstant()))
                 .list();
     }
 

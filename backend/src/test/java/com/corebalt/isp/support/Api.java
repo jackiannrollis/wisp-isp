@@ -67,6 +67,10 @@ public final class Api {
                 : request.header("Content-Type", "application/json").POST(body(json)));
     }
 
+    public Response delete(final String path) {
+        return send(request(path).DELETE());
+    }
+
     public Response put(final String path, final String json) {
         return send(request(path).header("Content-Type", "application/json").PUT(body(json)));
     }

@@ -242,6 +242,109 @@ class RadiusAuthIT extends IntegrationTest {
         }
     }
 
+    @Test
+    void N7_startInterimStopIsOneSessionWithGigawordsFoldedIn() throws Exception {
+        final String session = "it-" + System.nanoTime();
+        assertThat(accounting(CB_NAS, "Start", session, "CB000001", "")).isEqualTo("Accounting-Response");
+        assertThat(accounting(CB_NAS, "Start", session, "CB000001", "")).as("retransmitted").isEqualTo("Accounting-Response");
+        assertThat(accounting(CB_NAS, "Interim-Update", session, "CB000001",
+                "Acct-Session-Time = 300\nAcct-Input-Octets = 500\nAcct-Input-Gigawords = 1\nAcct-Output-Octets = 7000\n"
+                        + "Framed-IP-Address = 100.64.0.9\n")).isEqualTo("Accounting-Response");
+        assertThat(accounting(CB_NAS, "Stop", session, "CB000001",
+                "Acct-Session-Time = 600\nAcct-Input-Octets = 900\nAcct-Input-Gigawords = 1\nAcct-Output-Octets = 9000\n"
+                        + "Acct-Terminate-Cause = User-Request\n")).isEqualTo("Accounting-Response");
+
+        final Map<String, Object> row = OwnerSqlRow.one("""
+                select count(*) over () as n, a.acctinputoctets, a.acctoutputoctets, a.acctterminatecause, a.acctstoptime is not null as stopped,
+                       t.code, s.pppoe_username, host(a.nasipaddress) as nas
+                from radacct a join tenancy_tenant t on t.id = a.tenant_id
+                left join subscriptions_subscription s on s.id = a.subscription_id
+                where a.acctsessionid = ?""", session);
+        assertThat(row).containsEntry("n", 1L).containsEntry("acctinputoctets", (1L << 32) + 900)
+                .containsEntry("acctoutputoctets", 9000L).containsEntry("acctterminatecause", "User-Request")
+                .containsEntry("stopped", true).containsEntry("code", "CB").containsEntry("pppoe_username", "CB000001")
+                .containsEntry("nas", CB_NAS);
+    }
+
+    @Test
+    void N7_anInterimWithoutAStartStillOpensTheSession() throws Exception {
+        final String session = "it-" + System.nanoTime();
+        accounting(CB_NAS, "Interim-Update", session, "CB000002", "Acct-Session-Time = 120\nAcct-Output-Octets = 42\n");
+        final Map<String, Object> row = OwnerSqlRow.one(
+                "select acctoutputoctets, acctstoptime is null as open, extract(epoch from acctupdatetime - acctstarttime)::int as age from radacct where acctsessionid = ?",
+                session);
+        assertThat(row).containsEntry("acctoutputoctets", 42L).containsEntry("open", true).containsEntry("age", 120);
+    }
+
+    @Test
+    void T3_theNasIsTheSendingRouterNotTheClaimedAddress() throws Exception {
+        final String session = "it-" + System.nanoTime();
+        accounting(ZZ_NAS, "Start", session, "ZZ000001", "NAS-IP-Address = 127.0.0.1\n");
+        assertThat(OwnerSqlRow.one("select t.code, host(a.nasipaddress) as nas from radacct a join tenancy_tenant t on t.id = a.tenant_id "
+                + "where a.acctsessionid = ?", session)).containsEntry("code", "ZZ").containsEntry("nas", ZZ_NAS);
+    }
+
+    @Test
+    void accountingOnClosesOnlyThatRoutersOpenSessions() throws Exception {
+        final String cb = "it-" + System.nanoTime();
+        final String zz = "it-" + System.nanoTime() + "z";
+        accounting(CB_NAS, "Start", cb, "CB000001", "");
+        accounting(ZZ_NAS, "Start", zz, "ZZ000001", "");
+        assertThat(accounting(ZZ_NAS, "Accounting-On", "it-on-" + System.nanoTime(), "", "")).isEqualTo("Accounting-Response");
+        assertThat(OwnerSqlRow.one("select acctterminatecause from radacct where acctsessionid = ?", zz))
+                .containsEntry("acctterminatecause", "NAS-Reboot");
+        assertThat(OwnerSqlRow.one("select acctstoptime is null as open from radacct where acctsessionid = ?", cb))
+                .containsEntry("open", true);
+    }
+
+    @Test
+    void N2_radiusRoleWritesAccountingButCannotReadIt() throws SQLException {
+        try (Connection radius =
+                DriverManager.getConnection(POSTGRES.getJdbcUrl(), "isp_radius", RADIUS_PASSWORD)) {
+            assertThatThrownBy(() -> radius.createStatement().executeQuery("select username, acctinputoctets from radacct"))
+                    .hasMessageContaining("permission denied");
+            assertThatThrownBy(() -> radius.createStatement().executeQuery("select * from network_usage_daily"))
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
+    /** One accounting request from {@code nas}; returns the response code. */
+    private String accounting(final String nas, final String status, final String session, final String username,
+                              final String extra) throws Exception {
+        final String attributes = (username.isEmpty() ? "" : "User-Name = " + username + "\n")
+                + "Acct-Status-Type = " + status + "\nAcct-Session-Id = " + session + "\nNAS-Port = 15\n"
+                + "Event-Timestamp = " + (System.currentTimeMillis() / 1000) + "\n" + extra
+                + "Packet-Src-IP-Address = " + nas + "\n";
+        final ExecResult result = freeradius.execInContainer("sh", "-c",
+                "printf '%s' \"$1\" | radclient -x -r 3 -t 3 127.0.0.1:1813 acct \"$RADIUS_LAB_SECRET\"", "sh", attributes);
+        for (final String line : result.getStdout().split("\\R")) {
+            if (line.startsWith("Received ")) {
+                return line.split(" ")[1];
+            }
+        }
+        throw new AssertionError("no accounting response: " + result.getStdout() + result.getStderr());
+    }
+
+    /** One row as the owner (outside RLS), with JDBC types. */
+    static final class OwnerSqlRow {
+        static Map<String, Object> one(final String sql, final Object... args) throws SQLException {
+            try (Connection owner = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                    var statement = owner.prepareStatement(sql)) {
+                for (int i = 0; i < args.length; i++) {
+                    statement.setObject(i + 1, args[i]);
+                }
+                try (var rs = statement.executeQuery()) {
+                    assertThat(rs.next()).as("no row for %s", args).isTrue();
+                    final Map<String, Object> row = new LinkedHashMap<>();
+                    for (int c = 1; c <= rs.getMetaData().getColumnCount(); c++) {
+                        row.put(rs.getMetaData().getColumnLabel(c), rs.getObject(c));
+                    }
+                    return row;
+                }
+            }
+        }
+    }
+
     /** As the owner, like the lab scripts: the application role cannot read or null a secret this way. */
     private void setLinePassword(final String username, final String password) throws SQLException {
         try (Connection owner =
@@ -270,7 +373,7 @@ class RadiusAuthIT extends IntegrationTest {
                         "sh",
                         "-c",
                         "printf 'User-Name = %s\\nUser-Password = %s\\nPacket-Src-IP-Address = %s\\n' \"$1\" \"$2\" \"$3\""
-                                + " | radclient -x -r 1 -t 3 127.0.0.1:1812 auth \"$RADIUS_LAB_SECRET\"",
+                                + " | radclient -x -r 3 -t 3 127.0.0.1:1812 auth \"$RADIUS_LAB_SECRET\"",
                         "sh",
                         username,
                         password,

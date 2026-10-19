@@ -124,6 +124,37 @@ isp:
       batch-size: 100
 
 ---
+# The tunnel worker (ADR 0011): the same image as the API, connected as isp_worker. It polls routers
+# and consumes network.router-poll; it runs no migrations, no API jobs, no relay and no other
+# listeners, holds no token signing key and answers HTTP only on /actuator/health.
+spring:
+  config:
+    activate:
+      on-profile: worker
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+isp:
+  worker:
+    enabled: true
+  scheduling:
+    enabled: false
+  outbox:
+    relay:
+      enabled: false
+  bootstrap:
+    enabled: false
+  auth:
+    jwt:
+      required: false
+
+---
 spring:
   config:
     activate:

@@ -70,7 +70,7 @@
 /user remove [find name=corebalt-api]
 /user add name=corebalt-api group=corebalt-read password="{{REST_PASSWORD}}" address={{HUB_A_TUNNEL_IP}}/32 \
     comment="corebalt platform monitoring"
-/ip service set www address={{MANAGEMENT_ALLOWED}}
+/ip service set www address={{MANAGEMENT_ALLOWED}} disabled=no
 /snmp community remove [find name="{{SNMP_COMMUNITY}}"]
 /snmp community add name="{{SNMP_COMMUNITY}}" addresses={{HUB_A_TUNNEL_IP}}/32 read-access=yes write-access=no
 :do { /snmp community set [find default=yes] addresses=127.0.0.1/32 } on-error={}

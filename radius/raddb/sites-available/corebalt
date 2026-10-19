@@ -44,8 +44,8 @@ server corebalt {
 	}
 
 	accounting {
-		# sql (radacct) is enabled with the network lab, step 2 of the v1 build order.
-		ok
+		# radacct (N2, N7). If the database is down the NAS gets no response and retransmits.
+		sql
 	}
 
 	post-auth {

@@ -22,7 +22,8 @@ import org.testcontainers.utility.MountableFile;
             "isp.mpesa.callback-allowed-cidrs=127.0.0.1/32,::1/128",
             "isp.mpesa.jobs.initial-delay=1h",
             "isp.mpesa.callbacks.sweep-initial-delay=1h",
-            "isp.sms.initial-delay=1h"})
+            "isp.sms.initial-delay=1h",
+            "isp.network.jobs.enabled=false"})
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 
@@ -41,6 +42,9 @@ public abstract class IntegrationTest {
 
     /** One fake Africa's Talking for the whole test JVM. */
     protected static final FakeAfricasTalking AT = new FakeAfricasTalking();
+
+    /** One fake RouterOS REST API for the whole test JVM; routers are 127.x tunnel addresses. */
+    protected static final FakeRouterOs ROUTER_OS = new FakeRouterOs();
 
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
 
@@ -70,6 +74,8 @@ public abstract class IntegrationTest {
         registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("isp.worker.routeros.port", ROUTER_OS::port);
+        registry.add("isp.worker.routeros.timeout", () -> "2s");
         registry.add("isp.auth.jwt.kid", () -> TestTokens.KID);
         registry.add("isp.auth.jwt.private-key", TestTokens::privateKeyBase64);
     }

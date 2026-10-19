@@ -1,23 +1,31 @@
 package com.corebalt.isp.network.application;
 
 import com.corebalt.isp.network.api.RouterDto;
+import com.corebalt.isp.network.api.RouterPollRequested;
 import com.corebalt.isp.network.api.RouterRequest;
 import com.corebalt.isp.network.api.RouterSecretDto;
 import com.corebalt.isp.network.domain.Router;
 import com.corebalt.isp.network.infrastructure.RadiusCredentials;
 import com.corebalt.isp.network.infrastructure.RouterRepository;
+import com.corebalt.isp.shared.audit.AuditEntry;
+import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.shared.id.UuidV7;
+import com.corebalt.isp.shared.outbox.OutboxPublisher;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.ConflictException;
 import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.shared.web.PageResponse;
 import com.corebalt.isp.subscriptions.api.RouterDirectory;
+import com.corebalt.isp.tenancy.api.SecretStore;
+import jakarta.persistence.EntityManager;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Clock;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +40,23 @@ public class RouterService implements RouterDirectory {
 
     private final RouterRepository routers;
     private final RadiusCredentials credentials;
+    private final SecretStore secrets;
+    private final JdbcClient jdbc;
+    private final EntityManager entities;
+    private final OutboxPublisher outbox;
+    private final AuditTrail audit;
     private final Clock clock;
 
-    RouterService(final RouterRepository routers, final RadiusCredentials credentials, final Clock clock) {
+    RouterService(final RouterRepository routers, final RadiusCredentials credentials, final SecretStore secrets,
+                  final JdbcClient jdbc, final EntityManager entities, final OutboxPublisher outbox, final AuditTrail audit,
+                  final Clock clock) {
         this.routers = routers;
         this.credentials = credentials;
+        this.secrets = secrets;
+        this.jdbc = jdbc;
+        this.entities = entities;
+        this.outbox = outbox;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -78,6 +98,66 @@ public class RouterService implements RouterDirectory {
         return routers.existsById(routerId);
     }
 
+    /**
+     * Sets the RouterOS REST login the tunnel worker polls with (write-only, envelope-encrypted,
+     * T4); the router becomes UNKNOWN until its first poll.
+     */
+    @Transactional
+    public RouterDto setRestCredential(final UUID routerId, final String username, final String password) {
+        final Router router = load(routerId);
+        if (username == null || username.isBlank() || username.length() > 64) {
+            throw InvalidRequestException.of("username", "1 to 64 characters");
+        }
+        if (password == null || password.length() < 12 || password.length() > 128) {
+            throw InvalidRequestException.of("password", "12 to 128 characters");
+        }
+        final byte[] blob = secrets.encrypt(RouterPoller.REST_PURPOSE + router.getId(), password);
+        jdbc.sql("""
+                        update network_router
+                        set rest_username = :username, rest_password_enc = :blob, rest_key_version = :version,
+                            status = 'UNKNOWN', poll_misses = 0, offline_since = null, last_poll_error = null, updated_at = :now
+                        where id = :id
+                        """)
+                .param("username", username.strip())
+                .param("blob", blob)
+                .param("version", java.nio.ByteBuffer.wrap(blob, 1, 4).getInt())
+                .param("now", java.sql.Timestamp.from(clock.instant()))
+                .param("id", routerId)
+                .update();
+        audit.record(AuditEntry.of("network.router_rest_credential_set", "router", routerId, Map.of("username", username.strip())));
+        routers.flush();
+        return toDto(reload(routerId));
+    }
+
+    @Transactional
+    public RouterDto removeRestCredential(final UUID routerId) {
+        load(routerId);
+        jdbc.sql("""
+                        update network_router
+                        set rest_username = null, rest_password_enc = null, rest_key_version = null, status = 'NOT_MONITORED',
+                            poll_misses = 0, offline_since = null, last_poll_error = null, updated_at = :now
+                        where id = :id
+                        """)
+                .param("now", java.sql.Timestamp.from(clock.instant()))
+                .param("id", routerId)
+                .update();
+        audit.record(AuditEntry.of("network.router_rest_credential_removed", "router", routerId));
+        return toDto(reload(routerId));
+    }
+
+    /** Asks the tunnel worker to poll now (it also polls every 60 s on its own). */
+    @Transactional
+    public void requestPoll(final UUID routerId) {
+        load(routerId);
+        outbox.publish(new RouterPollRequested(UuidV7.next(clock), TenantContext.requireTenantId(), clock.instant(), routerId));
+    }
+
+    private Router reload(final UUID routerId) {
+        final Router router = load(routerId);
+        entities.refresh(router);
+        return router;
+    }
+
     private Router load(final UUID routerId) {
         return routers.findById(routerId).orElseThrow(() -> new NotFoundException("Router"));
     }
@@ -100,6 +180,17 @@ public class RouterService implements RouterDirectory {
                 router.getId(),
                 router.getName(),
                 router.getTunnelIpA().getHostAddress(),
+                router.getStatus(),
+                router.getRestUsername(),
+                router.getLastSeenAt(),
+                router.getOfflineSince(),
+                router.getLastPolledAt(),
+                router.getLastPollError(),
+                router.getLastAccountingAt(),
+                router.getRouterosVersion(),
+                router.getBoardName(),
+                router.getUptimeSeconds(),
+                router.getCpuLoad(),
                 router.getCreatedAt(),
                 router.getUpdatedAt());
     }

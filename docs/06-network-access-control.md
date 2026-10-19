@@ -82,15 +82,18 @@ The platform verifies the script worked by polling `/system/resource` over the t
 
 ## Accounting and usage
 
-1. Routers send Accounting Start, Interim-Update every 5 minutes and Stop to the RADIUS node that accepted the login.
-2. Rows land in `radacct` monthly partitions; a trigger fills `tenant_id` and `subscription_id` from the username.
-3. An hourly job rolls `radacct` into `usage_daily` per subscription in the tenant's time zone; the portal and reports read only the roll-up.
-4. Fair-use: when a subscription's cycle usage passes `fup_bytes`, `UsageThresholdReached` triggers a CoA to the throttle speed until the next renewal.
-5. Active sessions for the dashboard are `radacct` rows with no stop time, cross-checked against `/ppp/active` over REST when staff open a router page.
+1. Routers send Accounting Start, Interim-Update every 5 minutes and Stop to the RADIUS node that accepted the login. Octets fold in the Gigawords counters (`gigawords << 32 + octets`). The NAS recorded is the address the packet came from (the router's tunnel IP), never the `NAS-IP-Address` the router claims (T3).
+2. Rows land in `radacct`, partitioned by month on the start time; a `DEFAULT` partition catches anything outside the created months. A trigger (owner-run) fills `tenant_id`, `router_id` and `subscription_id` from the tunnel address and the username, so FreeRADIUS touches no other table (N2). A retransmitted packet changes nothing; an Interim-Update or Stop whose Start was lost still creates the session.
+3. Partitions: a job creates the current month and the next 3, moving any rows the `DEFAULT` partition holds for them, and drops months older than 13 (N7).
+4. Stale sessions: a session with no update for 15 minutes is closed with `acctterminatecause = 'Stale'` and its last update as stop time. If the router reports it again, the same row reopens.
+5. Every 15 minutes a job adds each session's growth since the last run (a per-session high-water mark, never negative) to `network_usage_daily` for the tenant-local day the job runs in. The portal, dashboard and reports read only `network_usage_daily` (N7).
+6. Fair-use: when a subscription's cycle usage passes `fup_bytes`, `UsageThresholdReached` triggers a CoA to the throttle speed until the next renewal.
+7. Active sessions for the dashboard are `radacct` rows with no stop time, cross-checked against `/ppp/active` over REST when staff open a router page.
 
 ## Router monitoring
 
-- SNMP every 60 seconds: CPU, memory, uptime, interface counters.
-- RouterOS REST every 5 minutes: active PPP sessions, firmware version.
-- WireGuard handshake age from the hubs: a peer silent for 5 minutes marks the router `OFFLINE`, publishes `RouterOffline` and alerts the tenant's staff.
+- Online means the RouterOS REST API answers `GET /rest/system/resource` over the tunnel. The tunnel worker ([ADR 0011](adr/0011-tunnel-worker.md)) polls every monitored router every 60 seconds with the router's read-only REST login, which staff enter once (stored envelope-encrypted, never returned; T4).
+- Three missed polls in a row mark the router `OFFLINE`, publish `RouterOffline` and raise a `ROUTER_OFFLINE` staff alert for that router; the next answer marks it `ONLINE`, publishes `RouterOnline` and clears the alert. A router without a REST login is `NOT_MONITORED`; one never polled yet is `UNKNOWN`.
+- Each answer records RouterOS version, board, uptime and CPU load. Accounting activity is only a secondary "last heard" (`last_accounting_at`), never the online signal.
+- Staff can ask for a poll now (`RouterPollRequested`). SNMP counters and traffic come later.
 - The router page shows status, tunnel IP, CPU, RAM, uptime, online users and traffic, like: Utawala-01 · Online · CPU 23% · RAM 41% · 62 days · 283 users · ↓614 Mbps ↑91 Mbps.

@@ -14,6 +14,7 @@ services:
       ISP_DB_OWNER_PASSWORD: ${ISP_DB_OWNER_PASSWORD:?set in infra/.env}
       ISP_DB_APP_PASSWORD: ${ISP_DB_APP_PASSWORD:?set in infra/.env}
       RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD:?set in infra/.env}
+      ISP_DB_WORKER_PASSWORD: ${ISP_DB_WORKER_PASSWORD:?set in infra/.env}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -131,6 +132,40 @@ services:
       RADIUS_DB_USER: isp_radius
       RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD}
       RADIUS_LAB_SECRET: ${RADIUS_LAB_SECRET:?set in infra/.env}
+    depends_on:
+      wireguard:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # Tunnel worker (ADR 0011): the backend image in worker mode, the only process that talks to
+  # routers (RouterOS REST poll every 60 s; CoA later) and the only one that decrypts router REST
+  # credentials. Local development shares the hub container's network namespace, as FreeRADIUS does;
+  # on the Hetzner and Nairobi hosts WireGuard runs on the host (wg-quick) and the worker uses host
+  # networking instead (infra/README.md). One replica per hub. No published port: health only.
+  tunnel-worker:
+    build:
+      context: ../backend
+    network_mode: "service:wireguard"
+    environment:
+      SPRING_PROFILES_ACTIVE: local,worker
+      SERVER_PORT: "8090"
+      ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
+      ISP_DB_APP_USER: isp_worker
+      ISP_DB_APP_PASSWORD: ${ISP_DB_WORKER_PASSWORD:?set in infra/.env}
+      ISP_RABBITMQ_HOST: rabbitmq
+      ISP_RABBITMQ_USER: ${RABBITMQ_USER:-isp}
+      ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      ISP_REDIS_HOST: redis
+      # Decrypts router REST credentials (T4); holds no token signing key.
+      ISP_MASTER_KEY: ${ISP_MASTER_KEY:?set in infra/.env}
+      ISP_WORKER_HUB: A
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8090 && printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
     depends_on:
       wireguard:
         condition: service_healthy

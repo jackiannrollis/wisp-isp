@@ -14,6 +14,7 @@ Each record states the context, the decision and its consequences at the time it
 | [0008](0008-two-radius-nodes-one-in-nairobi.md) | Two RADIUS nodes, one in Nairobi, before a second tenant | Accepted |
 | [0009](0009-radius-credentials-readable-only-by-radius.md) | RADIUS credentials are stored readable only by FreeRADIUS, not envelope-encrypted | Accepted |
 | [0010](0010-self-issued-jwt-and-sign-in.md) | Self-issued RS256 tokens, rotating refresh tokens and per-request revocation | Accepted |
+| [0011](0011-tunnel-worker.md) | A tunnel worker, the only process that talks to routers | Accepted |
 
 ## Writing a new record
 

@@ -51,6 +51,7 @@ $HubAddress = Get-EnvValue $values "WG_HUB_ADDRESS" "10.200.0.1/24"
 $HubTunnelIp = $HubAddress.Split("/")[0]
 $HubPrefix = $HubAddress.Split("/")[1]
 $WgPort = Get-EnvValue $values "WG_PORT" "51820"
+$BackendPort = Get-EnvValue $values "BACKEND_PORT" "8080"
 $PayPagePort = Get-EnvValue $values "CADDY_PAYPAGE_PORT" "8089"
 
 # --- helpers -------------------------------------------------------------------------------------
@@ -228,6 +229,7 @@ switch ($Command) {
         Write-Host "Applying lab base and onboarding script to the router"
         Invoke-Ros $router (Format-Template "lab-base.rsc.tmpl" @{ ROUTER_NAME = "cb-lab-chr-1"; WAN_INTERFACE = "ether1" }) | Out-Null
         $hubKey = (Invoke-Compose exec -T wireguard wireguard-hub public-key | Select-Object -Last 1).Trim()
+        $restPassword = New-RandomToken
         $onboarding = Format-Template "onboarding.rsc.tmpl" @{
             ROUTER_NAME        = "cb-lab-chr-1"
             ROUTER_ID          = "01900000-0000-7000-8000-0000000000a2"
@@ -244,7 +246,7 @@ switch ($Command) {
             PPPOE_INTERFACE    = "ether2"
             PORTAL_ADDRESS     = $hostAddress
             PAYPAGE_PORT       = $PayPagePort
-            REST_PASSWORD      = New-RandomToken
+            REST_PASSWORD      = $restPassword
             SNMP_COMMUNITY     = New-RandomToken
             # LAB ONLY: production allows the hub tunnel only (N6); the lab also manages over the Default Switch.
             MANAGEMENT_ALLOWED = "$(Get-NetworkOf $HubAddress),$wanNetwork"
@@ -257,6 +259,16 @@ switch ($Command) {
 
         Write-Host "Loading lab fixtures and restarting FreeRADIUS"
         & (Join-Path $PSScriptRoot "seed.ps1") | Out-Null
+
+        # The tunnel worker polls the router's REST API with this login (docs/06 Monitoring); the
+        # API stores it envelope-encrypted and never returns it. Sent in the body, never as an argument.
+        Write-Host "Giving the platform the router's REST login (monitoring)"
+        $api = "http://localhost:$BackendPort/api/v1"
+        $session = Invoke-RestMethod -Method Post -Uri "$api/auth/login" -ContentType "application/json" `
+            -Body (@{ tenant = "CB"; email = "lab-admin@corebalt.example.test"; password = "lab-admin-password" } | ConvertTo-Json)
+        Invoke-RestMethod -Method Put -Uri "$api/routers/01900000-0000-7000-8000-0000000000a2/rest-credential" `
+            -Headers @{ Authorization = "Bearer $($session.accessToken)" } -ContentType "application/json" `
+            -Body (@{ username = "corebalt-api"; password = $restPassword } | ConvertTo-Json) | Out-Null
 
         $ping = Invoke-Ros $router ":put [/ping $HubTunnelIp count=3]"
         Write-Host "Tunnel: router -> hub $HubTunnelIp, $($ping.Trim())/3 replies"

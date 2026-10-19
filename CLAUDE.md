@@ -19,8 +19,10 @@ payments, suspense and reconciliation (payments); ledger and receipts (billing);
 `CreditApplied` (subscriptions). Notifications: SMS through each tenant's Africa's Talking account,
 one payment message per payment, reminders in the sending window, templates with part counts.
 Daraja and Africa's Talking are verified against fakes only; their sandbox scripts have not run.
-Next is step 8, dashboard and portal. Not yet: the network-side CoA/Disconnect consumer, roles and
-token issuing (identity).
+Step 8 (dashboard and portal) is in progress. Done: sign-in and tokens (ADR 0010: staff, portal,
+platform admins, impersonation), RADIUS accounting into partitioned `radacct` with the usage roll-up,
+and the tunnel worker (ADR 0011) polling routers over RouterOS REST. Not yet: the CoA/Disconnect
+consumer in the worker, the dashboard and portal APIs, and both Angular apps.
 
 ## Commands
 

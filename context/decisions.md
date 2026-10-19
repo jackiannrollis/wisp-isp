@@ -70,6 +70,11 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-20 | A role requires TOTP when it holds staff.manage, settings.secrets, billing.adjust, payments.record_manual, payments.assign or payments.reconcile; computed from the codes | A2 ("finance and admin roles") made checkable | ADR 0010, Roles.NEEDS_2FA |
 | 2026-10-20 | Portal sign-in codes are sent synchronously and logged with the code masked; per-address limits are 10/10 min and 50/day (per phone 3/10 min and 10/day) | M3; carrier-grade NAT puts many customers behind one address | ADR 0010, PortalSignIn |
 | 2026-10-20 | First platform admin from ISP_BOOTSTRAP_ADMIN_* only while the table is empty; break-glass is a container command; lab admin only in infra/lab/seed.sql | No HTTP path to platform control without TOTP | ADR 0010 |
+| 2026-10-20 | radacct partitioned by month with a DEFAULT partition; owner-run functions create 3 months ahead (moving DEFAULT rows) and drop after 13; a SECURITY DEFINER trigger resolves tenant, router and line from the sending tunnel address | FreeRADIUS writes only radacct (N2); the NAS cannot be spoofed (T3) | V202610201600, radius/raddb/mods-available/sql |
+| 2026-10-20 | Usage roll-up every 15 min from a per-session high-water mark into the tenant-local day of the run; advisory lock per tenant | No double counting across API replicas; counters never subtract | Accounting.rollUpUsage |
+| 2026-10-20 | Router online = RouterOS REST /system/resource answered over the tunnel, polled every 60 s; 3 misses = OFFLINE; accounting is only "last heard" | Step 8 decision; supersedes the WireGuard-handshake signal in docs/06 | docs/06 Router monitoring |
+| 2026-10-20 | Tunnel worker: same image, profile worker, role isp_worker with enumerated grants (pinned by DatabaseGrantsIT); health-only HTTP; one replica per hub | The API never talks to routers; only the worker holds router credentials | [ADR 0011](../docs/adr/0011-tunnel-worker.md) |
+| 2026-10-20 | CoA signing: isp_worker will read radius_client_v3 for the router secret at CoA time, never cached (user decision, step 8) | ADR 0009 keeps the API from reading secrets | ADR 0011; ADR 0009 amended with the CoA slice |
 
 ## How to add a row
 
