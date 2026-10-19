@@ -42,6 +42,13 @@ class RadiusAuthIT extends IntegrationTest {
 
     @BeforeAll
     void seedAndStartFreeRadius() throws Exception {
+        // Build the image first: a cold build takes minutes, and the fixtures' expiry times are
+        // relative to the moment they are seeded (S4 assertions depend on that).
+        final ImageFromDockerfile image =
+                new ImageFromDockerfile("corebalt-isp-radius-it", false)
+                        .withFileFromPath(".", Path.of("..", "radius"));
+        image.get();
+
         // Runs after the Spring context, so Flyway has created the lab tables and v2 views.
         POSTGRES.copyFileToContainer(
                 MountableFile.forHostPath(Path.of("..", "infra", "lab", "seed.sql")), "/tmp/seed.sql");
@@ -63,9 +70,7 @@ class RadiusAuthIT extends IntegrationTest {
         final int pgPort = POSTGRES.getMappedPort(5432);
         Testcontainers.exposeHostPorts(pgPort);
         freeradius =
-                new GenericContainer<>(
-                                new ImageFromDockerfile("corebalt-isp-radius-it", false)
-                                        .withFileFromPath(".", Path.of("..", "radius")))
+                new GenericContainer<>(image)
                         .withEnv("RADIUS_DB_HOST", "host.testcontainers.internal")
                         .withEnv("RADIUS_DB_PORT", String.valueOf(pgPort))
                         .withEnv("RADIUS_DB_NAME", "isp")

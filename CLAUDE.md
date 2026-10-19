@@ -10,8 +10,10 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 ## Current phase
 
-Step 1 of the v1 build order (docs/09) is done: the foundation. No business features exist yet.
-Build the next steps in order; each should end with something demonstrable.
+Step 1 of the v1 build order (docs/09), the foundation, is done. Step 2, the network lab, is in
+progress: FreeRADIUS reads `v_radius_auth_v2` over two lab tables (`network_lab_router`,
+`network_lab_line`) that step 3 replaces with real tables and a v3 view. No business features exist
+yet. Build the next steps in order; each should end with something demonstrable.
 
 ## Commands
 
@@ -54,11 +56,16 @@ First time: copy `infra/.env.example` to `infra/.env` and change the passwords.
 | Stop (add `-v` to drop data) | `infra\scripts\down.ps1` | `infra/scripts/down.sh` |
 | Follow logs | `infra\scripts\logs.ps1 backend` | `infra/scripts/logs.sh backend` |
 | Run migrations only | `infra\scripts\migrate.ps1` | `infra/scripts/migrate.sh` |
-| RADIUS lab login (Access-Reject expected until step 3) | `infra\scripts\radtest.ps1` | `infra/scripts/radtest.sh` |
+| Load the network-lab fixtures (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
+| RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
 | All checks (what CI runs) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
-Services: API :8080, Caddy :8088, PostgreSQL :5432, RabbitMQ :5672 (UI :15672), Redis :6379,
-FreeRADIUS :1812/:1813 UDP (ports configurable in `.env`).
+Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672
+(UI :15672), Redis :6379, WireGuard hub :51820 UDP, FreeRADIUS :1812/:1813 UDP (ports configurable
+in `.env`). FreeRADIUS runs in the hub's network namespace, so routers are matched by tunnel address.
+
+Network lab with two MikroTik CHR VMs in Hyper-V (Windows only): `infra\lab\scripts\lab.ps1`
+(`create`, `onboard`, `check`, `coa`, `disconnect`, ...); runbook in `infra/lab/README.md`.
 
 ## Where code goes
 

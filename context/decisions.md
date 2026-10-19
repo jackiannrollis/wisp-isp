@@ -24,6 +24,10 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-17 | Money as integer KES minor units; UTC timestamps; UUIDv7 IDs | Exact arithmetic, no time-zone bugs, time-ordered keys | context/conventions.md |
 | 2026-10-18 | `outbox_event` is transport, not append-only: app role gets INSERT and column-level UPDATE on `published_at`, `attempts`, `last_error`; no DELETE; owner job purges published rows after 7 days | The relay must mark rows sent (docs/02); ledger and audit log stay append-only | context/conventions.md |
 | 2026-10-19 | Local builds accept JDK 25 or newer (enforcer `[25,)`); bytecode stays `--release 25`; CI and the Docker image keep building and testing on JDK 25 | Developers may run newer JDKs (27 locally); Java 25 LTS remains the production runtime (ADR 0001) | backend/pom.xml, CLAUDE.md |
+| 2026-10-19 | FreeRADIUS matches the router by the packet source address (`Packet-Src-IP-Address` = tunnel IP), not `NAS-IP-Address`; every NAS, including lab radtest, comes from `radius_client_v*` | The source address is what WireGuard authenticates; NAS-IP-Address is asserted by the client (T3) | radius/raddb/mods-available/sql |
+| 2026-10-19 | FreeRADIUS runs in the WireGuard hub's network namespace (compose `network_mode: service:wireguard`) | Routers are seen by tunnel address and CoA/Disconnect leave from the hub address the router trusts (N5, N6) | infra/docker-compose.yml |
+| 2026-10-19 | The local WireGuard hub container runs as root with only `NET_ADMIN`, read-only root filesystem and no-new-privileges; path-scoped Trivy exception | Docker Desktop ignores file capabilities, so an unprivileged user cannot create `wg0` | infra/wireguard/Dockerfile, .trivyignore.yaml |
+| 2026-10-19 | Step-2 lab tables (`network_lab_router`, `network_lab_line`) live in a versioned migration behind `v_radius_auth_v2`; step 3 publishes v3 over real tables and drops them | FreeRADIUS needs real views to test against before customers and subscriptions exist | V202610191000 migration |
 
 ## How to add a row
 
