@@ -25,6 +25,14 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             + "and p.channel in ('MPESA_PAYBILL', 'MPESA_STK')")
     List<String> findMpesaReferencesBetween(Instant from, Instant to);
 
+    @Query("select p from Payment p where p.receivedAt >= :from and p.receivedAt <= :to "
+            + "and p.channel in ('MPESA_PAYBILL', 'MPESA_STK')")
+    List<Payment> findMpesaPaymentsBetween(Instant from, Instant to);
+
+    /** Matched payments by when the money was received (all channels), for the uncredited check. */
+    @Query("select p from Payment p where p.status = 'MATCHED' and p.receivedAt >= :from and p.receivedAt <= :to")
+    List<Payment> findMatchedReceivedBetween(Instant from, Instant to);
+
     Page<Payment> findByCustomerId(UUID customerId, Pageable page);
 
     @Query("select p from Payment p where p.status = 'MATCHED' and p.matchedAt >= :from and p.matchedAt < :to")

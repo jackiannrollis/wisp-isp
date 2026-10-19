@@ -69,6 +69,8 @@ services:
       ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       # Tenant-secret master key (docs/07): outside the database, only in the environment.
       ISP_MASTER_KEY: ${ISP_MASTER_KEY:?set in infra/.env}
+      # Public HTTPS origin Safaricom calls (a tunnel to Caddy :8088 in the lab), docs/05.
+      CALLBACK_BASE_URL: ${CALLBACK_BASE_URL:-http://localhost:8088}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

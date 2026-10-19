@@ -32,6 +32,9 @@ public final class Permissions {
     /** Start an M-Pesa STK Push for a customer. */
     public static final String PAYMENTS_STK = "payments.stk";
 
+    /** Upload M-Pesa statements and run Transaction Status investigations. */
+    public static final String PAYMENTS_RECONCILE = "payments.reconcile";
+
     private Permissions() {}
 
     static AbstractAuthenticationToken authentication(final Jwt jwt) {

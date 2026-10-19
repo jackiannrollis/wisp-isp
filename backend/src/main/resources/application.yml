@@ -110,9 +110,16 @@ spring:
       on-profile: local
 isp:
   mpesa:
-    # Local only: callbacks from this machine and the compose network (lab replays, the sandbox
-    # script through a tunnel). Never a 0.0.0.0/0 default.
-    callback-allowed-cidrs: 127.0.0.1/32,::1/128,172.16.0.0/12
+    # Local: the Safaricom ranges (a sandbox callback through a tunnel arrives with Safaricom's
+    # address in X-Forwarded-For) plus this machine and private networks for lab replays (Docker
+    # Desktop forwards host traffic from 192.168.65.x).
+    # Never a 0.0.0.0/0 default. If the sandbox calls from another address, the backend logs
+    # "Callback refused from <ip>"; add it through ISP_MPESA_CALLBACKALLOWEDCIDRS.
+    callback-allowed-cidrs: >-
+      196.201.214.200/32,196.201.214.206/32,196.201.213.114/32,196.201.214.207/32,
+      196.201.214.208/32,196.201.213.44/32,196.201.212.127/32,196.201.212.138/32,
+      196.201.212.129/32,196.201.212.136/32,196.201.212.74/32,196.201.212.69/32,
+      127.0.0.1/32,::1/128,172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
 logging:
   level:
     com.corebalt.isp: DEBUG

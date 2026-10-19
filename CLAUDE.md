@@ -10,15 +10,16 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 ## Current phase
 
-Steps 1, 3, 4 and 5 of the v1 build order (docs/09) are done; step 2, the network lab, is done
+Steps 1, 3, 4, 5 and 6 of the v1 build order (docs/09) are done; step 2, the network lab, is done
 except its Hyper-V half (`infra/lab/scripts/lab.ps1`), which has not run yet, so CoA/Disconnect,
 the restricted-mode rules and Session-Timeout on a real router are unproven (status note in
 `infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v4`; `AccessPolicy`
-agrees with the view under test (S3); credentials follow ADR 0009. Money: manual payments
-(payments) publish `PaymentReceived`; billing credits the append-only ledger, issues receipts and
-publishes `WalletCredited`; subscriptions renews on credit and, from stored credit, shortly before
-expiry; package changes charge proration. Next is step 6, M-Pesa. Not yet: the network-side
-CoA/Disconnect consumer, admin screens (step 8), roles and token issuing (identity).
+agrees with the view under test (S3); credentials follow ADR 0009. Money: M-Pesa C2B and STK
+callbacks (store, ack, process; P1-P3, P6), manual payments, the suspense queue and statement
+reconciliation in payments; the ledger, receipts and `WalletCredited` in billing; renewals in
+subscriptions. Daraja is verified against a fake only: the sandbox round-trip
+(`infra/scripts/daraja-sandbox.ps1`) has not run. Next is step 7, notifications. Not yet: the
+network-side CoA/Disconnect consumer, admin screens (step 8), roles and token issuing (identity).
 
 ## Commands
 
@@ -63,6 +64,7 @@ First time: copy `infra/.env.example` to `infra/.env` and change the passwords.
 | Run migrations only | `infra\scripts\migrate.ps1` | `infra/scripts/migrate.sh` |
 | Load the network-lab fixtures (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
 | RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
+| Daraja sandbox round-trip (needs `DARAJA_SANDBOX_*` and an https `CALLBACK_BASE_URL` in `.env`; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
 | All checks (what CI runs) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
 Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672
@@ -79,8 +81,10 @@ Network lab with two MikroTik CHR VMs in Hyper-V (Windows only): `infra\lab\scri
   allowed dependencies are declared in each module's `package-info.java` and `ModularityTest`
   enforces them.
 - `com.corebalt.isp.shared` is the shared kernel (OPEN module): `Money`, `TenantContext`,
-  `TenantIterator`, `UuidV7`, the outbox (`OutboxPublisher`, `OutboxRelay`, `IdempotentConsumer`),
-  problem details and security. No business rules go there.
+  `TenantIterator`, `UuidV7`, the outbox (`OutboxPublisher`, `OutboxRelay`, `IdempotentConsumer`,
+  `EventQueues`), the audit trail interface (`AuditTrail`, implemented by identity), idempotency keys,
+  problem details and security. No business rules go there. Tenant secrets go through
+  `tenancy.api.SecretStore` (envelope encryption, master key `ISP_MASTER_KEY`).
 - Migrations: `backend/src/main/resources/db/migration/V<yyyyMMddHHmm>__<module>_<description>.sql`.
 - FreeRADIUS configuration: `radius/`; views it reads are versioned, never altered in place.
 

@@ -1,6 +1,7 @@
 # Local reverse proxy. Production TLS and hostnames (acme.corebalt.app, ...) come with step 9.
 #   http://localhost:8088/api/*        -> backend
 #   http://localhost:8088/actuator/*   -> backend (health only is public)
+#   http://localhost:8088/callbacks/*  -> backend (M-Pesa callbacks; the public tunnel points here)
 #   http://localhost:8088/portal/*     -> portal dev server on the host (ng serve, port 4201)
 #   everything else                    -> admin dev server on the host (ng serve, port 4200)
 #   http://<host>:8089/*               -> lab walled-garden pay page (network lab, step 2)
@@ -18,7 +19,7 @@
 		-Server
 	}
 
-	@api path /api/* /actuator/health /actuator/health/*
+	@api path /api/* /actuator/health /actuator/health/* /callbacks/*
 	handle @api {
 		reverse_proxy backend:8080
 	}

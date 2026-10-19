@@ -6,6 +6,7 @@ import com.corebalt.isp.payments.application.MpesaSettings.SettingsRequest;
 import com.corebalt.isp.payments.application.MpesaSettings.SettingsView;
 import com.corebalt.isp.payments.application.PaymentService;
 import com.corebalt.isp.payments.application.PaymentService.SuspenseItem;
+import com.corebalt.isp.payments.application.ReconciliationService;
 import com.corebalt.isp.payments.application.StkService;
 import com.corebalt.isp.payments.application.StkService.StkRequestDto;
 import com.corebalt.isp.shared.money.MoneyDto;
@@ -40,14 +41,52 @@ class MpesaController {
     private final MpesaSettings settings;
     private final StkService stk;
     private final PaymentService payments;
+    private final ReconciliationService reconciliation;
     private final IdempotentRequests idempotent;
 
     MpesaController(
-            final MpesaSettings settings, final StkService stk, final PaymentService payments, final IdempotentRequests idempotent) {
+            final MpesaSettings settings,
+            final StkService stk,
+            final PaymentService payments,
+            final ReconciliationService reconciliation,
+            final IdempotentRequests idempotent) {
         this.settings = settings;
         this.stk = stk;
         this.payments = payments;
+        this.reconciliation = reconciliation;
         this.idempotent = idempotent;
+    }
+
+    @PostMapping(path = "/api/v1/payments/reconciliations", consumes = {"text/csv", "text/plain"})
+    @PreAuthorize("hasAuthority('payments.reconcile')")
+    @Operation(summary = "Compare an M-Pesa statement (CSV export) with recorded payments, both directions")
+    ResponseEntity<ReconciliationService.RunDto> reconcile(@RequestBody final String csv) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(reconciliation.importStatement(csv));
+    }
+
+    @GetMapping("/api/v1/payments/reconciliations")
+    @PreAuthorize("hasAuthority('payments.reconcile')")
+    @Operation(summary = "Reconciliation runs, newest first")
+    PageResponse<ReconciliationService.RunDto> reconciliations(
+            @RequestParam(defaultValue = "0") final int page, @RequestParam(defaultValue = "20") final int size) {
+        return reconciliation.list(PageRequests.of(page, size, null, Set.of(), Sort.unsorted()));
+    }
+
+    @GetMapping("/api/v1/payments/reconciliations/{id}")
+    @PreAuthorize("hasAuthority('payments.reconcile')")
+    @Operation(summary = "One reconciliation run with its report")
+    ReconciliationService.RunDto reconciliationRun(@PathVariable final UUID id) {
+        return reconciliation.get(id);
+    }
+
+    record InvestigateRequest(@NotNull @Size(min = 8, max = 20) String transactionId) {}
+
+    @PostMapping("/api/v1/payments/transaction-status")
+    @PreAuthorize("hasAuthority('payments.reconcile')")
+    @Operation(summary = "Ask Daraja about a transaction missing from the platform; a completed one arrives as a payment")
+    ResponseEntity<java.util.Map<String, String>> investigate(@Valid @RequestBody final InvestigateRequest request) {
+        return ResponseEntity.accepted().body(java.util.Map.of("conversationId",
+                String.valueOf(reconciliation.investigate(request.transactionId()))));
     }
 
     @PutMapping("/api/v1/settings/mpesa")
