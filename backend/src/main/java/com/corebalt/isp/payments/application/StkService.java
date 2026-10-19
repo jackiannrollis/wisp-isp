@@ -22,13 +22,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * STK Push (docs/05 STK Push, P6). The request row is committed before Daraja is called, and Daraja
- * is never called inside a transaction. State changes happen under the row lock:
+ * STK Push (docs/05 STK Push, P6). The request row and its CheckoutRequestID are committed in their
+ * own transactions ({@code REQUIRES_NEW}), before and right after the Daraja call, so a result
+ * callback that arrives at once finds the request even while the API request (and its
+ * Idempotency-Key row) is still open. State changes happen under the row lock:
  *
  * <pre>
  * PENDING  -> COMPLETED   result callback with ResultCode 0, or a query saying 0
@@ -53,6 +56,7 @@ public class StkService {
 
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
+    private final TransactionTemplate ownTransaction;
     private final CustomerFacade customers;
     private final MpesaSettings settings;
     private final DarajaClient daraja;
@@ -69,6 +73,8 @@ public class StkService {
             final Clock clock) {
         this.jdbc = jdbc;
         this.tx = tx;
+        this.ownTransaction = new TransactionTemplate(tx.getTransactionManager());
+        this.ownTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.customers = customers;
         this.settings = settings;
         this.daraja = daraja;
@@ -76,7 +82,7 @@ public class StkService {
         this.clock = clock;
     }
 
-    /** Starts a push to the customer's phone (or {@code phone}); runs outside any transaction. */
+    /** Starts a push to the customer's phone (or {@code phone}). */
     public StkRequestDto initiate(final UUID customerId, final Money amount, final String phone) {
         if (!amount.isPositive() || amount.minorUnits() % 100 != 0) {
             throw InvalidRequestException.of("amount", "M-Pesa takes whole shillings");
@@ -91,7 +97,7 @@ public class StkService {
         final String callbackUrl = tx.execute(s -> settings.callbackUrl("stk"));
         final UUID id = UuidV7.next(clock);
         final Instant now = clock.instant();
-        tx.executeWithoutResult(s -> jdbc.sql("""
+        ownTransaction.executeWithoutResult(s -> jdbc.sql("""
                         insert into payments_stk_request
                             (id, tenant_id, customer_id, amount_minor, phone, account_ref, status, created_at, updated_at)
                         values (:id, :tenantId, :customerId, :amount, :phone, :ref, 'PENDING', :now, :now)
@@ -107,7 +113,7 @@ public class StkService {
         try {
             final DarajaClient.StkPushResult pushed = daraja.stkPush(
                     credentials, amount.minorUnits() / 100, target.substring(1), customer.number(), "Internet", callbackUrl);
-            tx.executeWithoutResult(s -> jdbc.sql("""
+            ownTransaction.executeWithoutResult(s -> jdbc.sql("""
                             update payments_stk_request
                             set checkout_request_id = :checkout, merchant_request_id = :merchant, updated_at = :now
                             where id = :id
@@ -118,7 +124,7 @@ public class StkService {
                     .param("id", id)
                     .update());
         } catch (DarajaClient.DarajaException e) {
-            tx.executeWithoutResult(s -> finish(id, "FAILED", e.errorCode(), "push refused"));
+            ownTransaction.executeWithoutResult(s -> finish(id, "FAILED", e.errorCode(), "push refused"));
         }
         return get(id);
     }

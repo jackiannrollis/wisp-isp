@@ -189,6 +189,21 @@ class MpesaIT extends IntegrationTest {
     }
 
     @Test
+    void P6_theRequestIsCommittedBeforeDarajaIsCalledAndTheCheckoutIdRightAfter() throws Exception {
+        final String checkout = pushReturns();
+        final java.util.concurrent.atomic.AtomicLong pendingSeenByDaraja = new java.util.concurrent.atomic.AtomicLong(-1);
+        DARAJA.beforeNextAnswer("/mpesa/stkpush/v1/processrequest", () -> pendingSeenByDaraja.set(OwnerSql.client()
+                .sql("select count(*) from payments_stk_request where tenant_id = :t and status = 'PENDING'")
+                .param("t", tenant.id()).query(Long.class).single()));
+        push(wanjiku, 100_000);
+        assertThat(pendingSeenByDaraja.get()).as("PENDING row visible to another connection during the push").isOne();
+        // A result callback that arrives at once is matched to the request, not dropped as unknown.
+        final String txn = txn();
+        callback("stk", fixture("stk-callback-success.json", Map.of("CHECKOUT", checkout, "AMOUNT", "1000", "TRANS_ID", txn)));
+        assertThat(awaitPayment(txn)).containsEntry("channel", "MPESA_STK").containsEntry("customer_id", UUID.fromString(wanjiku));
+    }
+
+    @Test
     void stkFailuresAreRecordedWithTheirCode() throws Exception {
         for (final String[] failure : new String[][] {
                 {"1032", "Request cancelled by user"}, {"1037", "DS timeout user cannot be reached"}, {"2001", "The initiator information is invalid."}}) {
