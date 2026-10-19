@@ -23,7 +23,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * The real FreeRADIUS image (radius/) reading {@code radius_client_v3} and {@code v_radius_auth_v3}
+ * The real FreeRADIUS image (radius/) reading {@code radius_client_v3} and {@code v_radius_auth_v4}
  * as {@code isp_radius}, over the real subscription, package, tenant, router and credential tables,
  * loaded with the same fixtures as the developer lab (infra/lab/seed.sql). Logins are sent with radclient inside the
  * container, from 127.0.0.1 (tenant CB's NAS) or 127.0.0.2 (tenant ZZ's NAS).
@@ -49,7 +49,7 @@ class RadiusAuthIT extends IntegrationTest {
                         .withFileFromPath(".", Path.of("..", "radius"));
         image.get();
 
-        // Runs after the Spring context, so Flyway has created the tables and v3 views.
+        // Runs after the Spring context, so Flyway has created the tables and views.
         POSTGRES.copyFileToContainer(
                 MountableFile.forHostPath(Path.of("..", "infra", "lab", "seed.sql")), "/tmp/seed.sql");
         final ExecResult seeded =
@@ -160,6 +160,17 @@ class RadiusAuthIT extends IntegrationTest {
     }
 
     @Test
+    void S7_pauseEndsAtPauseUntilWithoutAnyJob() throws Exception {
+        // ZZ000003: paused for 10 days, pause_until an hour ago, expiry 2 days ago before the shift.
+        final RadiusReply reply = login("ZZ000003", ZZ_NAS);
+        assertThat(reply.code()).isEqualTo("Access-Accept");
+        assertThat(reply.attributes())
+                .containsEntry("Mikrotik-Rate-Limit", "5M/10M")
+                .containsEntry("Framed-Pool", "full")
+                .doesNotContainKey("Mikrotik-Address-List");
+    }
+
+    @Test
     void N3_suspendedAndPendingAreRejectedWithReason() throws Exception {
         assertThat(login("CB000006", CB_NAS))
                 .isEqualTo(new RadiusReply("Access-Reject", Map.of("Reply-Message", "Account suspended")));
@@ -202,7 +213,7 @@ class RadiusAuthIT extends IntegrationTest {
     void N2_radiusRoleReadsOnlyTheViews() throws SQLException {
         try (Connection radius =
                 DriverManager.getConnection(POSTGRES.getJdbcUrl(), "isp_radius", RADIUS_PASSWORD)) {
-            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v3")) {
+            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v4")) {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getLong(1)).isPositive();
             }

@@ -1,5 +1,6 @@
 package com.corebalt.isp.packages.api;
 
+import com.corebalt.isp.shared.money.Money;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,6 +11,12 @@ public interface PackageCatalog {
 
     /** Case-insensitive; names are unique per tenant. */
     Optional<PackageSummary> findByName(String name);
+
+    /** The terms a renewal is charged and timed by. */
+    Optional<PackageTerms> terms(UUID packageId);
+
+    /** {@code graceDays} null means "use the tenant default" (docs/04 Grace policy). */
+    record PackageTerms(UUID id, String name, Money price, int durationMinutes, Integer graceDays) {}
 
     /** What other modules may know about a package. */
     record PackageSummary(UUID id, String name, String type, boolean active) {

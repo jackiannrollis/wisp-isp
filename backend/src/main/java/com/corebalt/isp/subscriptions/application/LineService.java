@@ -42,6 +42,7 @@ public class LineService {
     private final RouterDirectory routers;
     private final LineCredentialStore credentials;
     private final AuditTrail audit;
+    private final SubscriptionViews views;
     private final Clock clock;
 
     LineService(
@@ -51,6 +52,7 @@ public class LineService {
             final RouterDirectory routers,
             final LineCredentialStore credentials,
             final AuditTrail audit,
+            final SubscriptionViews views,
             final Clock clock) {
         this.lines = lines;
         this.customers = customers;
@@ -58,6 +60,7 @@ public class LineService {
         this.routers = routers;
         this.credentials = credentials;
         this.audit = audit;
+        this.views = views;
         this.clock = clock;
     }
 
@@ -106,7 +109,7 @@ public class LineService {
                                 "state", line.getState().name(),
                                 "packageId", pkg.id().toString(),
                                 "routerId", routerId.toString())));
-        return new LineOpenedDto(toDto(line), password);
+        return new LineOpenedDto(views.toDto(line), password);
     }
 
     @Transactional
@@ -117,31 +120,18 @@ public class LineService {
 
     @Transactional(readOnly = true)
     public SubscriptionDto get(final UUID subscriptionId) {
-        return toDto(load(subscriptionId));
+        return views.toDto(load(subscriptionId));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<SubscriptionDto> list(final UUID customerId, final Pageable page) {
+        final SubscriptionViews.Mapper mapper = views.mapper();
         return PageResponse.of(
                 customerId == null ? lines.findAll(page) : lines.findByCustomerId(customerId, page),
-                LineService::toDto);
+                mapper::toDto);
     }
 
     private Subscription load(final UUID subscriptionId) {
         return lines.findById(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
-    }
-
-    static SubscriptionDto toDto(final Subscription line) {
-        return new SubscriptionDto(
-                line.getId(),
-                line.getCustomerId(),
-                line.getPackageId(),
-                line.getRouterId(),
-                line.getPppoeUsername(),
-                line.getState().name(),
-                line.getExpiresAt(),
-                line.getGraceDays(),
-                line.getCreatedAt(),
-                line.getUpdatedAt());
     }
 }

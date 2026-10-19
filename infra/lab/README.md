@@ -43,12 +43,13 @@ walled garden with a pay page, and CoA/Disconnect change a live session. See doc
 | CB000002 | 1 hour past expiry, 3 grace days; tenant CB throttles in grace | Accept, THROTTLED, `1M/2M`, list `throttled` |
 | CB000003 | active, static IP 10.10.0.53 | Accept, FULL, `Framed-IP-Address` instead of a pool |
 | CB000004 | 10 days past expiry, 2 grace days | Accept, RESTRICTED, `512k/512k`, pool and list `restricted` |
-| CB000005 | paused | Accept, RESTRICTED |
+| CB000005 | paused, 10 days of pause left | Accept, RESTRICTED |
 | CB000006 | suspended | Reject, "Account suspended" |
 | CB000007 | pending | Reject, "Account not yet active" |
 | CB000008 | 2 hours left, no grace | Accept, FULL, Session-Timeout about 7200 |
 | ZZ000001 | tenant ZZ | Reject through tenant CB's routers (T3); Accept through ZZ's NAS |
 | ZZ000002 | 1 hour past expiry, 3 grace days; tenant ZZ keeps full speed in grace | Accept through ZZ's NAS, FULL |
+| ZZ000003 | paused 10 days, pause ended an hour ago, not recorded; expired 2 days ago before the shift | Accept through ZZ's NAS, FULL: the view resumes it (S7, E4) |
 
 Every password is `lab-password`.
 

@@ -50,6 +50,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemResponseWriter.problem(HttpStatus.CONFLICT, ProblemTypes.CONFLICT, e.getMessage());
     }
 
+    @ExceptionHandler(IdempotentRequests.KeyReusedException.class)
+    ProblemDetail idempotencyKeyReused(final IdempotentRequests.KeyReusedException e) {
+        return ProblemResponseWriter.problem(
+                HttpStatus.UNPROCESSABLE_CONTENT, ProblemTypes.IDEMPOTENCY_KEY_REUSED, e.getMessage());
+    }
+
     /** A unique or foreign key the request ran into; the SQL detail is logged, never returned. */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail integrityViolation(final DataIntegrityViolationException e) {

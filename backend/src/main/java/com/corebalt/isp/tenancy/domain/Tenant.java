@@ -44,6 +44,15 @@ public class Tenant {
     @Column(nullable = false)
     private String currency;
 
+    @Column(name = "default_grace_days", nullable = false)
+    private int defaultGraceDays;
+
+    @Column(name = "grace_mode", nullable = false)
+    private String graceMode;
+
+    @Column(name = "max_pause_days", nullable = false)
+    private int maxPauseDays;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -86,5 +95,17 @@ public class Tenant {
 
     public String getCurrency() {
         return currency;
+    }
+
+    public int getDefaultGraceDays() {
+        return defaultGraceDays;
+    }
+
+    public String getGraceMode() {
+        return graceMode;
+    }
+
+    public int getMaxPauseDays() {
+        return maxPauseDays;
     }
 }

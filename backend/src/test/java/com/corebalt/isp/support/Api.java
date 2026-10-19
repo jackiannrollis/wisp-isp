@@ -37,6 +37,14 @@ public final class Api {
         return send(request(path).POST(HttpRequest.BodyPublishers.noBody()));
     }
 
+    /** POST with an Idempotency-Key; {@code json} may be null for an empty body. */
+    public Response postWithKey(final String path, final String key, final String json) {
+        final HttpRequest.Builder request = request(path).header("Idempotency-Key", key);
+        return send(json == null
+                ? request.POST(HttpRequest.BodyPublishers.noBody())
+                : request.header("Content-Type", "application/json").POST(body(json)));
+    }
+
     public Response put(final String path, final String json) {
         return send(request(path).header("Content-Type", "application/json").PUT(body(json)));
     }

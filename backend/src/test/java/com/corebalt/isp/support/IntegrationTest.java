@@ -1,6 +1,9 @@
 package com.corebalt.isp.support;
 
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -15,8 +18,9 @@ import org.testcontainers.utility.MountableFile;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"isp.outbox.relay.interval=1h"})
+        properties = {"isp.outbox.relay.interval=1h", "isp.subscriptions.jobs.enabled=false"})
 @ActiveProfiles("test")
+@Import(IntegrationTest.TestBeans.class)
 public abstract class IntegrationTest {
 
     /** Throwaway password for the test container only; not a real secret. */
@@ -34,6 +38,16 @@ public abstract class IntegrationTest {
     static {
         POSTGRES.start();
         RABBIT.start();
+    }
+
+    /** Stand-ins for ports whose real implementation arrives in a later step. */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestBeans {
+
+        @Bean
+        InMemoryWalletCharger walletCharger() {
+            return new InMemoryWalletCharger();
+        }
     }
 
     @DynamicPropertySource

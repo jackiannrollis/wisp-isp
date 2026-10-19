@@ -94,6 +94,13 @@ public class PackageService implements PackageCatalog {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<PackageTerms> terms(final UUID packageId) {
+        return packages.findById(packageId)
+                .map(p -> new PackageTerms(p.getId(), p.getName(), p.getPrice(), p.getDurationMinutes(), p.getGraceDays()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<PackageSummary> findByName(final String name) {
         return packages.findByNameIgnoreCase(name.strip()).map(PackageService::summary);
     }
