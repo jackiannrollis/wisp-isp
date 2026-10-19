@@ -42,8 +42,10 @@ Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant
 
 ## Security
 
-- Role-based access for staff; 2FA (TOTP) enforced for finance and admin roles; sessions expire after inactivity.
-- Customer portal login by phone number and PIN or SMS OTP; rate-limited.
+- Sign-in and tokens per [ADR 0010](adr/0010-self-issued-jwt-and-sign-in.md): RS256 access tokens of 15 minutes, rotating refresh tokens (reuse revokes the family) in an httpOnly, SameSite=Strict cookie, and a per-request token-version check, so disabling a user, a password or PIN change and a role change take effect at the next request.
+- Role-based access for staff with fixed permission codes; TOTP enforced for finance and admin roles (any role holding staff.manage, settings.secrets, billing.adjust, payments.record_manual, payments.assign or payments.reconcile); five failed sign-ins lock an account for 15 minutes.
+- Customer portal login by customer number (or phone) and PIN; an SMS code (6 digits, 5 minutes, 3 attempts) sets or resets the PIN; codes limited per phone and per client address, bursts alerted; the message log never holds the code.
+- Corebalt platform admins: TOTP mandatory with single-use recovery codes; the first admin is bootstrapped from the environment only while none exists; break-glass reset is a command inside the container, never an HTTP endpoint. Impersonation of a tenant user lasts at most 30 minutes and appears in the tenant's own audit log.
 - Audit log of every money movement, access change, secret change and impersonation, append-only and exportable per tenant.
 - Router management only over WireGuard; no router API, SNMP or RADIUS port exposed to the public internet; per-router secrets.
 - Secrets envelope-encrypted as described in [07](07-multi-tenancy.md); master key outside the database; rotation runbook.

@@ -12,6 +12,7 @@ import java.net.URI;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,6 +47,7 @@ class PackageController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('packages.write')")
     @Operation(summary = "Create a package")
     ResponseEntity<PackageDto> create(@Valid @RequestBody final PackageRequest request) {
         final PackageDto created = service.create(request);
@@ -59,18 +61,21 @@ class PackageController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('packages.write')")
     @Operation(summary = "Revise a package; running cycles keep what they were sold (S6)")
     PackageDto revise(@PathVariable final UUID id, @Valid @RequestBody final PackageRequest request) {
         return service.revise(id, request);
     }
 
     @PostMapping("/{id}/deactivate")
+    @PreAuthorize("hasAuthority('packages.write')")
     @Operation(summary = "Stop selling a package; existing lines keep it")
     PackageDto deactivate(@PathVariable final UUID id) {
         return service.setActive(id, false);
     }
 
     @PostMapping("/{id}/activate")
+    @PreAuthorize("hasAuthority('packages.write')")
     @Operation(summary = "Sell a package again")
     PackageDto activate(@PathVariable final UUID id) {
         return service.setActive(id, true);

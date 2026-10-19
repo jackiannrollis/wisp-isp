@@ -7,7 +7,9 @@
         displayName = "identity",
         allowedDependencies = {
                 "shared",
-                "tenancy :: api"
+                "tenancy :: api",
+                "customers :: api",
+                "notifications :: api"
         })
 package com.corebalt.isp.identity;
 

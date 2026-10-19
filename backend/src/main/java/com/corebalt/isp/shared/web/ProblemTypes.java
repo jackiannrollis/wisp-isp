@@ -14,6 +14,10 @@ public final class ProblemTypes {
     public static final URI NOT_FOUND = URI.create(BASE + "not-found");
     public static final URI CONFLICT = URI.create(BASE + "conflict");
     public static final URI IDEMPOTENCY_KEY_REUSED = URI.create(BASE + "idempotency-key-reused");
+    /** A sign-in step was refused (wrong credentials, expired step); deliberately vague. */
+    public static final URI SIGN_IN_FAILED = URI.create(BASE + "sign-in-failed");
+    /** Locked out or rate-limited: wait and try again. */
+    public static final URI TOO_MANY_ATTEMPTS = URI.create(BASE + "too-many-attempts");
     public static final URI INTERNAL_ERROR = URI.create(BASE + "internal-error");
 
     private ProblemTypes() {}

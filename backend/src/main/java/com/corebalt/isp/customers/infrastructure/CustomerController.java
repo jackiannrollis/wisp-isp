@@ -13,6 +13,7 @@ import java.net.URI;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +49,7 @@ class CustomerController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('customers.write')")
     @Operation(summary = "Register a customer; the number is assigned by the platform (T2)")
     ResponseEntity<CustomerDto> create(@Valid @RequestBody final CustomerRequest request) {
         final CustomerDto created = service.register(request);
@@ -61,12 +63,14 @@ class CustomerController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('customers.write')")
     @Operation(summary = "Replace a customer's profile; the number never changes")
     CustomerDto update(@PathVariable final UUID id, @Valid @RequestBody final CustomerRequest request) {
         return service.update(id, request);
     }
 
     @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAuthority('customers.write')")
     @Operation(summary = "Archive a customer; the number is never reused")
     CustomerDto archive(@PathVariable final UUID id) {
         return service.archive(id);

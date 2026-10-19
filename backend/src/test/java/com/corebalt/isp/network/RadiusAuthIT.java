@@ -35,6 +35,22 @@ class RadiusAuthIT extends IntegrationTest {
     static final String LAB_SECRET = "radius-it-fake-secret";
 
     static final String RADIUS_PASSWORD = "isp_radius_test_only";
+
+    @org.springframework.beans.factory.annotation.Value("${local.server.port}")
+    int port;
+
+    /** The lab admin in seed.sql signs in without TOTP (local fixture only; ADR 0010). */
+    @Test
+    void theSeededLabAdminSignsIn() throws Exception {
+        final var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + "/api/v1/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                        "{\"tenant\":\"CB\",\"email\":\"lab-admin@corebalt.example.test\",\"password\":\"lab-admin-password\"}"))
+                .build();
+        final var response = java.net.http.HttpClient.newHttpClient().send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"SIGNED_IN\"").contains("\"accessToken\"");
+    }
     static final String CB_NAS = "127.0.0.1";
     static final String ZZ_NAS = "127.0.0.2";
 

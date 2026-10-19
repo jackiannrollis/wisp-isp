@@ -1,5 +1,6 @@
 package com.corebalt.isp.shared.security;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -9,41 +10,58 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /**
- * Permission codes (A2): fixed strings checked server-side with {@code @PreAuthorize}, carried in
- * the staff JWT's {@code permissions} claim. Roles that bundle them, and the tokens themselves, come
- * with the identity module; until then only money endpoints check a code.
+ * Permission codes (A2): fixed strings, granted through a tenant's roles, carried in the access
+ * token and checked server-side with {@code @PreAuthorize}. Every write needs a code; any staff
+ * member may read, except the audit log and staff management.
  */
 public final class Permissions {
 
     public static final String CLAIM = "permissions";
 
+    public static final String CUSTOMERS_WRITE = "customers.write";
+    public static final String PACKAGES_WRITE = "packages.write";
+    /** Open lines, lifecycle transitions, package changes, PPPoE password regeneration. */
+    public static final String SUBSCRIPTIONS_WRITE = "subscriptions.write";
+    /** Register routers and regenerate their secrets. */
+    public static final String NETWORK_WRITE = "network.write";
     /** P5: record a cash, bank or M-Pesa payment by hand. */
     public static final String PAYMENTS_RECORD_MANUAL = "payments.record_manual";
-
-    /** B1: post a wallet ADJUSTMENT with a reason (for example free days). */
-    public static final String BILLING_ADJUST = "billing.adjust";
-
-    /** T4: set or replace tenant secrets (M-Pesa, SMS) and the M-Pesa settings that use them. */
-    public static final String SETTINGS_SECRETS = "settings.secrets";
-
     /** P3: assign an unmatched payment from the suspense queue to a customer. */
     public static final String PAYMENTS_ASSIGN = "payments.assign";
-
     /** Start an M-Pesa STK Push for a customer. */
     public static final String PAYMENTS_STK = "payments.stk";
-
     /** Upload M-Pesa statements and run Transaction Status investigations. */
     public static final String PAYMENTS_RECONCILE = "payments.reconcile";
-
+    /** B1: post a wallet ADJUSTMENT with a reason (for example free days). */
+    public static final String BILLING_ADJUST = "billing.adjust";
+    /** T4: set or replace tenant secrets (M-Pesa, SMS) and the settings that use them. */
+    public static final String SETTINGS_SECRETS = "settings.secrets";
     /** M2, M3: edit SMS templates and the sending window. */
     public static final String SETTINGS_NOTIFICATIONS = "settings.notifications";
+    /** Invite, disable and re-role staff; edit roles. */
+    public static final String STAFF_MANAGE = "staff.manage";
+    /** A1: read the audit log. */
+    public static final String AUDIT_READ = "audit.read";
+
+    /** The whole catalogue, for the role editor and the built-in Owner role. */
+    public static final List<String> ALL = List.of(
+            CUSTOMERS_WRITE, PACKAGES_WRITE, SUBSCRIPTIONS_WRITE, NETWORK_WRITE, PAYMENTS_RECORD_MANUAL, PAYMENTS_ASSIGN,
+            PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, STAFF_MANAGE,
+            AUDIT_READ);
 
     private Permissions() {}
 
+    /** Authorities of a verified token: its type, then (staff only) its permission codes. */
     static AbstractAuthenticationToken authentication(final Jwt jwt) {
+        final Collection<GrantedAuthority> authorities = new ArrayList<>();
+        final String type = jwt.getClaimAsString(Tokens.TYPE);
+        if (type != null) {
+            authorities.add(new SimpleGrantedAuthority(Tokens.typeAuthority(type)));
+        }
         final List<String> codes = jwt.getClaimAsStringList(CLAIM);
-        final Collection<GrantedAuthority> authorities =
-                codes == null ? List.of() : codes.stream().<GrantedAuthority>map(SimpleGrantedAuthority::new).toList();
+        if (codes != null && Tokens.STAFF.equals(type)) {
+            codes.stream().filter(ALL::contains).map(SimpleGrantedAuthority::new).forEach(authorities::add);
+        }
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
     }
 }

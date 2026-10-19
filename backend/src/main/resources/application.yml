@@ -43,6 +43,13 @@ spring:
           multiplier: 6
           max-interval: 2m
           max-attempts: 4
+  # Token versions (per-request revocation) and sign-in code limits; the database stays the authority.
+  data:
+    redis:
+      host: ${ISP_REDIS_HOST:localhost}
+      port: ${ISP_REDIS_PORT:6379}
+      password: ${ISP_REDIS_PASSWORD:}
+      timeout: 500ms
   mvc:
     problemdetails:
       enabled: true
@@ -73,7 +80,7 @@ springdoc:
     path: /api/docs
   swagger-ui:
     path: /swagger-ui.html
-  paths-to-match: /api/v1/**
+  paths-to-match: /api/v1/**,/api/platform/**,/.well-known/**
 
 logging:
   # Structured JSON; the MDC (tenantId, correlationId) is included in every line.
@@ -85,6 +92,19 @@ logging:
     com.corebalt.isp: INFO
 
 isp:
+  auth:
+    # ADR 0010: RS256 signing key from the environment only (base64 PKCS#8 DER), never a file in the image.
+    jwt:
+      kid: ${ISP_JWT_KID:}
+      private-key: ${ISP_JWT_PRIVATE_KEY:}
+      # kid=base64 X.509 public key, comma-separated: still verified, no longer used to sign.
+      retired-keys: ${ISP_JWT_RETIRED_KEYS:}
+    # Browser origins allowed to use the refresh cookie (the refresh endpoints check Origin).
+    allowed-origins: ${ISP_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
+  # First platform admin, created only while there is none (ADR 0010); remove after first start.
+  bootstrap:
+    admin-email: ${ISP_BOOTSTRAP_ADMIN_EMAIL:}
+    admin-password: ${ISP_BOOTSTRAP_ADMIN_PASSWORD:}
   secrets:
     # docs/07: the platform master key lives outside the database (base64, 32 bytes).
     master-key: ${ISP_MASTER_KEY:}

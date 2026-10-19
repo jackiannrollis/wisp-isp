@@ -40,7 +40,10 @@ On Windows run the `.ps1` scripts from PowerShell; on Linux or macOS use the mat
 | OpenAPI | `http://localhost:8080/api/docs` (Swagger UI at `/swagger-ui.html`) |
 
 Unit tests are `*Test`, Testcontainers tests are `*IT` and extend `support/IntegrationTest`, which
-connects as the non-owner role `isp_app` so row-level security is really exercised.
+connects as the non-owner role `isp_app` so row-level security is really exercised. Tests call the API
+with real RS256 tokens signed by a key generated per test JVM (`support/TestTokens`, `support/Api`).
+After `infra/lab/seed.sql` the local stack has a lab admin: tenant `CB`,
+`lab-admin@corebalt.example.test`, password `lab-admin-password` (fake, local only).
 
 ### Frontend (`frontend/`, one Angular workspace with `admin` and `portal`)
 
@@ -55,7 +58,8 @@ connects as the non-owner role `isp_app` so row-level security is really exercis
 
 ### Local stack (`infra/`)
 
-First time: copy `infra/.env.example` to `infra/.env` and change the passwords.
+First time: copy `infra/.env.example` to `infra/.env`, change the passwords and create the token
+signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 
 | Task | Windows (PowerShell) | Linux/macOS |
 |---|---|---|
@@ -67,6 +71,8 @@ First time: copy `infra/.env.example` to `infra/.env` and change the passwords.
 | RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
 | Daraja sandbox round-trip (needs `DARAJA_SANDBOX_*` and an https `CALLBACK_BASE_URL` in `.env`; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
 | Africa's Talking sandbox round-trip (needs `AT_SANDBOX_*` and an https `CALLBACK_BASE_URL`; skips otherwise) | `infra\scripts\at-sandbox.ps1` | `infra/scripts/at-sandbox.sh` |
+| Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
+| Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
 | All checks (what CI runs) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
 Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672

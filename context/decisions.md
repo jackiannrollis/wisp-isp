@@ -66,6 +66,10 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-20 | The unrecognised-reference reply goes only to a plain (unmasked) payer number and names the tenant prefix, not a customer number (the payer is unknown) | A masked or hashed number cannot be messaged; the payer's own number is unknown | MessageComposer |
 | 2026-10-20 | Sending window and the payment, unmatched and package messages: reminders wait for the window (default 07:00-21:00); the others are immediate | M2 | Template.immediate |
 | 2026-10-20 | Africa's Talking verified by contract tests against a fake; sandbox round-trip is `infra/scripts/at-sandbox.(ps1|sh)`, skipped without keys | Same approach as Daraja (no sandbox account in the build environment) | docs/04 SMS sandbox round-trip |
+| 2026-10-20 | Self-issued RS256 JWTs (kid, JWKS, key from the environment), 15-minute access tokens, rotating refresh tokens in families with reuse detection in an httpOnly SameSite=Strict cookie, per-request token-version check via Redis with a PostgreSQL fallback | Immediate revocation without an identity provider | [ADR 0010](../docs/adr/0010-self-issued-jwt-and-sign-in.md) |
+| 2026-10-20 | A role requires TOTP when it holds staff.manage, settings.secrets, billing.adjust, payments.record_manual, payments.assign or payments.reconcile; computed from the codes | A2 ("finance and admin roles") made checkable | ADR 0010, Roles.NEEDS_2FA |
+| 2026-10-20 | Portal sign-in codes are sent synchronously and logged with the code masked; per-address limits are 10/10 min and 50/day (per phone 3/10 min and 10/day) | M3; carrier-grade NAT puts many customers behind one address | ADR 0010, PortalSignIn |
+| 2026-10-20 | First platform admin from ISP_BOOTSTRAP_ADMIN_* only while the table is empty; break-glass is a container command; lab admin only in infra/lab/seed.sql | No HTTP path to platform control without TOTP | ADR 0010 |
 
 ## How to add a row
 

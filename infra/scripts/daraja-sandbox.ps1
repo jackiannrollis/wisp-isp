@@ -30,11 +30,11 @@ if ($missing.Count -gt 0) {
 }
 
 $api = "http://localhost:$(Get-EnvValue $values 'BACKEND_PORT' '8080')/api/v1"
-function ConvertTo-B64Url([string] $s) {
-    [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($s)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-}
-$claims = '{"sub":"daraja-sandbox","tenant_id":"01900000-0000-7000-8000-000000000001","permissions":["settings.secrets","payments.stk"]}'
-$headers = @{ Authorization = "Bearer " + (ConvertTo-B64Url '{"alg":"none"}') + "." + (ConvertTo-B64Url $claims) + "." }
+$login = @{ tenant = "CB"; email = "lab-admin@corebalt.example.test"; password = "lab-admin-password" } | ConvertTo-Json
+# Lab admin from infra/lab/seed.sql (local stack only; obvious fake password, role without 2FA).
+$session = Invoke-RestMethod -Method Post -Uri "$api/auth/login" -ContentType "application/json" -Body $login
+if ($session.status -ne "SIGNED_IN") { throw "lab admin sign-in returned $($session.status); load infra/lab/seed.sql first" }
+$headers = @{ Authorization = "Bearer $($session.accessToken)" }
 
 function Step([string] $text) { Write-Host "== $text" }
 

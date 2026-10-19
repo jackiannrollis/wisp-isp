@@ -20,6 +20,7 @@ import java.net.URI;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,6 +66,7 @@ class SubscriptionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Open a PENDING PPPoE line; the password in the response is shown only this once")
     ResponseEntity<LineOpenedDto> open(@Valid @RequestBody final CreateLineRequest request) {
         final LineOpenedDto opened = service.open(request);
@@ -80,12 +82,14 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/pppoe-password")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Replace the PPPoE password; the new one is shown only this once. There is no way to reveal a password")
     ResponseEntity<PppoeCredentialDto> regeneratePassword(@PathVariable final UUID id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.regeneratePassword(id));
     }
 
     @PostMapping("/{id}/pause")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Pause an ACTIVE line with time left (S7); RESTRICTED until resumed or pause_until")
     ResponseEntity<SubscriptionDto> pause(
             @RequestHeader(IdempotentRequests.HEADER) final String key,
@@ -97,6 +101,7 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/resume")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Resume a PAUSED line; the paused time is added to its expiry (S7)")
     ResponseEntity<SubscriptionDto> resume(
             @RequestHeader(IdempotentRequests.HEADER) final String key, @PathVariable final UUID id) {
@@ -106,6 +111,7 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/suspend")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Admin hold with a reason: Access-Reject until lifted")
     ResponseEntity<SubscriptionDto> suspend(
             @RequestHeader(IdempotentRequests.HEADER) final String key,
@@ -117,6 +123,7 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/lift-suspension")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Lift a hold; dates are re-evaluated, so an expired line returns RESTRICTED (S8)")
     ResponseEntity<SubscriptionDto> liftSuspension(
             @RequestHeader(IdempotentRequests.HEADER) final String key,
@@ -128,6 +135,7 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/terminate")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Close the line: its password is revoked and its static IP freed")
     ResponseEntity<SubscriptionDto> terminate(
             @RequestHeader(IdempotentRequests.HEADER) final String key,
@@ -139,6 +147,7 @@ class SubscriptionController {
     }
 
     @PostMapping("/{id}/package")
+    @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Change the package: an upgrade NOW charges proration (B6); a downgrade waits for the next renewal (S10)")
     ResponseEntity<SubscriptionDto> changePackage(
             @RequestHeader(IdempotentRequests.HEADER) final String key,

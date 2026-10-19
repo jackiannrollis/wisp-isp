@@ -13,6 +13,7 @@ import java.net.URI;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +47,7 @@ class RouterController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('network.write')")
     @Operation(summary = "Register a router; the RADIUS secret in the response is shown only this once")
     ResponseEntity<RouterSecretDto> register(@Valid @RequestBody final RouterRequest request) {
         final RouterSecretDto created = service.register(request);
@@ -61,6 +63,7 @@ class RouterController {
     }
 
     @PostMapping("/{id}/radius-secret")
+    @PreAuthorize("hasAuthority('network.write')")
     @Operation(summary = "Replace the router's RADIUS secret; the new one is shown only this once")
     ResponseEntity<RouterSecretDto> regenerateSecret(@PathVariable final UUID id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.regenerateSecret(id));

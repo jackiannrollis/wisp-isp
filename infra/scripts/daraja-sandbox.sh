@@ -25,8 +25,11 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 0
 fi
 
-b64url() { printf '%s' "$1" | base64 | tr -d '=\n' | tr '+/' '-_'; }
-JWT="$(b64url '{"alg":"none"}').$(b64url '{"sub":"daraja-sandbox","tenant_id":"01900000-0000-7000-8000-000000000001","permissions":["settings.secrets","payments.stk"]}')."
+# Lab admin from infra/lab/seed.sql (local stack only; obvious fake password, role without 2FA).
+JWT="$(printf '%s' '{"tenant":"CB","email":"lab-admin@corebalt.example.test","password":"lab-admin-password"}' \
+  | curl -sf -H 'Content-Type: application/json' --data-binary @- "$API/auth/login" \
+  | sed -E 's/.*"accessToken" *: *"([^"]+)".*/\1/')"
+[ -n "$JWT" ] || { echo "lab admin sign-in failed; load infra/lab/seed.sql first" >&2; exit 1; }
 api() { curl -sf -K - "$@" <<<"header = \"Authorization: Bearer $JWT\""; }
 
 echo "== 1. Tenant CB: sandbox settings"

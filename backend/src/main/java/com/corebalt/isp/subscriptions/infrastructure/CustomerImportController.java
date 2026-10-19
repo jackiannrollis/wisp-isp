@@ -5,6 +5,7 @@ import com.corebalt.isp.subscriptions.application.CustomerImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,7 @@ class CustomerImportController {
     }
 
     @PostMapping(consumes = {"text/csv", "text/plain"})
+    @PreAuthorize("hasAuthority('customers.write') and hasAuthority('subscriptions.write')")
     @Operation(
             summary = "Import customers from CSV, all rows or none",
             description = "Columns: name, phone (required), email, address, installation_location, lat, lng, package."

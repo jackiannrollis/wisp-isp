@@ -119,6 +119,28 @@ SELECT ('01900000-0000-7000-8000-0000000d' || lpad(to_hex(l.n), 4, '0'))::uuid, 
 FROM lab_line l JOIN tenancy_tenant t ON t.code = l.code
 ON CONFLICT (id) DO UPDATE SET secret = EXCLUDED.secret, updated_at = now();
 
+-- Lab admin of tenant CB (ADR 0010), for the sandbox scripts and the admin app on the local stack
+-- only: lab-admin@corebalt.example.test with the obvious fake password 'lab-admin-password'
+-- (Argon2id hash below). Its "Lab operator" role holds every permission WITHOUT 2FA so scripts can
+-- sign in unattended; the application never creates such a role (A2: finance and admin codes force
+-- 2FA). Never load this file outside a developer machine.
+INSERT INTO identity_role (id, tenant_id, name, permissions, requires_2fa, built_in)
+SELECT '01900000-0000-7000-8000-0000000e0001'::uuid, t.id, 'Lab operator',
+       ARRAY['customers.write', 'packages.write', 'subscriptions.write', 'network.write', 'payments.record_manual',
+             'payments.assign', 'payments.stk', 'payments.reconcile', 'billing.adjust', 'settings.secrets',
+             'settings.notifications', 'staff.manage', 'audit.read'], false, false
+FROM tenancy_tenant t WHERE t.code = 'CB'
+ON CONFLICT (id) DO UPDATE SET permissions = EXCLUDED.permissions, requires_2fa = false, updated_at = now();
+
+INSERT INTO identity_staff_user (id, tenant_id, email, display_name, password_hash, status, role_id,
+                                 must_change_password)
+SELECT '01900000-0000-7000-8000-0000000e0101'::uuid, t.id, 'lab-admin@corebalt.example.test', 'Lab admin',
+       '$argon2id$v=19$m=16384,t=2,p=1$JTVp/SCkYlC9IoyLqJkJDQ$xQZeyRH5XnT2rRT93yWjOSpYifd1YV26JXc5EHTraMA',
+       'ACTIVE', '01900000-0000-7000-8000-0000000e0001'::uuid, false
+FROM tenancy_tenant t WHERE t.code = 'CB'
+ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE', role_id = EXCLUDED.role_id,
+    must_change_password = false, password_expires_at = NULL, failed_logins = 0, locked_until = NULL, updated_at = now();
+
 COMMIT;
 
 SELECT s.pppoe_username, s.state, s.expires_at, s.grace_days, s.pause_until, t.grace_mode

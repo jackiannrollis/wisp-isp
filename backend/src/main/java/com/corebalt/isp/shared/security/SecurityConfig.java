@@ -2,30 +2,44 @@ package com.corebalt.isp.shared.security;
 
 import com.corebalt.isp.shared.web.ProblemResponseWriter;
 import com.corebalt.isp.shared.web.ProblemTypes;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.annotation.Order;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 /**
- * Stateless bearer-token security. {@code /api/v1/**} needs an authenticated staff JWT carrying a
- * tenant; health, info and API docs are public; M-Pesa callbacks ({@code /callbacks/**}) get their
- * own IP-restricted chain with the payments module. Everything else is denied.
+ * Stateless bearer-token security (ADR 0010). Tokens are the platform's own RS256 JWTs, verified
+ * against the keys in {@link JwtKeys} (no network call), with issuer and audience checked. The token
+ * type decides the API: STAFF {@code /api/v1/**}, CUSTOMER {@code /api/v1/portal/**}, PLATFORM
+ * {@code /api/platform/**}. Login endpoints, the JWKS, health and API docs are public; provider
+ * callbacks have their own chain. Everything else is denied. Revoked tokens are refused per request
+ * by {@link TokenVersionFilter}.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
 class SecurityConfig {
 
     /**
-     * Provider callbacks (docs/05): no JWT, no CSRF, admitted only from the allowed networks; the
-     * tenant comes from the path token.
+     * Provider callbacks (docs/05): no JWT, no CSRF; M-Pesa callbacks admitted only from the allowed
+     * networks; the tenant comes from the path token.
      */
     @Bean
     @Order(1)
@@ -40,69 +54,64 @@ class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Logins and token refresh: no bearer token. CSRF is off because nothing here uses an ambient
+     * credential except the refresh cookie, which is SameSite=Strict, path-limited and Origin-checked
+     * by the refresh endpoint.
+     */
     @Bean
     @Order(2)
-    SecurityFilterChain apiSecurity(final HttpSecurity http, final ProblemResponseWriter problems)
+    SecurityFilterChain authSecurity(final HttpSecurity http) throws Exception {
+        http.securityMatcher("/.well-known/jwks.json", "/api/v1/auth/**", "/api/v1/portal-auth/**", "/api/platform/auth/**")
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
+    SecurityFilterChain apiSecurity(
+            final HttpSecurity http, final ProblemResponseWriter problems, final TokenVersionCheck tokenVersions)
             throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .sessionManagement(
-                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers(
-                                                "/actuator/health",
-                                                "/actuator/health/**",
-                                                "/actuator/info",
-                                                "/api/docs",
-                                                "/api/docs/**",
-                                                "/swagger-ui.html",
-                                                "/swagger-ui/**",
-                                                "/error")
-                                        .permitAll()
-                                        .requestMatchers("/api/v1/**")
-                                        .authenticated()
-                                        .anyRequest()
-                                        .denyAll())
-                .oauth2ResourceServer(
-                        oauth2 ->
-                                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(Permissions::authentication))
-                                        .authenticationEntryPoint(
-                                                (request, response, e) ->
-                                                        problems.write(
-                                                                request,
-                                                                response,
-                                                                HttpStatus.UNAUTHORIZED,
-                                                                ProblemTypes.UNAUTHENTICATED,
-                                                                "A valid bearer token is required."))
-                                        .accessDeniedHandler(
-                                                (request, response, e) ->
-                                                        problems.write(
-                                                                request,
-                                                                response,
-                                                                HttpStatus.FORBIDDEN,
-                                                                ProblemTypes.FORBIDDEN,
-                                                                "You do not have permission for this action.")))
-                .exceptionHandling(
-                        exceptions ->
-                                exceptions
-                                        .authenticationEntryPoint(
-                                                (request, response, e) ->
-                                                        problems.write(
-                                                                request,
-                                                                response,
-                                                                HttpStatus.UNAUTHORIZED,
-                                                                ProblemTypes.UNAUTHENTICATED,
-                                                                "A valid bearer token is required."))
-                                        .accessDeniedHandler(
-                                                (request, response, e) ->
-                                                        problems.write(
-                                                                request,
-                                                                response,
-                                                                HttpStatus.FORBIDDEN,
-                                                                ProblemTypes.FORBIDDEN,
-                                                                "You do not have permission for this action.")))
-                .addFilterAfter(
-                        new TenantContextFilter(problems), AuthorizationFilter.class);
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/api/docs",
+                                "/api/docs/**", "/swagger-ui.html", "/swagger-ui/**", "/error")
+                        .permitAll()
+                        .requestMatchers("/api/platform/**").hasAuthority(Tokens.typeAuthority(Tokens.PLATFORM))
+                        .requestMatchers("/api/v1/portal/**").hasAuthority(Tokens.typeAuthority(Tokens.CUSTOMER))
+                        .requestMatchers("/api/v1/**").hasAuthority(Tokens.typeAuthority(Tokens.STAFF))
+                        .anyRequest().denyAll())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(Permissions::authentication))
+                        .authenticationEntryPoint((request, response, e) -> problems.write(request, response,
+                                HttpStatus.UNAUTHORIZED, ProblemTypes.UNAUTHENTICATED, "A valid bearer token is required."))
+                        .accessDeniedHandler((request, response, e) -> problems.write(request, response,
+                                HttpStatus.FORBIDDEN, ProblemTypes.FORBIDDEN, "You do not have permission for this action.")))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, e) -> problems.write(request, response,
+                                HttpStatus.UNAUTHORIZED, ProblemTypes.UNAUTHENTICATED, "A valid bearer token is required."))
+                        .accessDeniedHandler((request, response, e) -> problems.write(request, response,
+                                HttpStatus.FORBIDDEN, ProblemTypes.FORBIDDEN, "You do not have permission for this action.")))
+                .addFilterAfter(new TenantContextFilter(problems), AuthorizationFilter.class)
+                .addFilterAfter(new TokenVersionFilter(tokenVersions, problems), TenantContextFilter.class);
         return http.build();
+    }
+
+    /** Verifies with the local key set: RS256 only, the platform's issuer and audience, not expired. */
+    @Bean
+    JwtDecoder jwtDecoder(final JwtKeys keys) {
+        final DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
+        processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, new ImmutableJWKSet<>(keys.publicKeys())));
+        processor.setJWTClaimsSetVerifier((claims, context) -> {});
+        final NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(Tokens.ISSUER),
+                jwt -> jwt.getAudience() != null && jwt.getAudience().contains(Tokens.AUDIENCE)
+                        ? OAuth2TokenValidatorResult.success()
+                        : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "wrong audience", null))));
+        return decoder;
     }
 }

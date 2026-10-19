@@ -14,6 +14,20 @@ public interface SecretStore {
 
     Optional<String> reveal(SecretKind kind);
 
+    /**
+     * Encrypts a per-row secret (a staff TOTP seed, a router's API password) under the current
+     * tenant's data key. The blob names its key version; {@code purpose} is bound as associated data,
+     * so a blob only decrypts for the same tenant and purpose.
+     */
+    byte[] encrypt(String purpose, String plaintext);
+
+    String decrypt(String purpose, byte[] blob);
+
+    /** The same for platform-scoped secrets (platform admins' TOTP seeds): under the master key. */
+    byte[] encryptForPlatform(String purpose, String plaintext);
+
+    String decryptForPlatform(String purpose, byte[] blob);
+
     /** Which secrets are set, with their key version; never the values. */
     List<StoredSecret> list();
 

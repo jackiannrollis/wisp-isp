@@ -1,17 +1,20 @@
 package com.corebalt.isp.support;
 
 import java.io.IOException;
+import com.corebalt.isp.shared.security.Permissions;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** HTTP calls to the running test server as a staff member of one tenant (stub JWT, local/test only). */
+/**
+ * HTTP calls to the running test server as a staff member of one tenant: an ACTIVE staff row is
+ * created (token version 0) and its access token is signed with the test JVM's key (ADR 0010).
+ */
 public final class Api {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -20,16 +23,28 @@ public final class Api {
     private final int port;
     private final String bearer;
 
-    /** Staff of the tenant holding every permission code checked so far (A2). */
+    private final UUID staffId;
+
+    /** Staff of the tenant holding every permission code (A2). */
     public Api(final int port, final UUID tenantId) {
-        this(port, tenantId, "payments.record_manual", "billing.adjust", "settings.secrets", "payments.assign", "payments.stk", "payments.reconcile", "settings.notifications");
+        this(port, tenantId, Permissions.ALL.toArray(String[]::new));
     }
 
     public Api(final int port, final UUID tenantId, final String... permissions) {
         this.port = port;
-        final String codes = String.join(",", java.util.Arrays.stream(permissions).map(p -> "\"" + p + "\"").toList());
-        this.bearer = token("{\"sub\":\"" + UUID.randomUUID() + "\",\"tenant_id\":\"" + tenantId
-                + "\",\"permissions\":[" + codes + "]}");
+        this.staffId = TestStaff.create(tenantId);
+        this.bearer = TestTokens.staff(staffId, tenantId, permissions);
+    }
+
+    /** With a ready-made bearer token (portal, platform or impersonation tests). */
+    public Api(final int port, final String bearer) {
+        this.port = port;
+        this.staffId = null;
+        this.bearer = bearer;
+    }
+
+    public UUID staffId() {
+        return staffId;
     }
 
     public Response get(final String path) {
@@ -79,15 +94,6 @@ public final class Api {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
-    }
-
-    /** Unsigned JWT ({@code alg: none}); accepted only by the local/test stub decoder. */
-    public static String token(final String claimsJson) {
-        final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
-        return encoder.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8))
-                + "."
-                + encoder.encodeToString(claimsJson.getBytes(StandardCharsets.UTF_8))
-                + ".";
     }
 
     public record Response(int status, String body, HttpResponse<String> raw) {

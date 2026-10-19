@@ -4,12 +4,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * Base for Testcontainers integration tests: PostgreSQL 17 and RabbitMQ 4, shared by all tests in
+ * Base for Testcontainers integration tests: PostgreSQL 17, RabbitMQ 4 and Redis, shared by all tests in
  * the JVM. Flyway migrates as the container superuser (the owner); the application connects as
  * {@code isp_app}, which owns nothing, so row-level security is really exercised.
  */
@@ -43,9 +44,12 @@ public abstract class IntegrationTest {
 
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
 
+    static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8.8").withExposedPorts(6379);
+
     static {
         POSTGRES.start();
         RABBIT.start();
+        REDIS.start();
     }
 
     @DynamicPropertySource
@@ -64,5 +68,9 @@ public abstract class IntegrationTest {
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
         registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
         registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("isp.auth.jwt.kid", () -> TestTokens.KID);
+        registry.add("isp.auth.jwt.private-key", TestTokens::privateKeyBase64);
     }
 }

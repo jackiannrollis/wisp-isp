@@ -38,6 +38,7 @@ class SecretsController {
     }
 
     @PutMapping("/{kind}")
+    @PreAuthorize("hasAuthority('settings.secrets')")
     @Operation(summary = "Set or replace a secret; the value can never be read back")
     ResponseEntity<Void> put(@PathVariable final SecretKind kind, @Valid @RequestBody final SecretValue body) {
         if (kind == SecretKind.MPESA_CALLBACK_TOKEN || kind == SecretKind.SMS_CALLBACK_TOKEN) {

@@ -127,6 +127,59 @@ class EnvelopeSecretStore implements SecretStore {
                 .list();
     }
 
+    @Override
+    @Transactional
+    public byte[] encrypt(final String purpose, final String plaintext) {
+        final UUID tenantId = TenantContext.requireTenantId();
+        final DataKey dataKey = currentDataKey(tenantId);
+        final byte[] nonce = nonce();
+        final byte[] ciphertext = encrypt(dataKey.key(), nonce, aad(tenantId, "row:" + purpose), plaintext.getBytes(StandardCharsets.UTF_8));
+        return ByteBuffer.allocate(1 + 4 + NONCE_BYTES + ciphertext.length)
+                .put((byte) 1).putInt(dataKey.version()).put(nonce).put(ciphertext).array();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String decrypt(final String purpose, final byte[] blob) {
+        final UUID tenantId = TenantContext.requireTenantId();
+        final ByteBuffer buffer = ByteBuffer.wrap(blob);
+        if (buffer.get() != 1) {
+            throw new IllegalStateException("T4: unknown secret blob format");
+        }
+        final int version = buffer.getInt();
+        final byte[] nonce = new byte[NONCE_BYTES];
+        buffer.get(nonce);
+        final byte[] ciphertext = new byte[buffer.remaining()];
+        buffer.get(ciphertext);
+        final byte[] key = jdbc.sql("select wrapped_key, wrap_nonce from tenancy_tenant_data_key where version = :version")
+                .param("version", version)
+                .query((rs, n) -> unwrap(tenantId, version, rs.getBytes(1), rs.getBytes(2)))
+                .single();
+        return new String(decrypt(key, nonce, aad(tenantId, "row:" + purpose), ciphertext), StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public byte[] encryptForPlatform(final String purpose, final String plaintext) {
+        final byte[] nonce = nonce();
+        final byte[] ciphertext = encrypt(requireMasterKey(), nonce, ("platform:" + purpose).getBytes(StandardCharsets.UTF_8),
+                plaintext.getBytes(StandardCharsets.UTF_8));
+        return ByteBuffer.allocate(1 + NONCE_BYTES + ciphertext.length).put((byte) 2).put(nonce).put(ciphertext).array();
+    }
+
+    @Override
+    public String decryptForPlatform(final String purpose, final byte[] blob) {
+        final ByteBuffer buffer = ByteBuffer.wrap(blob);
+        if (buffer.get() != 2) {
+            throw new IllegalStateException("T4: unknown platform secret blob format");
+        }
+        final byte[] nonce = new byte[NONCE_BYTES];
+        buffer.get(nonce);
+        final byte[] ciphertext = new byte[buffer.remaining()];
+        buffer.get(ciphertext);
+        return new String(decrypt(requireMasterKey(), nonce, ("platform:" + purpose).getBytes(StandardCharsets.UTF_8), ciphertext),
+                StandardCharsets.UTF_8);
+    }
+
     private DataKey currentDataKey(final UUID tenantId) {
         final Optional<DataKey> existing =
                 jdbc.sql("""
