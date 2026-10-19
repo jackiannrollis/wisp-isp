@@ -36,7 +36,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 - **P1** (`tenant_id`, `provider_txn_id`) is unique; a duplicate callback is acknowledged with success and has no side effects.
 - **P2** The raw callback payload is stored before any processing; processing is retried from the stored copy.
-- **P3** Matching order: exact account reference → normalised reference → single phone-number match → `UNMATCHED` (suspense queue). Never a fuzzy name match.
+- **P3** Matching order: exact account reference → normalised reference → the payer's number, only when it arrives plain or SHA-256-hashed and belongs to exactly one customer → `UNMATCHED` (suspense queue). A masked number (`2547 ***** 126`) is never matched automatically; staff see a shortlist of customers whose number fits it and assign with an audited click. Never a fuzzy name match.
 - **P4** `PaymentReceived` is written to the outbox in the same transaction as the payment record. Billing alone credits the ledger from it (one `PAYMENT` entry per payment, enforced by a unique ledger reference) and issues the receipt; a matched payment with no ledger entry after 5 minutes raises an alert. Manual payments take the same road.
 - **P5** A manual payment needs the `payments.record_manual` permission, a reference and an audit row.
 - **P6** An STK request with no callback after 2 minutes is queried; after 5 minutes it is `TIMED_OUT` and never silently retried.

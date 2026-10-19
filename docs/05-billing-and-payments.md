@@ -75,25 +75,42 @@ Each tenant connects its own Paybill or Till through a Daraja app whose credenti
 
 ### Callback handling
 
-1. The endpoint is per tenant, with a random path token; requests from outside Safaricom's published IP ranges are rejected.
-2. The raw payload is stored first, then processing begins; a failure after storage is retried from the stored copy.
-3. A unique constraint on (`tenant_id`, `provider_txn_id`) makes every callback process exactly once; a duplicate returns success to M-Pesa without side effects.
-4. Matching runs in order: exact `BillRefNumber` equals a customer number → normalised reference (trim, upper-case, strip spaces and hyphens, tolerate a missing tenant prefix) → `MSISDN` matches exactly one customer phone → otherwise `UNMATCHED`.
-5. A matched payment publishes `PaymentReceived` in the same transaction as the ledger credit (via the outbox).
-6. An unmatched payment lands in the suspense queue with the payer's name and phone; staff assign it with one click, and the SMS to the payer says the reference was not recognised and which number to use next time.
+1. The endpoint is per tenant, with a random path token (`/callbacks/mpesa/<token>/...`); requests from outside Safaricom's published IP ranges are rejected. The token is kept as an encrypted tenant secret; the platform-wide route table that finds the tenant holds only its SHA-256. Behind the proxy the source address comes from `X-Forwarded-For`, trusted only from internal proxies, so the backend port is never exposed directly.
+2. The raw payload is stored first, even when it is not valid JSON, then processing begins after the response; a failure after storage is retried from the stored copy by a sweeper. A body that cannot be read is kept with its error for investigation.
+3. A unique constraint on (`tenant_id`, `provider_txn_id`) makes every payment exist once; a duplicate callback returns success to M-Pesa without side effects. An STK payment to a Paybill also arrives as a C2B confirmation with the same TransID: whichever arrives first creates the payment, the other only links to it.
+4. Matching runs in order: exact `BillRefNumber` equals a customer number → normalised reference (trim, upper-case, strip spaces, dots and hyphens, ignore a line suffix such as `-2`, tolerate a missing tenant prefix) → the payer's number when Daraja sends it plain or as a SHA-256 hash of the 2547… form, and it belongs to exactly one customer → otherwise `UNMATCHED`. Current C2B v2 confirmations mask the number (`2547 ***** 126`); a masked number is never matched automatically.
+5. The payment and its event commit together: `PaymentReceived` for a matched payment, `PaymentUnmatched` otherwise (P4). Billing credits the ledger from `PaymentReceived`.
+6. An unmatched payment lands in the suspense queue with the payer's name, masked number and reference, and, for a masked number, a shortlist of customers whose number fits its visible digits. Staff assign it with one click (permission `payments.assign`, audited); the SMS to the payer says the reference was not recognised and which number to use next time.
 7. Daraja expects a fast `ResultCode: 0` acknowledgement; everything beyond storage happens after the response.
+8. Validation (C2B Validation API) accepts every payment until a tenant needs otherwise (Q10 default): unknown references go to the suspense queue rather than being refused.
+
+**Identification.** The account reference (the customer number) and STK Push, which already knows the customer, are the only reliable automatic ways to tell who paid: masked numbers cannot be matched. That is why the pay page and every reminder SMS always carry the customer number.
 
 ### STK Push
 
 1. The customer taps Pay Now or opens the pay link from an SMS; the amount defaults to the package price or the outstanding difference.
 2. The platform calls STK Push with the customer's phone and stores an `stk_request` with the `CheckoutRequestID`.
 3. The callback is matched to the request, which already knows the customer; the resulting payment goes through the same ledger path with channel `MPESA_STK`.
-4. No callback within 2 minutes → STK Push Query; still pending after 5 minutes → `TIMED_OUT` and the customer is told to pay via Paybill.
+4. No callback within 2 minutes → STK Push Query; still pending after 5 minutes → `TIMED_OUT` and the customer is told to pay via Paybill. A `TIMED_OUT` request is never sent again. Only a `PENDING` request changes state, under a row lock, so a callback that arrives while a query is in flight wins. A success callback that arrives after `TIMED_OUT` is still credited: the money was taken.
+5. Result codes are kept on the request: `0` success, `1032` cancelled by the customer, `1037` phone unreachable, `2001` wrong PIN, and others as Daraja sends them.
 
 ### Reconciliation
 
-- Daily per tenant: compare received callbacks against the M-Pesa statement (CSV export from the M-Pesa organisation portal, uploaded by the tenant or fetched where available). Transactions on the statement but not in the platform are investigated with Transaction Status and recorded; the report lists both directions.
+- Daily per tenant: compare received callbacks against the M-Pesa statement (CSV export from the M-Pesa organisation portal, uploaded by the tenant or fetched where available). Transactions on the statement but not in the platform are investigated with Transaction Status, whose result becomes a payment through the usual callback path; the report lists both directions, plus matched payments that never reached the ledger (older than 5 minutes).
+- Statement columns are found by name: `Receipt No.` and `Paid In` are required; `Completion Time`, `Transaction Status` and `Details` are used when present. Only completed money in counts.
 - Alert when a tenant with normal volume receives no callbacks for 2 hours during the day, which usually means the callback URL registration was lost.
+
+### Sandbox round-trip
+
+Request shapes are pinned by contract tests against a fake Daraja; the sandbox only has to confirm Safaricom's side. To run it:
+
+1. Create an app on developer.safaricom.co.ke with the Lipa na M-Pesa Online and M-Pesa Sandbox products; note the consumer key and secret and the sandbox passkey.
+2. Start a tunnel to Caddy, for example `cloudflared tunnel --url http://localhost:8088`, and note its https URL.
+3. In `infra/.env` set `CALLBACK_BASE_URL` (the tunnel URL), `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET` and `DARAJA_SANDBOX_PASSKEY`; restart the stack and load the lab fixtures (`infra\scripts\up.ps1`, `infra\lab\scripts\seed.ps1`).
+4. Run `infra\scripts\daraja-sandbox.ps1` (or `.sh`). It configures tenant CB for the sandbox, registers the C2B URLs, simulates a C2B payment to CB000004 and waits until the ledger has credited it and the line is FULL, then sends an STK Push to the sandbox test number and waits for its result.
+5. The last step, the CoA to the router, is reported as skipped until the network module's CoA consumer exists; until then the 24-hour Session-Timeout cap bounds the delay.
+
+If a sandbox callback is refused, the backend logs `Callback refused from <ip>`: Safaricom's sandbox may call from addresses outside the published production list; add it with `ISP_MPESA_CALLBACKALLOWEDCIDRS` for the lab only.
 
 ## Receipts and invoices
 
