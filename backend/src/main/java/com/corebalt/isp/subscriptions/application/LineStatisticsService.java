@@ -8,6 +8,7 @@ import com.corebalt.isp.shared.money.Money;
 import com.corebalt.isp.shared.money.MoneyDto;
 import com.corebalt.isp.subscriptions.api.LineStatistics;
 import com.corebalt.isp.subscriptions.api.PortalLineDto;
+import com.corebalt.isp.subscriptions.api.PortalLinesDto;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
 import com.corebalt.isp.subscriptions.domain.DisplayStatus;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -77,37 +79,71 @@ public class LineStatisticsService implements LineStatistics {
     @Override
     @Transactional(readOnly = true)
     public RenewalsDue renewalsDue(final Instant from, final Instant to) {
-        final Map<UUID, Long> byPackage = new HashMap<>();
-        jdbc.sql("""
-                        select coalesce(pending_package_id, package_id), count(*)
-                        from subscriptions_subscription
-                        where state = 'ACTIVE' and expires_at >= :from and expires_at < :to
-                        group by 1
-                        """)
-                .param("from", Timestamp.from(from))
-                .param("to", Timestamp.from(to))
-                .query(rs -> {
-                    byPackage.put(rs.getObject(1, UUID.class), rs.getLong(2));
-                });
-        long count = 0;
+        final List<Due> due = due("expires_at >= :from and expires_at < :to", from, to);
+        final Map<UUID, Money> prices = new HashMap<>();
+        final Map<UUID, Money> balances = new HashMap<>();
         Money amount = Money.zero(Money.KES);
-        for (final Map.Entry<UUID, Long> due : byPackage.entrySet()) {
-            final Money price = packages.terms(due.getKey()).map(PackageTerms::price).orElse(Money.zero(Money.KES));
-            amount = amount.plus(price.times(due.getValue()));
-            count += due.getValue();
+        Money outstanding = Money.zero(Money.KES);
+        for (final Due line : due) {
+            final Money price = price(prices, line.packageId());
+            final Money shortfall = price.minus(balances.computeIfAbsent(line.customerId(), c -> wallets.balance(c, Money.KES)));
+            amount = amount.plus(price);
+            outstanding = shortfall.isPositive() ? outstanding.plus(shortfall) : outstanding;
         }
-        return new RenewalsDue(count, amount);
+        return new RenewalsDue(due.size(), amount, outstanding);
     }
 
-    /** The customer's lines, earliest opened first; terminated lines are left out. */
+    @Override
     @Transactional(readOnly = true)
-    public List<PortalLineDto> portalLines(final UUID customerId) {
+    public Lapsed lapsed(final Instant before) {
+        final List<Due> lapsed = due("expires_at < :from", before, before);
+        final Map<UUID, Money> prices = new HashMap<>();
+        Money amount = Money.zero(Money.KES);
+        for (final Due line : lapsed) {
+            amount = amount.plus(price(prices, line.packageId()));
+        }
+        return new Lapsed(lapsed.size(), amount);
+    }
+
+    private record Due(UUID customerId, UUID packageId) {}
+
+    /** ACTIVE lines matching {@code expiryCondition}, with the package their next renewal sells (S10). */
+    private List<Due> due(final String expiryCondition, final Instant from, final Instant to) {
+        return jdbc.sql("select customer_id, coalesce(pending_package_id, package_id) from subscriptions_subscription "
+                        + "where state = 'ACTIVE' and " + expiryCondition)
+                .param("from", Timestamp.from(from))
+                .param("to", Timestamp.from(to))
+                .query((rs, n) -> new Due(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)))
+                .list();
+    }
+
+    private Money price(final Map<UUID, Money> prices, final UUID packageId) {
+        return prices.computeIfAbsent(packageId,
+                id -> packages.terms(id).map(PackageTerms::price).orElse(Money.zero(Money.KES)));
+    }
+
+    /** Display statuses whose line needs paying for now: not yet active, about to expire, or expired. */
+    static final Set<String> DUE = Set.of("PENDING", "EXPIRING", "GRACE", "RESTRICTED");
+
+    /**
+     * The customer's lines, earliest opened first (terminated lines left out), the wallet balance, and
+     * "pay all": what the wallet lacks to renew every due line at once, max(0, sum of their renewal
+     * prices - balance). Per-line Pay Now uses each line's own shortfall.
+     */
+    @Transactional(readOnly = true)
+    public PortalLinesDto portalLines(final UUID customerId) {
         final SubscriptionViews.Mapper mapper = views.mapper();
         final Money balance = wallets.balance(customerId, Money.KES);
-        return lines.findByCustomerId(customerId, Pageable.unpaged(Sort.by("createdAt"))).stream()
+        final List<PortalLineDto> mine = lines.findByCustomerId(customerId, Pageable.unpaged(Sort.by("createdAt"))).stream()
                 .filter(line -> line.getState() != SubscriptionState.TERMINATED)
                 .map(line -> portalLine(line, mapper.toDto(line), balance))
                 .toList();
+        Money dueTotal = Money.zero(Money.KES);
+        for (final PortalLineDto line : mine) {
+            dueTotal = line.due() ? dueTotal.plus(line.renewalPrice().toMoney()) : dueTotal;
+        }
+        final Money payAll = dueTotal.minus(balance);
+        return new PortalLinesDto(mine, MoneyDto.of(balance), MoneyDto.of(payAll.isPositive() ? payAll : Money.zero(Money.KES)));
     }
 
     private PortalLineDto portalLine(final Subscription line, final SubscriptionDto view, final Money balance) {
@@ -126,6 +162,7 @@ public class LineStatisticsService implements LineStatistics {
                 MoneyDto.of(shortfall.isPositive() ? shortfall : Money.zero(next.price().currency())),
                 view.state(),
                 view.displayStatus(),
+                DUE.contains(view.displayStatus()),
                 view.accessProfile(),
                 line.getExpiresAt(),
                 line.getPauseUntil());

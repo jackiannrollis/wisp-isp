@@ -36,7 +36,7 @@ context/            this folder
 - **Validation.** Bean Validation on request DTOs at the boundary; domain invariants enforced again in the domain layer (`domain-rules.md` IDs in the exception message).
 - **Mapping.** MapStruct for DTO ↔ domain; no entity leaves a module.
 - **Errors.** RFC 9457 problem details; stable `type` URIs per error; never leak stack traces or SQL.
-- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v4`) and switched in FreeRADIUS config, never altered in place.
+- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v5`) and switched in FreeRADIUS config, never altered in place.
 - **Secrets.** Through `SecretStore` only; never in properties files, logs, events or test fixtures (use fakes).
 - **Logging.** Structured JSON via the logging MDC with `tenantId`, `correlationId`, `module`; phone numbers masked; no payloads with secrets.
 - **Tests.** Unit tests for domain rules (cite rule IDs in test names: `S5_renewalExtendsFromCurrentExpiry`); Testcontainers for PostgreSQL and RabbitMQ; a FreeRADIUS integration test runs `radtest` against the view; the `AccessPolicy`-versus-view agreement test runs on every migration touching either.

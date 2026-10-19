@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.corebalt.isp.identity.application.PlatformAdmins;
 import com.corebalt.isp.identity.domain.Credentials;
+import com.corebalt.isp.shared.security.Permissions;
 import com.corebalt.isp.support.Api;
 import com.corebalt.isp.support.Catalog;
 import com.corebalt.isp.support.FakeAfricasTalking;
@@ -101,7 +102,7 @@ class IdentityIT extends IntegrationTest {
         final JsonNode me = new Api(port, signedIn.json().get("accessToken").asString()).get("/api/v1/me").json();
         assertThat(me.get("email").asString()).isEqualTo(invited.email());
         assertThat(me.get("role").asString()).isEqualTo("Owner");
-        assertThat(me.get("permissions").size()).isEqualTo(13);
+        assertThat(me.get("permissions").size()).isEqualTo(Permissions.ALL.size()).isEqualTo(14);
 
         // The next sign-in asks for the code.
         final JsonNode again = post("/api/v1/auth/login", Map.of("tenant", tenant.code().toLowerCase(), "email",

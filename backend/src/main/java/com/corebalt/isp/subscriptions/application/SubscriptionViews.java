@@ -32,6 +32,11 @@ class SubscriptionViews {
         return mapper().toDto(line);
     }
 
+    /** The current tenant's grace mode, as stored (FULL_SPEED or THROTTLED). */
+    String graceMode() {
+        return tenantProfile.currentPolicy().graceMode();
+    }
+
     /** The profile at {@code at}, with {@code expiresAt} in place of the stored expiry when not null. */
     AccessProfile profile(final Subscription line, final Instant at, final Instant expiresAt) {
         final AccessPolicy.Facts stored = line.facts();

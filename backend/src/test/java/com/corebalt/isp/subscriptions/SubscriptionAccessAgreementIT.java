@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
 import com.corebalt.isp.subscriptions.domain.AccessProfile;
+import com.corebalt.isp.subscriptions.domain.DisplayStatus;
 import com.corebalt.isp.subscriptions.domain.GraceMode;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.support.IntegrationTest;
@@ -22,8 +23,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
- * S3: {@code AccessPolicy} and {@code v_radius_auth_v4} return the same profile and the same
- * Session-Timeout for the same inputs at the same instant. Every case is inserted and the view read
+ * S3: {@code AccessPolicy} and {@code v_radius_auth_v5} return the same profile and the same
+ * Session-Timeout for the same inputs at the same instant, and {@code DisplayStatus} and the SQL
+ * function {@code subscription_access()} (which v5 and {@code v_subscription_status} use) the same
+ * profile, next change and display status (S1). Every case is inserted and the view read
  * in one transaction, so the view's now() and the instant given to AccessPolicy are identical; the
  * transaction is rolled back. Must stay green on every migration touching either side
  * (conventions.md, Tests).
@@ -61,6 +64,8 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                 final Instant now = dbNow(db);
                 final Map<String, AccessPolicy.Facts> facts = readFacts(db);
                 final Map<String, Map<String, String>> view = readView(db);
+                final Map<String, String[]> function = readFunction(db, now);
+                final Map<String, String> viewStatus = readStatusView(db);
 
                 for (final Map.Entry<String, AccessPolicy.Facts> line : facts.entrySet()) {
                     final String username = line.getKey();
@@ -74,6 +79,15 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                     assertThat(attributes.get("Session-Timeout"))
                             .as("Session-Timeout of %s %s", username, line.getValue())
                             .isEqualTo(timeout == null ? null : timeout.toString());
+                    final String[] sql = function.get(username);
+                    assertThat(sql[0]).as("function profile of %s %s", username, line.getValue())
+                            .isEqualTo(decision.profile().name());
+                    assertThat(sql[1]).as("function display status of %s %s", username, line.getValue())
+                            .isEqualTo(DisplayStatus.of(line.getValue(), decision, now).name());
+                    assertThat(sql[2]).as("function next change of %s %s", username, line.getValue())
+                            .isEqualTo(decision.nextChangeAt() == null ? null : decision.nextChangeAt().toString());
+                    final String listed = viewStatus.get(username);
+                    assertThat(listed).as("v_subscription_status of %s", username).isEqualTo(sql[1]);
                     compared++;
                 }
                 assertThat(compared).isGreaterThan(200);
@@ -196,12 +210,46 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
     private static Map<String, Map<String, String>> readView(final Connection db) throws Exception {
         final Map<String, Map<String, String>> view = new HashMap<>();
         try (ResultSet rs = db.createStatement().executeQuery(
-                "select username, attribute, value from v_radius_auth_v4 where username like 'ZQ%'")) {
+                "select username, attribute, value from v_radius_auth_v5 where username like 'ZQ%'")) {
             while (rs.next()) {
                 view.computeIfAbsent(rs.getString(1), k -> new HashMap<>()).put(rs.getString(2), rs.getString(3));
             }
         }
         return view;
+    }
+
+    /** Profile, display status and next change from the SQL function, at the instant given to AccessPolicy. */
+    private static Map<String, String[]> readFunction(final Connection db, final Instant now) throws Exception {
+        final Map<String, String[]> rows = new HashMap<>();
+        try (PreparedStatement statement = db.prepareStatement("""
+                select s.pppoe_username, a.profile, a.display_status, a.next_change_at
+                from subscriptions_subscription s join tenancy_tenant t on t.id = s.tenant_id
+                cross join lateral subscription_access(s.state, s.expires_at, s.grace_days, s.paused_at, s.pause_until,
+                                                       t.grace_mode, ?) a
+                where s.pppoe_username like 'ZQ%'
+                """)) {
+            statement.setTimestamp(1, Timestamp.from(now));
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    final Timestamp next = rs.getTimestamp(4);
+                    rows.put(rs.getString(1), new String[] {
+                        rs.getString(2), rs.getString(3), next == null ? null : next.toInstant().toString()});
+                }
+            }
+        }
+        return rows;
+    }
+
+    /** v_subscription_status reads now(), the same instant in this transaction. */
+    private static Map<String, String> readStatusView(final Connection db) throws Exception {
+        final Map<String, String> rows = new HashMap<>();
+        try (ResultSet rs = db.createStatement().executeQuery(
+                "select pppoe_username, display_status from v_subscription_status where pppoe_username like 'ZQ%'")) {
+            while (rs.next()) {
+                rows.put(rs.getString(1), rs.getString(2));
+            }
+        }
+        return rows;
     }
 
     /** The profile the view's attributes encode (docs/06 Profiles and reply attributes). */

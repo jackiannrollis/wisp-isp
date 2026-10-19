@@ -72,7 +72,7 @@ class DatabaseGrantsIT extends IntegrationTest {
         // The versioned views (the step-1 placeholders and older versions stay until a migration drops them).
         assertThat(radius).filteredOn(p -> !p.startsWith("radacct")).containsExactlyInAnyOrder(
                 "radius_client:SELECT", "radius_client_v3:SELECT", "v_radius_auth:SELECT", "v_radius_auth_v3:SELECT",
-                "v_radius_auth_v4:SELECT");
+                "v_radius_auth_v4:SELECT", "v_radius_auth_v5:SELECT");
         assertThat(radius).filteredOn(p -> p.startsWith("radacct")).containsExactlyInAnyOrder(
                 "radacct.acctsessionid:INSERT", "radacct.acctuniqueid:INSERT", "radacct.username:INSERT",
                 "radacct.realm:INSERT", "radacct.nasipaddress:INSERT", "radacct.nasportid:INSERT",

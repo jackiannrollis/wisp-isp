@@ -117,7 +117,10 @@ If a sandbox callback is refused, the backend logs `Callback refused from <ip>`:
 The admin dashboard (`GET /api/v1/dashboard`) reports a period of tenant-local days, the current month by default:
 
 - **Renewals due**: ACTIVE lines whose `expires_at` falls in the period, and the sum of the price their next renewal sells (the scheduled package when a downgrade is pending, S10). This is the dashboard's "expected revenue"; it does not forecast lines that are already expired or new sign-ups.
+- **Outstanding**: for the due lines (which are by definition not yet renewed, since a renewal moves the expiry past the period), the sum of what each line's wallet still lacks for its renewal, the portal's "pay to renew" (B5). It is not "due minus collected", which early payments and overpayments would distort. Each line is set against its customer's whole balance, so a customer with two due lines can have the same balance counted against both.
+- **Lapsed**: lines stored ACTIVE whose expiry fell before the period start and that have not renewed, with the price of their next renewal: the churn list. The lines themselves are listed with `GET /api/v1/subscriptions?displayStatus=RESTRICTED` (or `GRACE`).
 - **Collected**: payments received in the period on every channel, manual ones included (P4), reversed ones left out; the part still unmatched is shown separately (P3). Sums are taken over integer minor units (B2).
+- Every money figure needs the permission `finance.read` (built-in Owner and Finance roles). Without it the dashboard leaves the whole revenue block out rather than refusing, so one endpoint serves every role; wallet balances, statements, receipts and payment lists answer 403.
 - Lines by stored state and by derived display status (S1), routers by status, open sessions and usage (N7) complete it. Composed by the reporting module from the other modules' read interfaces.
 
 ## Receipts and invoices

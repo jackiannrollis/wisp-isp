@@ -68,7 +68,7 @@ class PortalIT extends IntegrationTest {
         final JsonNode me = mary.portal().get("/api/v1/portal/customer").json();
         assertThat(me.get("id").asString()).isEqualTo(mary.id().toString());
 
-        final JsonNode lines = mary.portal().get("/api/v1/portal/lines").json();
+        final JsonNode lines = mary.portal().get("/api/v1/portal/lines").json().get("lines");
         assertThat(lines).singleElement().satisfies(line -> {
             assertThat(line.get("id").asString()).isEqualTo(mary.lineId().toString());
             assertThat(line.get("packageName").asString()).isEqualTo("Home 10");
@@ -77,13 +77,36 @@ class PortalIT extends IntegrationTest {
             assertThat(line.get("renewalPrice").get("amount").asLong()).isEqualTo(250_000);
             // B5: the renewal emptied the wallet, so the next one needs the full price.
             assertThat(line.get("payToRenew").get("amount").asLong()).isEqualTo(250_000);
+            assertThat(line.get("due").asBoolean()).isFalse();
         });
+    }
+
+    @Test
+    void B5_payAllCoversEveryDueLineOnceAgainstTheSharedWallet() {
+        final String packageId = OwnerSql.client().sql("select package_id::text from subscriptions_subscription where id = :id")
+                .param("id", mary.lineId()).query(String.class).single();
+        final String routerId = OwnerSql.client().sql("select router_id::text from subscriptions_subscription where id = :id")
+                .param("id", mary.lineId()).query(String.class).single();
+        // A second line (PENDING, due) and the first one expiring within 3 days (EXPIRING, due).
+        assertThat(staff.post("/api/v1/subscriptions", "{\"customerId\":\"" + mary.id() + "\",\"packageId\":\"" + packageId
+                + "\",\"routerId\":\"" + routerId + "\"}").status()).isEqualTo(201);
+        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() + interval '1 day' where id = :id")
+                .param("id", mary.lineId()).update();
+        fund(mary, 100_000);
+
+        final JsonNode portal = mary.portal().get("/api/v1/portal/lines").json();
+        assertThat(portal.get("lines")).hasSize(2).allSatisfy(line -> {
+            assertThat(line.get("due").asBoolean()).isTrue();
+            assertThat(line.get("payToRenew").get("amount").asLong()).isEqualTo(150_000);
+        });
+        assertThat(portal.get("balance").get("amount").asLong()).isEqualTo(100_000);
+        assertThat(portal.get("payAll").get("amount").asLong()).isEqualTo(2 * 250_000 - 100_000);
     }
 
     @Test
     void B5_payToRenewIsWhatTheWalletStillLacks() {
         fund(mary, 100_000);
-        final JsonNode line = mary.portal().get("/api/v1/portal/lines").json().get(0);
+        final JsonNode line = mary.portal().get("/api/v1/portal/lines").json().get("lines").get(0);
         assertThat(line.get("payToRenew").get("amount").asLong()).isEqualTo(150_000);
         assertThat(mary.portal().get("/api/v1/portal/wallet").json().get("balance").get("amount").asLong()).isEqualTo(100_000);
     }

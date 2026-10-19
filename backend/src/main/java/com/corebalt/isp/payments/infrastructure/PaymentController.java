@@ -41,6 +41,7 @@ class PaymentController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('finance.read')")
     @Operation(summary = "List payments; filter by customer, status, channel and received time [receivedFrom, receivedBefore)")
     PageResponse<PaymentDto> list(
             @RequestParam(required = false) final UUID customerId,

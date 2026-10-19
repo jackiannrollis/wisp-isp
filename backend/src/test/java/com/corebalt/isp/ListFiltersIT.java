@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.corebalt.isp.support.Api;
 import com.corebalt.isp.support.Catalog;
 import com.corebalt.isp.support.IntegrationTest;
+import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
 import java.time.Instant;
 import java.util.UUID;
@@ -39,6 +40,19 @@ class ListFiltersIT extends IntegrationTest {
         assertThat(api.get("/api/v1/subscriptions?state=PENDING").json().get("total").asLong()).isEqualTo(2);
         assertThat(api.get("/api/v1/subscriptions?state=ACTIVE").json().get("total").asLong()).isZero();
         assertThat(api.get("/api/v1/subscriptions?state=EXPIRING").status()).isEqualTo(400);
+        assertThat(api.get("/api/v1/subscriptions?displayStatus=PENDING&routerId=" + r2).json().get("total").asLong()).isOne();
+        assertThat(api.get("/api/v1/subscriptions?displayStatus=RESTRICTED").json().get("total").asLong()).isZero();
+        // S1: a line stored ACTIVE whose expiry and grace have passed is listed as RESTRICTED, derived in SQL.
+        OwnerSql.client().sql("""
+                        update subscriptions_subscription set state = 'ACTIVE', expires_at = now() - interval '5 days',
+                            grace_days = 1, activated_at = now() - interval '35 days'
+                        where router_id = :r
+                        """)
+                .param("r", UUID.fromString(r1)).update();
+        final var restricted = api.get("/api/v1/subscriptions?displayStatus=RESTRICTED").json();
+        assertThat(restricted.get("total").asLong()).isOne();
+        assertThat(restricted.get("items").get(0).get("displayStatus").asString()).isEqualTo("RESTRICTED");
+        assertThat(api.get("/api/v1/subscriptions?displayStatus=SOON").status()).isEqualTo(400);
         assertThat(api.get("/api/v1/subscriptions?sort=expiresAt,desc").status()).isEqualTo(200);
     }
 

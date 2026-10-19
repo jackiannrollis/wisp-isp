@@ -15,11 +15,22 @@ public interface LineStatistics {
 
     /**
      * ACTIVE lines whose {@code expires_at} falls in [from, to), and the sum of the price their next
-     * renewal sells (the pending package when one is scheduled, S10).
+     * renewal sells (the pending package when one is scheduled, S10). A line that renews moves its expiry
+     * past the period, so every line counted here is still unrenewed; {@code outstanding} is the sum of
+     * what each one's wallet still lacks for its renewal (B5), the portal's "pay to renew". Each line is
+     * set against its customer's whole balance, so two due lines of one customer can both count it.
      */
     RenewalsDue renewalsDue(Instant from, Instant to);
 
+    /**
+     * Lines stored ACTIVE whose expiry fell before {@code before} and that have not renewed since: the
+     * churn list. {@code amount} is the price their next renewal sells.
+     */
+    Lapsed lapsed(Instant before);
+
     record LineCounts(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus) {}
 
-    record RenewalsDue(long lines, Money amount) {}
+    record RenewalsDue(long lines, Money amount, Money outstanding) {}
+
+    record Lapsed(long lines, Money amount) {}
 }

@@ -45,6 +45,13 @@ public final class CurrentActor {
         return customerId().orElseThrow(() -> new AccessDeniedException("a customer token is required"));
     }
 
+    /** Whether the current caller was granted {@code permission} (a code from {@link Permissions}). */
+    public static boolean has(final String permission) {
+        final var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null
+                && authentication.getAuthorities().stream().anyMatch(a -> permission.equals(a.getAuthority()));
+    }
+
     /** The platform admin of a PLATFORM token; otherwise empty. */
     public static Optional<UUID> platformAdminId() {
         return token().filter(t -> Tokens.PLATFORM.equals(t.getClaimAsString(Tokens.TYPE))).flatMap(CurrentActor::subject);

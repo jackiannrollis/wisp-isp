@@ -8,7 +8,7 @@ FreeRADIUS is the only door to the internet: routers ask it, it answers from Pos
 |---|---|
 | Nodes | Node A at Hetzner reads the PostgreSQL primary; node B in Nairobi reads the streaming replica. Every router lists both. |
 | Clients | Loaded from the `radius_client` view: `nasname` is the router's tunnel IP on that node's hub, `secret` is per router. Reloaded on router onboarding. |
-| Authorize | `rlm_sql` queries `v_radius_auth` by username. The view computes the access profile from `state`, `expires_at`, `grace_days` and tenant policy at query time and returns the reply attributes. |
+| Authorize | `rlm_sql` queries `v_radius_auth` (currently `v_radius_auth_v5`) by username. The view computes the access profile from `state`, `expires_at`, `grace_days` and tenant policy at query time, through the SQL function `subscription_access()` (S3), and returns the reply attributes. |
 | Tenant check | The query also requires `subscription.tenant_id = client.tenant_id`, so one ISP's customer can never log in through another ISP's router. |
 | Accounting | `radacct`, partitioned monthly; `Acct-Interim-Interval` 300 s; Gigawords handled. |
 | Post-auth | Every Access-Accept and Access-Reject is logged with the profile returned, for support. |

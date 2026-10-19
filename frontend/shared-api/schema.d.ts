@@ -172,7 +172,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List lines; filter by customer, stored state, router or package */
+        /** List lines; filter by customer, stored state, display status (derived now), router or package */
         get: operations["list"];
         put?: never;
         /** Open a PENDING PPPoE line; the password in the response is shown only this once */
@@ -1262,7 +1262,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My lines with status, package, expiry and what the next renewal needs */
+        /** My lines with status, package, expiry and what the next renewal needs; balance and pay-all */
         get: operations["lines"];
         put?: never;
         post?: never;
@@ -2227,11 +2227,17 @@ export interface components {
             payToRenew?: components["schemas"]["MoneyDto"];
             state?: string;
             displayStatus?: string;
+            due?: boolean;
             accessProfile?: string;
             /** Format: date-time */
             expiresAt?: string;
             /** Format: date-time */
             pauseUntil?: string;
+        };
+        PortalLinesDto: {
+            lines?: components["schemas"]["PortalLineDto"][];
+            balance?: components["schemas"]["MoneyDto"];
+            payAll?: components["schemas"]["MoneyDto"];
         };
         UsageDay: {
             /** Format: date */
@@ -2390,6 +2396,10 @@ export interface components {
             /** Format: int64 */
             renewalsDueLines?: number;
             renewalsDue?: components["schemas"]["MoneyDto"];
+            outstanding?: components["schemas"]["MoneyDto"];
+            /** Format: int64 */
+            lapsedLines?: number;
+            lapsed?: components["schemas"]["MoneyDto"];
             /** Format: int64 */
             payments?: number;
             collected?: components["schemas"]["MoneyDto"];
@@ -2810,6 +2820,7 @@ export interface operations {
             query?: {
                 customerId?: string;
                 state?: "PENDING" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "TERMINATED";
+                displayStatus?: "PENDING" | "ACTIVE" | "EXPIRING" | "GRACE" | "RESTRICTED" | "PAUSED" | "SUSPENDED" | "TERMINATED";
                 routerId?: string;
                 packageId?: string;
                 page?: number;
@@ -4515,7 +4526,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PortalLineDto"][];
+                    "*/*": components["schemas"]["PortalLinesDto"];
                 };
             };
         };

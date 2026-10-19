@@ -35,7 +35,8 @@ public class Roles {
     /** A2: holding any of these makes 2FA mandatory for the role. */
     public static final Set<String> NEEDS_2FA = Set.of(
             Permissions.STAFF_MANAGE, Permissions.SETTINGS_SECRETS, Permissions.BILLING_ADJUST,
-            Permissions.PAYMENTS_RECORD_MANUAL, Permissions.PAYMENTS_ASSIGN, Permissions.PAYMENTS_RECONCILE);
+            Permissions.PAYMENTS_RECORD_MANUAL, Permissions.PAYMENTS_ASSIGN, Permissions.PAYMENTS_RECONCILE,
+            Permissions.FINANCE_READ);
 
     static final Map<String, List<String>> BUILT_IN = builtIns();
 
@@ -59,7 +60,7 @@ public class Roles {
         final Map<String, List<String>> roles = new LinkedHashMap<>();
         roles.put(OWNER, Permissions.ALL);
         roles.put("Finance", List.of(Permissions.PAYMENTS_RECORD_MANUAL, Permissions.PAYMENTS_ASSIGN, Permissions.PAYMENTS_STK,
-                Permissions.PAYMENTS_RECONCILE, Permissions.BILLING_ADJUST, Permissions.AUDIT_READ));
+                Permissions.PAYMENTS_RECONCILE, Permissions.BILLING_ADJUST, Permissions.AUDIT_READ, Permissions.FINANCE_READ));
         roles.put("Support", List.of(Permissions.CUSTOMERS_WRITE, Permissions.SUBSCRIPTIONS_WRITE, Permissions.PAYMENTS_STK));
         roles.put("Technician", List.of(Permissions.NETWORK_WRITE, Permissions.SUBSCRIPTIONS_WRITE));
         return roles;

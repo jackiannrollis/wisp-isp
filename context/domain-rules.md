@@ -13,7 +13,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 - **S1** Only `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` are stored. `EXPIRING`, `GRACE`, `RESTRICTED` and the access profile are derived from dates at read time, never persisted.
 - **S2** Access profile logic, in this order: `PENDING`/`SUSPENDED`/`TERMINATED` → `REJECT`; `PAUSED` → `RESTRICTED`; `now < expires_at` → `FULL`; `now < expires_at + grace_days` → `FULL` or `THROTTLED` by tenant `grace_mode`; otherwise `RESTRICTED`.
-- **S3** The same logic exists in the `v_radius_auth` view and in `AccessPolicy`; a test proves they agree for the same inputs. Change both or neither.
+- **S3** The same logic exists in the SQL function `subscription_access()` (used by the `v_radius_auth` view and the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus`; a test proves they agree for the same inputs, profile, next change and display status. Change both or neither.
 - **S4** Every accepted login carries `Session-Timeout` = seconds until the next profile change, capped at 86400.
 - **S5** A renewal extends from the current `expires_at` when the line is not yet past grace, and from the moment of payment when it is. The clock time of `expires_at` is preserved.
 - **S6** `grace_days` is copied onto the subscription at each renewal; a policy change never shortens a cycle already paid for.

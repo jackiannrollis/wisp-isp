@@ -124,12 +124,14 @@ class MpesaController {
     }
 
     @GetMapping("/api/v1/payments/stk/{id}")
+    @PreAuthorize("hasAnyAuthority('finance.read', 'payments.stk')")
     @Operation(summary = "One STK request and its outcome")
     StkRequestDto stkRequest(@PathVariable final UUID id) {
         return stk.get(id);
     }
 
     @GetMapping("/api/v1/payments/suspense")
+    @PreAuthorize("hasAnyAuthority('finance.read', 'payments.assign')")
     @Operation(summary = "Unmatched payments with a likely-payer shortlist for masked numbers (P3)")
     PageResponse<SuspenseItem> suspense(
             @RequestParam(defaultValue = "0") final int page, @RequestParam(defaultValue = "50") final int size) {

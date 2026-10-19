@@ -13,7 +13,7 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 Steps 1 and 3 to 7 of the v1 build order (docs/09) are done; step 2, the network lab, is done
 except its Hyper-V half (`infra/lab/scripts/lab.ps1`), which has not run yet, so CoA/Disconnect,
 the restricted-mode rules and Session-Timeout on a real router are unproven (status note in
-`infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v4`; `AccessPolicy`
+`infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v5`; `AccessPolicy`
 agrees with the view under test (S3); credentials follow ADR 0009. Money: M-Pesa callbacks, manual
 payments, suspense and reconciliation (payments); ledger and receipts (billing); renewals and
 `CreditApplied` (subscriptions). Notifications: SMS through each tenant's Africa's Talking account,

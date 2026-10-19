@@ -12,7 +12,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 /**
  * Permission codes (A2): fixed strings, granted through a tenant's roles, carried in the access
  * token and checked server-side with {@code @PreAuthorize}. Every write needs a code; any staff
- * member may read, except the audit log and staff management.
+ * member may read, except the audit log, staff management and money ({@link #FINANCE_READ}).
  */
 public final class Permissions {
 
@@ -42,12 +42,17 @@ public final class Permissions {
     public static final String STAFF_MANAGE = "staff.manage";
     /** A1: read the audit log. */
     public static final String AUDIT_READ = "audit.read";
+    /**
+     * See money: the dashboard's revenue figures, wallet balances, statements, receipts and payments.
+     * Without it the dashboard leaves its revenue block out rather than refusing.
+     */
+    public static final String FINANCE_READ = "finance.read";
 
     /** The whole catalogue, for the role editor and the built-in Owner role. */
     public static final List<String> ALL = List.of(
             CUSTOMERS_WRITE, PACKAGES_WRITE, SUBSCRIPTIONS_WRITE, NETWORK_WRITE, PAYMENTS_RECORD_MANUAL, PAYMENTS_ASSIGN,
             PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, STAFF_MANAGE,
-            AUDIT_READ);
+            AUDIT_READ, FINANCE_READ);
 
     private Permissions() {}
 

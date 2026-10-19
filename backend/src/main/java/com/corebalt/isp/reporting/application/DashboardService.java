@@ -4,6 +4,8 @@ import com.corebalt.isp.network.api.NetworkStatistics;
 import com.corebalt.isp.payments.api.PaymentTotals;
 import com.corebalt.isp.reporting.api.DashboardDto;
 import com.corebalt.isp.shared.money.MoneyDto;
+import com.corebalt.isp.shared.security.CurrentActor;
+import com.corebalt.isp.shared.security.Permissions;
 import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.subscriptions.api.LineStatistics;
 import com.corebalt.isp.tenancy.api.TenantProfile;
@@ -40,6 +42,15 @@ public class DashboardService {
         this.clock = clock;
     }
 
+    private DashboardDto.Revenue revenue(final Instant start, final Instant end) {
+        final LineStatistics.RenewalsDue due = lines.renewalsDue(start, end);
+        final LineStatistics.Lapsed lapsed = lines.lapsed(start);
+        final PaymentTotals.Collected collected = payments.collected(start, end);
+        return new DashboardDto.Revenue(due.lines(), MoneyDto.of(due.amount()), MoneyDto.of(due.outstanding()),
+                lapsed.lines(), MoneyDto.of(lapsed.amount()), collected.payments(), MoneyDto.of(collected.amount()),
+                collected.unmatchedPayments(), MoneyDto.of(collected.unmatchedAmount()));
+    }
+
     /** {@code from} and {@code to} default to the first and last day of the current tenant-local month. */
     @Transactional(readOnly = true)
     public DashboardDto dashboard(final LocalDate from, final LocalDate to) {
@@ -55,8 +66,6 @@ public class DashboardService {
         final Instant end = last.plusDays(1).atStartOfDay(zone).toInstant();
 
         final LineStatistics.LineCounts counts = lines.counts(now);
-        final LineStatistics.RenewalsDue due = lines.renewalsDue(start, end);
-        final PaymentTotals.Collected collected = payments.collected(start, end);
         final NetworkStatistics.UsageTotals usage = network.usage(first, last);
         return new DashboardDto(
                 first,
@@ -64,8 +73,7 @@ public class DashboardService {
                 zone.getId(),
                 now,
                 new DashboardDto.Lines(counts.total(), counts.byState(), counts.byDisplayStatus()),
-                new DashboardDto.Revenue(due.lines(), MoneyDto.of(due.amount()), collected.payments(),
-                        MoneyDto.of(collected.amount()), collected.unmatchedPayments(), MoneyDto.of(collected.unmatchedAmount())),
+                CurrentActor.has(Permissions.FINANCE_READ) ? revenue(start, end) : null,
                 new DashboardDto.Network(network.routersByStatus(), network.openSessions(), usage.inputOctets(),
                         usage.outputOctets()));
     }

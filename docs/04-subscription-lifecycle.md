@@ -48,7 +48,7 @@ elif now <  expires_at + grace_days:                FULL or THROTTLED (tenant gr
 else:                                               RESTRICTED
 ```
 
-The same logic lives in two places that must agree: the `v_radius_auth` SQL view that FreeRADIUS reads, and the `AccessPolicy` class in the `subscriptions` module. A test asserts they return the same profile for the same inputs.
+The same logic lives in two places that must agree: the SQL function `subscription_access()`, which the `v_radius_auth` view that FreeRADIUS reads and the staff list view `v_subscription_status` both use, and the `AccessPolicy` and `DisplayStatus` classes in the `subscriptions` module. A test asserts they return the same profile, next change and display status for the same inputs.
 
 ## Enforcement
 

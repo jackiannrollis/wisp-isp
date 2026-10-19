@@ -41,12 +41,14 @@ class WalletController {
     }
 
     @GetMapping("/api/v1/customers/{customerId}/wallet")
+    @PreAuthorize("hasAuthority('finance.read')")
     @Operation(summary = "The customer's wallet balance")
     WalletDto wallet(@PathVariable final UUID customerId) {
         return wallets.wallet(customerId, KES);
     }
 
     @GetMapping("/api/v1/customers/{customerId}/wallet/entries")
+    @PreAuthorize("hasAuthority('finance.read')")
     @Operation(summary = "The customer's ledger entries, newest first (statement)")
     PageResponse<LedgerEntryDto> entries(
             @PathVariable final UUID customerId,
@@ -73,6 +75,7 @@ class WalletController {
     }
 
     @GetMapping("/api/v1/receipts")
+    @PreAuthorize("hasAuthority('finance.read')")
     @Operation(summary = "Receipts, newest first, optionally of one customer (B7)")
     PageResponse<ReceiptDto> receipts(
             @RequestParam(required = false) final UUID customerId,

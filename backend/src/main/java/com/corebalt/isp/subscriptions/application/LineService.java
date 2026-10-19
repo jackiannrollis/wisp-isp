@@ -18,6 +18,7 @@ import com.corebalt.isp.subscriptions.api.PppoeCredentialDto;
 import com.corebalt.isp.subscriptions.api.RouterDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
+import com.corebalt.isp.subscriptions.domain.DisplayStatus;
 import com.corebalt.isp.subscriptions.domain.PppoeUsernames;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
@@ -130,12 +131,13 @@ public class LineService implements SubscriptionDirectory {
 
     @Transactional(readOnly = true)
     public PageResponse<SubscriptionDto> list(final UUID customerId, final Pageable page) {
-        return list(new LineFilter(customerId, null, null, null), page);
+        return list(new LineFilter(customerId, null, null, null, null), page);
     }
 
     /**
-     * Filters on stored columns only. A derived display status (S1) cannot be filtered here without
-     * evaluating every line before paging, so it is not offered.
+     * Filters and pages in SQL. The display status (S1) is derived in the query by
+     * subscription_display_status(), the SQL copy of the rules that SubscriptionAccessAgreementIT
+     * holds equal to AccessPolicy and DisplayStatus (S3); it is never stored.
      */
     @Transactional(readOnly = true)
     public PageResponse<SubscriptionDto> list(final LineFilter filter, final Pageable page) {
@@ -153,11 +155,20 @@ public class LineService implements SubscriptionDirectory {
         if (filter.packageId() != null) {
             where = where.and((root, query, cb) -> cb.equal(root.get("packageId"), filter.packageId()));
         }
+        if (filter.displayStatus() != null) {
+            final String graceMode = views.graceMode();
+            where = where.and((root, query, cb) -> cb.equal(
+                    cb.function("subscription_display_status", String.class, root.get("state"), root.get("expiresAt"),
+                            root.get("graceDays"), root.get("pausedAt"), root.get("pauseUntil"), cb.literal(graceMode),
+                            cb.currentTimestamp()),
+                    filter.displayStatus().name()));
+        }
         return PageResponse.of(lines.findAll(where, page), mapper::toDto);
     }
 
     /** Staff list filters; null means any. */
-    public record LineFilter(UUID customerId, SubscriptionState state, UUID routerId, UUID packageId) {}
+    public record LineFilter(UUID customerId, SubscriptionState state, UUID routerId, UUID packageId,
+                             DisplayStatus displayStatus) {}
 
     @Override
     @Transactional(readOnly = true)

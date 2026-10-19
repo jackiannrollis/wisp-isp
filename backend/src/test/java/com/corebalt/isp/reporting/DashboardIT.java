@@ -80,9 +80,10 @@ class DashboardIT extends IntegrationTest {
     }
 
     @Test
-    void renewalsDueAreActiveLinesExpiringInThePeriodAtTheirNextPrice() {
+    void B5_renewalsDueOutstandingAndLapsed() {
         final LocalDate today = LocalDate.now(NAIROBI);
-        line("Esther", today.plusDays(5).atTime(12, 0).atZone(NAIROBI).toInstant());
+        final String esther = line("Esther", today.plusDays(5).atTime(12, 0).atZone(NAIROBI).toInstant());
+        fundLineOwner(esther, 100_000);
         line("Faith", today.plusDays(9).atTime(23, 30).atZone(NAIROBI).toInstant());   // last minutes of the last day
         line("Gitau", today.plusDays(10).atStartOfDay(NAIROBI).toInstant());           // first instant after it
         line("Halima", today.minusDays(3).atTime(9, 0).atZone(NAIROBI).toInstant());   // before it
@@ -91,6 +92,39 @@ class DashboardIT extends IntegrationTest {
         assertThat(revenue.get("renewalsDueLines").asLong()).isEqualTo(2);
         assertThat(revenue.get("renewalsDue").get("amount").asLong()).isEqualTo(500_000);
         assertThat(revenue.get("renewalsDue").get("currency").asString()).isEqualTo("KES");
+        // Esther's wallet holds 1,000 of her 2,500; Faith's holds nothing.
+        assertThat(revenue.get("outstanding").get("amount").asLong()).isEqualTo(150_000 + 250_000);
+        // Halima expired before the period and has not renewed: the churn list.
+        assertThat(revenue.get("lapsedLines").asLong()).isOne();
+        assertThat(revenue.get("lapsed").get("amount").asLong()).isEqualTo(250_000);
+    }
+
+    @Test
+    void A2_withoutFinanceReadTheDashboardLeavesOutEveryMoneyFigure() {
+        line("Kamau", Instant.now().plus(Duration.ofDays(5)));
+        final Api technician = new Api(port, tenant, "network.write", "subscriptions.write");
+        final Api.Response response = technician.get("/api/v1/dashboard");
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(response.json().has("revenue")).isFalse();
+        assertThat(response.body()).doesNotContain("\"amount\"");
+        assertThat(response.json().get("lines").get("total").asLong()).isOne();
+        assertThat(response.json().get("network")).isNotNull();
+
+        final String customer = OwnerSql.client().sql("select customer_id::text from subscriptions_subscription where tenant_id = :t")
+                .param("t", tenant).query(String.class).single();
+        assertThat(technician.get("/api/v1/customers/" + customer + "/wallet").status()).isEqualTo(403);
+        assertThat(technician.get("/api/v1/customers/" + customer + "/wallet/entries").status()).isEqualTo(403);
+        assertThat(technician.get("/api/v1/receipts").status()).isEqualTo(403);
+        assertThat(technician.get("/api/v1/payments").status()).isEqualTo(403);
+        assertThat(technician.get("/api/v1/payments/suspense").status()).isEqualTo(403);
+        assertThat(new Api(port, tenant, "finance.read").get("/api/v1/dashboard").json().has("revenue")).isTrue();
+    }
+
+    private void fundLineOwner(final String username, final long minor) {
+        final UUID customer = OwnerSql.client().sql("select customer_id from subscriptions_subscription where pppoe_username = :u")
+                .param("u", username).query(UUID.class).single();
+        TenantContext.runAsTenant(tenant, () -> tx.executeWithoutResult(
+                s -> wallets.adjust(customer, Money.ofMinor(minor, "KES"), "test funding")));
     }
 
     @Test
