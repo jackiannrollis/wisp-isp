@@ -12,6 +12,7 @@ Each record states the context, the decision and its consequences at the time it
 | [0006](0006-wireguard-to-every-router.md) | WireGuard tunnels to every tenant router | Accepted |
 | [0007](0007-restricted-profile-not-reject.md) | Expired subscribers get a restricted profile, not an Access-Reject | Accepted |
 | [0008](0008-two-radius-nodes-one-in-nairobi.md) | Two RADIUS nodes, one in Nairobi, before a second tenant | Accepted |
+| [0009](0009-radius-credentials-readable-only-by-radius.md) | RADIUS credentials are stored readable only by FreeRADIUS, not envelope-encrypted | Accepted |
 
 ## Writing a new record
 

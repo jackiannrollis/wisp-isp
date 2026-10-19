@@ -58,12 +58,12 @@ The monolith is one deployable, but its modules are strict. Spring Modulith veri
 |---|---|---|---|
 | `tenancy` | Tenants, settings, branding, encrypted secrets | `TenantCreated` | — |
 | `identity` | Staff users, roles, permissions, 2FA, audit log, portal logins | `AuditRecorded` | every state-changing command |
-| `customers` | Customer profile, PPPoE credentials, router and MAC, location | `CustomerCreated` | — |
+| `customers` | Customer profile, contact details, location | `CustomerCreated` | — |
 | `packages` | Package definitions and prices | `PackageChanged` | — |
-| `subscriptions` | Subscription, expiry, lifecycle states, renewals, proration, pause | `SubscriptionRenewed`, `SubscriptionStateChanged` | `WalletCredited` |
+| `subscriptions` | Subscription (the line: package, router, PPPoE username, MAC, static IP), expiry, lifecycle states, renewals, proration, pause | `SubscriptionRenewed`, `SubscriptionStateChanged` | `WalletCredited` |
 | `billing` | Wallet, ledger, receipts, invoices, arrears, credit notes | `WalletCredited`, `WalletDebited`, `ReceiptIssued` | `PaymentReceived`, `SubscriptionRenewed` |
 | `payments` | M-Pesa Daraja, STK Push, suspense queue, reconciliation, manual payments | `PaymentReceived`, `PaymentUnmatched` | — |
-| `network` | Routers, sites, IP pools, RADIUS entitlement rows, CoA, RouterOS REST, sessions, accounting ingest, usage roll-ups, fair-use | `NetworkAccessChanged`, `SessionReauthorized`, `RouterOffline`, `UsageThresholdReached` | `SubscriptionStateChanged`, `SubscriptionRenewed` |
+| `network` | Routers, sites, IP pools, RADIUS credentials (PPPoE passwords, router secrets; ADR 0009), RADIUS entitlement rows, CoA, RouterOS REST, sessions, accounting ingest, usage roll-ups, fair-use | `NetworkAccessChanged`, `SessionReauthorized`, `RouterOffline`, `UsageThresholdReached` | `SubscriptionStateChanged`, `SubscriptionRenewed` |
 | `notifications` | Templates, SMS dispatch (WhatsApp and email later), delivery log | `CustomerNotified` | most events above |
 | `hotspot` (v2) | Hotspot plans, captive portal API, vouchers, hotspot sessions | `VoucherRedeemed` | `PaymentReceived` |
 | `support` (v2) | Tickets, outages, technician assignment | `TicketUpdated` | `RouterOffline` |

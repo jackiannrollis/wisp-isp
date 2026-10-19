@@ -21,7 +21,8 @@ One platform serves many ISPs, and nothing crosses between them: every row carri
 
 ## Secrets
 
-- M-Pesa consumer key, secret and passkey, SMS API keys, RADIUS shared secrets, router API and SNMP credentials and PPPoE passwords are envelope-encrypted: a per-tenant data key wrapped by a platform master key held outside the database.
+- M-Pesa consumer key, secret and passkey, SMS API keys, router API and SNMP credentials and TOTP seeds are envelope-encrypted: a per-tenant data key wrapped by a platform master key held outside the database.
+- Exception: PPPoE passwords and per-router RADIUS shared secrets must be readable by FreeRADIUS, which reads the database directly (ADR 0004). They are platform-generated, stored in `network_radius_credential` where only the RADIUS views can read them, shown to staff once and then only regenerated, never revealed ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)).
 - Secrets are write-only in the API: entered once, never displayed again, replaced rather than edited.
 - Key rotation re-wraps data keys without rewriting ciphertext; a rotation runbook exists before the first paying tenant.
 - Secrets never appear in logs, events or error messages; a log scrubber redacts known key shapes as a second line of defence.

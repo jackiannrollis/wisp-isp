@@ -7,7 +7,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **T1** Every tenant-scoped row carries `tenant_id`; every query runs with a tenant context; a missing context is an error, never "all tenants".
 - **T2** Customer numbers and PPPoE usernames are `<tenant code><6-digit sequence>` (`CB001238`), unique across the platform; a second line is `CB001238-2`.
 - **T3** A username authenticates only through routers of its own tenant (`v_radius_auth` joins router tenant to subscription tenant).
-- **T4** Tenant secrets are write-only: stored envelope-encrypted, never returned, logged or placed in events.
+- **T4** Tenant secrets are write-only: stored envelope-encrypted, never returned, logged or placed in events. Exception (ADR 0009): PPPoE passwords and router RADIUS secrets are stored readable only through the RADIUS views, because FreeRADIUS must compare them; the application can set and regenerate them but never read them back, and shows a new value once.
 
 ## Subscriptions (docs/04)
 

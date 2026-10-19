@@ -81,7 +81,7 @@ erDiagram
 |---|---|
 | `customer_id`, `package_id`, `router_id` | |
 | `pppoe_username` | Equals `customer.number` for the first line; `CB001238-2` for a second line |
-| `pppoe_password` | Encrypted; shown once to staff at creation |
+| PPPoE password | Not a column here: platform-generated, stored in `network_radius_credential` (owned by `network`), shown once to staff at creation, then only regenerated ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)) |
 | `static_ip`, `mac_address` | Optional |
 | `state` | Stored: `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` (see [04](04-subscription-lifecycle.md)) |
 | `expires_at` | The date the paid period ends |
@@ -139,12 +139,14 @@ Derived, never stored: `display_status` (`EXPIRING`, `GRACE`, `RESTRICTED`, …)
 |---|---|
 | `site_id`, `name`, `model`, `routeros_version`, `identity` | |
 | `wg_public_key`, `tunnel_ip_a`, `tunnel_ip_b` | Tunnel addresses on each hub |
-| `radius_secret` | Encrypted; per router |
+| RADIUS secret | Per router, platform-generated, stored in `network_radius_credential` like PPPoE passwords ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)) |
 | `api_username`, `api_password` | Encrypted; REST user limited to read and PPP actions |
 | `snmp_community` | Encrypted |
 | `status`, `last_seen_at`, `last_handshake_at` | `ONLINE`, `OFFLINE`, `UNKNOWN` |
 
 **ip_pool** — `router_id`, `name`, `cidr`, `purpose` (`FULL`, `RESTRICTED`).
+
+**radius_credential** — `subscription_id` or `router_id`, `secret`. PPPoE passwords and router RADIUS secrets, readable only through the RADIUS views; the application can insert and update `secret` but never select it ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)).
 
 **radius_client** — a view over `router` giving FreeRADIUS `nasname` (tunnel IP), `secret`, `shortname`, `tenant_id`.
 

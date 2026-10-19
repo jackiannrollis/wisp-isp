@@ -26,6 +26,7 @@ context/            this folder
 ## Backend (Java, Spring Boot)
 
 - **Modules first.** New code goes in exactly one module; cross-module calls go through the module's `api` package (a facade or a published event). The Spring Modulith verification test must stay green.
+- **Ports against cycles.** When module A needs module B but B already depends on A's events, A declares a port interface in its api package and B implements it; never add the reverse dependency. Example: `subscriptions.api.LineCredentialStore`, implemented by the network module.
 - **Entities and IDs.** JPA entities per module; IDs are UUIDv7 generated in the application; every tenant-scoped entity has `tenantId`, set from `TenantContext`, never from request input.
 - **Tenant context.** Resolved once per request or event in a filter or listener; repositories read it from a thread-bound holder; a transaction sets `app.tenant_id` for PostgreSQL RLS. Code that needs all tenants (platform console, schedulers) uses an explicit `TenantIterator`, logged.
 - **Money.** `Money` value object wrapping `long minorUnits` and `Currency`; arithmetic through the value object only; rounding rules live there (proration rounds up to the shilling).
@@ -35,7 +36,7 @@ context/            this folder
 - **Validation.** Bean Validation on request DTOs at the boundary; domain invariants enforced again in the domain layer (`domain-rules.md` IDs in the exception message).
 - **Mapping.** MapStruct for DTO ↔ domain; no entity leaves a module.
 - **Errors.** RFC 9457 problem details; stable `type` URIs per error; never leak stack traces or SQL.
-- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v2`) and switched in FreeRADIUS config, never altered in place.
+- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v3`) and switched in FreeRADIUS config, never altered in place.
 - **Secrets.** Through `SecretStore` only; never in properties files, logs, events or test fixtures (use fakes).
 - **Logging.** Structured JSON via the logging MDC with `tenantId`, `correlationId`, `module`; phone numbers masked; no payloads with secrets.
 - **Tests.** Unit tests for domain rules (cite rule IDs in test names: `S5_renewalExtendsFromCurrentExpiry`); Testcontainers for PostgreSQL and RabbitMQ; a FreeRADIUS integration test runs `radtest` against the view; the `AccessPolicy`-versus-view agreement test runs on every migration touching either.
@@ -71,6 +72,7 @@ context/            this folder
 - `outbox_event`: the application role may INSERT, and UPDATE only `published_at`, `attempts` and `last_error` (column-level grants); no DELETE. Published rows older than 7 days are purged by an owner-role maintenance job.
 - Encrypted columns are `bytea` with a `_enc` suffix and a `key_version`.
 - FreeRADIUS uses its own role with select on two views and insert/update on `radacct` only.
+- `network_radius_credential` (ADR 0009): the application role may insert rows and update `secret`, and select only the key columns, never `secret`; only the RADIUS views read it.
 
 ## Events and queues (RabbitMQ)
 

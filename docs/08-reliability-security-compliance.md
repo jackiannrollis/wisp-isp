@@ -20,7 +20,7 @@ A Corebalt outage takes every tenant's customers offline, so reliability is part
 - Two FreeRADIUS nodes, one in a Nairobi data centre, every router configured with both.
 - PostgreSQL primary with a streaming replica in Nairobi; each RADIUS node reads the nearest database; replication lag alerted above 30 seconds.
 - RabbitMQ cluster with durable quorum queues and persistent messages; dead-letter queues alerted.
-- Nightly full backups plus continuous WAL archiving for point-in-time recovery; a restore drill every month; a RADIUS failover drill every quarter.
+- Nightly full backups plus continuous WAL archiving for point-in-time recovery, encrypted at rest and in transit to storage; a restore drill every month; a RADIUS failover drill every quarter.
 - Capacity: FreeRADIUS and PostgreSQL sized for 10× the current subscriber count; `radacct` partitions dropped after 13 months, roll-ups kept.
 - Deployments roll one API instance at a time with health checks; schema migrations are backwards compatible for one release.
 
@@ -47,6 +47,7 @@ Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant
 - Audit log of every money movement, access change, secret change and impersonation, append-only and exportable per tenant.
 - Router management only over WireGuard; no router API, SNMP or RADIUS port exposed to the public internet; per-router secrets.
 - Secrets envelope-encrypted as described in [07](07-multi-tenancy.md); master key outside the database; rotation runbook.
+- PPPoE passwords and router RADIUS secrets are the exception: stored readable by FreeRADIUS only ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)). Because they sit in clear in the primary, the replica and every backup, full-disk encryption on every database host and encrypted backups (WAL archive included) are requirements, not options.
 - M-Pesa callback endpoints restricted to Safaricom IP ranges with per-tenant path tokens; all other traffic through Caddy with TLS 1.2+.
 - Dependency and container image scanning in CI; least-privilege database roles (FreeRADIUS has read-only access to two views and insert on `radacct`).
 - Customer data minimisation: national ID only where the tenant needs it and encrypted at rest; phone numbers masked in logs.

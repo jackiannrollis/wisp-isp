@@ -12,7 +12,7 @@ FreeRADIUS is the only door to the internet: routers ask it, it answers from Pos
 | Tenant check | The query also requires `subscription.tenant_id = client.tenant_id`, so one ISP's customer can never log in through another ISP's router. |
 | Accounting | `radacct`, partitioned monthly; `Acct-Interim-Interval` 300 s; Gigawords handled. |
 | Post-auth | Every Access-Accept and Access-Reject is logged with the profile returned, for support. |
-| Password | PPPoE uses PAP or CHAP; passwords are stored encrypted in the platform and decrypted into the view through a database function with restricted execute rights. |
+| Password | PPPoE uses PAP or CHAP. Passwords and per-router secrets are platform-generated and stored in `network_radius_credential`, readable only through the two views; the application can set or regenerate them but never read them back ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)). |
 
 ### Profiles and reply attributes
 

@@ -16,5 +16,5 @@ FreeRADIUS 3.2 with `rlm_sql` reads two PostgreSQL views: `radius_client` (route
 - Logins keep working when the API is down or deploying; node B in Nairobi also keeps working from the replica when the Hetzner core is unreachable.
 - Expiry is enforced at login time by the database, never only by a scheduled job.
 - The view is a contract: changing the date logic means changing the view, the `AccessPolicy` class and the test together.
-- FreeRADIUS needs read access to decrypted PPPoE passwords; this is granted through a restricted database function, and the RADIUS database role has no other access.
+- FreeRADIUS needs PPPoE passwords and router secrets in plain form, so they are stored readable only through the two views (the application role can write but never read them), not envelope-encrypted; the RADIUS database role has no other access. See [ADR 0009](0009-radius-credentials-readable-only-by-radius.md).
 - `Session-Timeout` capped at 24 hours bounds the effect of any missed CoA.
