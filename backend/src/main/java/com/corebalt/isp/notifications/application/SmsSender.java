@@ -26,8 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Sends queued messages, tenant by tenant. Due messages are claimed with a short lease and
  * committed, the provider is called outside any transaction, then the outcome is recorded
- * ({@link SendOutcome}). Gauges for the platform: {@code isp.notifications.alerts.open} (tenants
- * with an open SMS alert) and {@code isp.notifications.dead} (dead-lettered messages).
+ * ({@link SendOutcome}). Gauges for the platform: {@code isp.notifications.alerts.open} (open SMS
+ * alerts across tenants) and {@code isp.notifications.dead} (dead-lettered messages).
  */
 @Service
 public class SmsSender {

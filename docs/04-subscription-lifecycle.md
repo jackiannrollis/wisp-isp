@@ -90,8 +90,8 @@ Templates and timing are per tenant. Defaults:
 | `DUE_TODAY` | On `expires_at` | "Your internet of KES 2,500 is due today." |
 | `GRACE_STARTED` | At `expires_at` when grace > 0 | "Your internet has expired. You have 2 days before service is restricted." |
 | `RESTRICTED` | At grace end | "Your internet is restricted. Pay to restore instantly." |
-| `PAYMENT_RECEIVED` | On renewal | "Payment of KES 2,500 received. Your Home Plus internet is renewed until 17 November 2026." |
-| `RESTORED` | When access returns from `RESTRICTED` | "Internet restored." |
+| `PAYMENT_RECEIVED` (one per payment) | After the renewal the payment caused is decided | "KES 2,500 received (CB-R000123). Home Plus renewed until 17 Nov. Thank you, Mary." Variants below. |
+| `RESTORED` | A variant of `PAYMENT_RECEIVED`, not a second SMS | "... renewed until 17 Nov. Internet is back within a minute; if not, restart your router." |
 
 **The payment message.** One SMS per payment (dedupe key: the payment ID), sent after the renewal it caused is decided, so it states the amount, the receipt number and what happened. Variants: renewed ("renewed until 17 Nov"); restored (the same, plus "Internet is back within a minute; if not, restart your router", because it goes out before the router's CoA result is known); first activation; several lines renewed by one payment (each listed with its new expiry); partial (the amount still due and how to pay); credit kept (no line due); postpaid (balance due, once postpaid billing exists). A payment whose reference was not recognised gets a reply only when Daraja sent the payer's number unmasked; it asks the payer to use their customer number. Staff adjustments send no "received" message. Reminders for a line whose wallet already covers the next cycle say it renews automatically.
 
