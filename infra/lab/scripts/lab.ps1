@@ -11,7 +11,7 @@
       status                      tunnel, RADIUS client, PPPoE sessions and queues on the router
       login <user>                redial the client as <user> (password lab-password)
       check                       from the client: HTTP, HTTPS, ping and DNS, to prove FULL or RESTRICTED
-      set-line <user> <interval>  move a lab line's expires_at to now() + interval (e.g. '-10 days')
+      set-line <user> <interval>  move a line's expires_at to now() + interval (e.g. '-10 days')
       coa <user> <rate>           RADIUS CoA: change Mikrotik-Rate-Limit in place (e.g. 2M/4M)
       disconnect <user>           RADIUS Disconnect-Request: drop the session so the client redials
       stop | start | destroy      stop, start or delete both VMs (destroy keeps the downloaded image)
@@ -274,7 +274,7 @@ switch ($Command) {
         $router = Get-VmAddress $RouterVm
         Write-Host "WireGuard on the hub:"
         Invoke-Compose exec -T wireguard wg show wg0 | Out-Host
-        Write-Host "RADIUS clients known to FreeRADIUS come from radius_client_v2 (loaded at start)."
+        Write-Host "RADIUS clients known to FreeRADIUS come from radius_client_v3 (loaded at start)."
         Show-RouterSessions $router
     }
 
@@ -312,7 +312,7 @@ switch ($Command) {
         $env:PGPASSWORD = Get-EnvValue $values "ISP_DB_OWNER_PASSWORD"
         try {
             Invoke-Compose exec -T -e PGPASSWORD postgres psql -h localhost -U isp_owner -d isp -c `
-                "update network_lab_line set expires_at = now() + interval '$Arg2', updated_at = now() where username = '$Arg1' returning username, state, expires_at" | Out-Host
+                "update subscriptions_subscription set expires_at = now() + interval '$Arg2', updated_at = now() where pppoe_username = '$Arg1' returning pppoe_username, state, expires_at" | Out-Host
         } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
         Write-Host "The live session keeps its profile until Session-Timeout or a Disconnect (lab.ps1 disconnect $Arg1)."
     }

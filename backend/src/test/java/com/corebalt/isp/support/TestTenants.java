@@ -15,6 +15,11 @@ public final class TestTenants {
     private TestTenants() {}
 
     public static UUID create(final JdbcClient jdbc, final TransactionTemplate tx) {
+        return createWithCode(jdbc, tx).id();
+    }
+
+    /** A tenant and its code, for tests of numbers and usernames (T2). */
+    public static Created createWithCode(final JdbcClient jdbc, final TransactionTemplate tx) {
         final UUID id = UuidV7.next();
         final String code = code(SEQUENCE.incrementAndGet());
         TenantContext.callAsPlatform(
@@ -32,13 +37,17 @@ public final class TestTenants {
                                                 .param("name", "Tenant " + code)
                                                 .param("subdomain", code.toLowerCase())
                                                 .update()));
-        return id;
+        return new Created(id, code);
     }
 
-    /** Two to four upper-case letters, unique per test JVM. */
+    public record Created(UUID id, String code) {}
+
+    /** Three or four upper-case letters, unique per test JVM. */
     private static String code(final int n) {
         final StringBuilder code = new StringBuilder();
-        int value = n + 26; // start at "BA" so every code has at least two letters
+        // Start at "BAA": three letters, so test tenants never collide with the two-letter lab
+        // fixtures (CB, ZZ) that RadiusAuthIT loads.
+        int value = n + 26 * 26;
         while (value > 0) {
             code.insert(0, (char) ('A' + value % 26));
             value /= 26;

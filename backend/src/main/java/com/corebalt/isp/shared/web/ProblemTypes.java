@@ -11,6 +11,8 @@ public final class ProblemTypes {
     public static final URI FORBIDDEN = URI.create(BASE + "forbidden");
     public static final URI TENANT_CONTEXT_MISSING = URI.create(BASE + "tenant-context-missing");
     public static final URI VALIDATION_FAILED = URI.create(BASE + "validation-failed");
+    public static final URI NOT_FOUND = URI.create(BASE + "not-found");
+    public static final URI CONFLICT = URI.create(BASE + "conflict");
     public static final URI INTERNAL_ERROR = URI.create(BASE + "internal-error");
 
     private ProblemTypes() {}

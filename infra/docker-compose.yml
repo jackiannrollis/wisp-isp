@@ -102,7 +102,7 @@ services:
   # FreeRADIUS reads the views the backend's Flyway migrations create, so it starts after the API
   # is healthy. Logins never depend on the API at runtime (ADR 0004); only on the database.
   # It runs in the WireGuard hub's network namespace so routers are seen by their tunnel address
-  # (radius_client_v2.nasname) and CoA/Disconnect leave from the hub address.
+  # (radius_client_v3.nasname) and CoA/Disconnect leave from the hub address.
   freeradius:
     build:
       context: ../radius

@@ -3,6 +3,7 @@ package com.corebalt.isp.shared.web;
 import com.corebalt.isp.shared.tenant.TenantContextMissingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -37,6 +38,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail accessDenied(final AccessDeniedException e) {
         return ProblemResponseWriter.problem(
                 HttpStatus.FORBIDDEN, ProblemTypes.FORBIDDEN, "You do not have permission for this action.");
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    ProblemDetail notFound(final NotFoundException e) {
+        return ProblemResponseWriter.problem(HttpStatus.NOT_FOUND, ProblemTypes.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    ProblemDetail conflict(final ConflictException e) {
+        return ProblemResponseWriter.problem(HttpStatus.CONFLICT, ProblemTypes.CONFLICT, e.getMessage());
+    }
+
+    /** A unique or foreign key the request ran into; the SQL detail is logged, never returned. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail integrityViolation(final DataIntegrityViolationException e) {
+        log.info("Integrity violation: {}", e.getMostSpecificCause().getClass().getSimpleName());
+        return ProblemResponseWriter.problem(
+                HttpStatus.CONFLICT, ProblemTypes.CONFLICT, "The request conflicts with existing data.");
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    ProblemDetail invalidRequest(final InvalidRequestException e) {
+        final ProblemDetail problem =
+                ProblemResponseWriter.problem(
+                        HttpStatus.BAD_REQUEST, ProblemTypes.VALIDATION_FAILED, "The request is invalid.");
+        problem.setProperty("errors", e.violations());
+        return problem;
     }
 
     @ExceptionHandler(Exception.class)

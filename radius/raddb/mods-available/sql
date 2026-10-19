@@ -1,11 +1,11 @@
 # rlm_sql for the Corebalt ISP Platform (ADR 0004, N2).
 #
 # FreeRADIUS reads exactly two views from PostgreSQL and writes only radacct:
-#   radius_client_v2   routers (NAS) allowed to talk to this node
-#   v_radius_auth_v2   check and reply attributes per username and router (T3)
+#   radius_client_v3   routers (NAS) allowed to talk to this node
+#   v_radius_auth_v3   check and reply attributes per username and router (T3)
 # Both are defined by Flyway migrations in backend/; see docs/06-network-access-control.md.
-# Views are versioned: switch the name here, never alter a view in place. v2 reads the step-2 lab
-# tables (V202610191000); step 3 publishes v3 over the real tables.
+# Views are versioned: switch the name here, never alter a view in place. v3 reads the real
+# subscription, package, tenant, router and credential tables (V202610191106, ADR 0009).
 #
 # Connection settings come from the environment, never from this file:
 #   RADIUS_DB_HOST, RADIUS_DB_PORT, RADIUS_DB_NAME, RADIUS_DB_USER, RADIUS_DB_PASSWORD
@@ -26,7 +26,7 @@ sql {
 
 	# Routers come from the database (reloaded on router onboarding).
 	read_clients = yes
-	client_table = "radius_client_v2"
+	client_table = "radius_client_v3"
 	client_query = "\
 		SELECT id, nasname, shortname, type, secret, server \
 		FROM ${client_table}"
@@ -35,8 +35,8 @@ sql {
 	read_groups = no
 	group_attribute = "SQL-Group"
 
-	authcheck_table = "v_radius_auth_v2"
-	authreply_table = "v_radius_auth_v2"
+	authcheck_table = "v_radius_auth_v3"
+	authreply_table = "v_radius_auth_v3"
 
 	# T3: a username only matches through a router of its own tenant; the view joins on nasname.
 	# The router is identified by the packet's source address (its tunnel IP), which the client

@@ -1,0 +1,12 @@
+package com.corebalt.isp.subscriptions.api;
+
+import java.util.UUID;
+
+/**
+ * Port for the routers a line may terminate on, implemented by the network module (same reason as
+ * {@link LineCredentialStore}). Scoped to the current tenant (T1, T3).
+ */
+public interface RouterDirectory {
+
+    boolean exists(UUID routerId);
+}

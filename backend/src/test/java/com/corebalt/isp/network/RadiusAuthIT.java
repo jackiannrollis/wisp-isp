@@ -23,9 +23,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * The step-2 network lab under test: the real FreeRADIUS image (radius/) reading
- * {@code radius_client_v2} and {@code v_radius_auth_v2} as {@code isp_radius}, loaded with the same
- * fixtures as the developer lab (infra/lab/seed.sql). Logins are sent with radclient inside the
+ * The real FreeRADIUS image (radius/) reading {@code radius_client_v3} and {@code v_radius_auth_v3}
+ * as {@code isp_radius}, over the real subscription, package, tenant, router and credential tables,
+ * loaded with the same fixtures as the developer lab (infra/lab/seed.sql). Logins are sent with radclient inside the
  * container, from 127.0.0.1 (tenant CB's NAS) or 127.0.0.2 (tenant ZZ's NAS).
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -49,7 +49,7 @@ class RadiusAuthIT extends IntegrationTest {
                         .withFileFromPath(".", Path.of("..", "radius"));
         image.get();
 
-        // Runs after the Spring context, so Flyway has created the lab tables and v2 views.
+        // Runs after the Spring context, so Flyway has created the tables and v3 views.
         POSTGRES.copyFileToContainer(
                 MountableFile.forHostPath(Path.of("..", "infra", "lab", "seed.sql")), "/tmp/seed.sql");
         final ExecResult seeded =
@@ -113,11 +113,32 @@ class RadiusAuthIT extends IntegrationTest {
 
     @Test
     void S2_insideGraceWithFullSpeedModeIsFull() throws Exception {
-        final RadiusReply reply = login("CB000003", CB_NAS);
+        final RadiusReply reply = login("ZZ000002", ZZ_NAS);
         assertThat(reply.code()).isEqualTo("Access-Accept");
         assertThat(reply.attributes())
                 .containsEntry("Mikrotik-Rate-Limit", "5M/10M")
+                .containsEntry("Framed-Pool", "full")
                 .doesNotContainKey("Mikrotik-Address-List");
+    }
+
+    @Test
+    void staticIpIsReturnedInsteadOfAPool() throws Exception {
+        final RadiusReply reply = login("CB000003", CB_NAS);
+        assertThat(reply.code()).isEqualTo("Access-Accept");
+        assertThat(reply.attributes())
+                .containsEntry("Framed-IP-Address", "10.10.0.53")
+                .doesNotContainKey("Framed-Pool");
+    }
+
+    @Test
+    void T4_lineWithRevokedPasswordCannotLogIn() throws Exception {
+        setLinePassword("CB000003", null);
+        try {
+            assertThat(login("CB000003", CB_NAS).code()).isEqualTo("Access-Reject");
+        } finally {
+            setLinePassword("CB000003", "lab-password");
+        }
+        assertThat(login("CB000003", CB_NAS).code()).isEqualTo("Access-Accept");
     }
 
     @Test
@@ -181,14 +202,33 @@ class RadiusAuthIT extends IntegrationTest {
     void N2_radiusRoleReadsOnlyTheViews() throws SQLException {
         try (Connection radius =
                 DriverManager.getConnection(POSTGRES.getJdbcUrl(), "isp_radius", RADIUS_PASSWORD)) {
-            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v2")) {
+            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v3")) {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getLong(1)).isPositive();
             }
-            assertThatThrownBy(() -> radius.createStatement().executeQuery("select * from network_lab_line"))
+            assertThatThrownBy(() -> radius.createStatement().executeQuery("select * from network_radius_credential"))
+                    .hasMessageContaining("permission denied");
+            assertThatThrownBy(() -> radius.createStatement().executeQuery("select * from subscriptions_subscription"))
                     .hasMessageContaining("permission denied");
             assertThatThrownBy(() -> radius.createStatement().executeQuery("select * from tenancy_tenant"))
                     .hasMessageContaining("permission denied");
+        }
+    }
+
+    /** As the owner, like the lab scripts: the application role cannot read or null a secret this way. */
+    private void setLinePassword(final String username, final String password) throws SQLException {
+        try (Connection owner =
+                        DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                var update =
+                        owner.prepareStatement(
+                                """
+                                update network_radius_credential k set secret = ?
+                                from subscriptions_subscription s
+                                where k.subscription_id = s.id and s.pppoe_username = ?
+                                """)) {
+            update.setString(1, password);
+            update.setString(2, username);
+            assertThat(update.executeUpdate()).isOne();
         }
     }
 

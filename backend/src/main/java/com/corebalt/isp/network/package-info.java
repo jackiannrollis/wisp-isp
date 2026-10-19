@@ -8,6 +8,7 @@
         allowedDependencies = {
                 "shared",
                 "tenancy :: api",
+                "identity :: api",
                 "customers :: api",
                 "packages :: api",
                 "subscriptions :: api"

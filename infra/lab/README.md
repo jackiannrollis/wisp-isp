@@ -31,22 +31,24 @@ walled garden with a pay page, and CoA/Disconnect change a live session. See doc
 
 ## What is automated and tested without the VMs
 
-- `RadiusAuthIT` (in `./mvnw verify` and CI) builds the FreeRADIUS image, loads `seed.sql` and
-  checks every profile, Session-Timeout and the tenant check over real RADIUS.
+- `RadiusAuthIT` (in `./mvnw verify` and CI) builds the FreeRADIUS image, loads `seed.sql` into the
+  real tables (tenants, packages, customers, routers, lines, credentials) and checks every profile,
+  Session-Timeout and the tenant check over real RADIUS against `v_radius_auth_v3`.
 - `infra/lab/scripts/seed.ps1` loads the same fixtures into the running stack; then
   `infra\scripts\radtest.ps1 CB000004` shows a RESTRICTED accept from inside the container.
 
 | User | Line | Expected answer |
 |---|---|---|
 | CB000001 | active, 30 days left | Accept, FULL, `5M/10M`, pool `full`, Session-Timeout 86400 |
-| CB000002 | 1 hour past expiry, 3 grace days, throttled grace | Accept, THROTTLED, `1M/2M`, list `throttled` |
-| CB000003 | 1 hour past expiry, 3 grace days, full-speed grace | Accept, FULL |
+| CB000002 | 1 hour past expiry, 3 grace days; tenant CB throttles in grace | Accept, THROTTLED, `1M/2M`, list `throttled` |
+| CB000003 | active, static IP 10.10.0.53 | Accept, FULL, `Framed-IP-Address` instead of a pool |
 | CB000004 | 10 days past expiry, 2 grace days | Accept, RESTRICTED, `512k/512k`, pool and list `restricted` |
 | CB000005 | paused | Accept, RESTRICTED |
 | CB000006 | suspended | Reject, "Account suspended" |
 | CB000007 | pending | Reject, "Account not yet active" |
 | CB000008 | 2 hours left, no grace | Accept, FULL, Session-Timeout about 7200 |
 | ZZ000001 | tenant ZZ | Reject through tenant CB's routers (T3); Accept through ZZ's NAS |
+| ZZ000002 | 1 hour past expiry, 3 grace days; tenant ZZ keeps full speed in grace | Accept through ZZ's NAS, FULL |
 
 Every password is `lab-password`.
 
