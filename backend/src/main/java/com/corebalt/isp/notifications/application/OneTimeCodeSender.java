@@ -20,8 +20,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 class OneTimeCodeSender implements OneTimeCodes {
 
     static final String TEMPLATE_KEY = "SIGN_IN_CODE";
-    /** Fixed wording, not tenant-editable: it is the only message that carries a code. */
+    /** Fixed wording, not tenant-editable: with the staff password below, the only messages that carry a secret. */
     static final String BODY = "%s is your %s sign-in code. It expires in 5 minutes. Never share it with anyone.";
+    static final String STAFF_PASSWORD_KEY = "STAFF_TEMPORARY_PASSWORD";
+    /** One GSM-7 part with a 14-character password and a 30-character brand. */
+    static final String STAFF_PASSWORD_BODY =
+            "%s staff sign-in: temporary password %s, valid 72 hours. You must change it when you sign in.";
 
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
@@ -47,25 +51,42 @@ class OneTimeCodeSender implements OneTimeCodes {
 
     @Override
     public Delivery sendSignInCode(final UUID customerId, final String e164, final String code) {
-        final String brand = tenants.find(TenantContext.requireTenantId()).map(TenantRegistry.TenantRef::name).orElse("Corebalt");
+        final String brand = brand();
+        return send(customerId, e164, TEMPLATE_KEY, BODY.formatted(code, brand), BODY.formatted("******", brand));
+    }
+
+    @Override
+    public Delivery sendTemporaryPassword(final String e164, final String password) {
+        final String brand = brand();
+        return send(null, e164, STAFF_PASSWORD_KEY, STAFF_PASSWORD_BODY.formatted(brand, password),
+                STAFF_PASSWORD_BODY.formatted(brand, "**************"));
+    }
+
+    private String brand() {
+        return tenants.find(TenantContext.requireTenantId()).map(TenantRegistry.TenantRef::name).orElse("Corebalt");
+    }
+
+    /** {@code body} goes to the provider only; the log keeps {@code masked}. */
+    private Delivery send(final UUID customerId, final String e164, final String template, final String body,
+                          final String masked) {
         final Optional<SmsSettings.Account> account = tx.execute(s -> settings.account());
         if (account.isEmpty()) {
-            log(customerId, e164, brand, "SUPPRESSED", "SMS is not configured for this tenant", null);
+            log(customerId, e164, template, masked, "SUPPRESSED", "SMS is not configured for this tenant", null);
             return Delivery.NOT_CONFIGURED;
         }
         SendOutcome outcome;
         try {
             final AfricasTalkingClient.Result result = provider.send(account.get().sandbox(), account.get().username(),
-                    account.get().apiKey(), account.get().senderId(), e164, BODY.formatted(code, brand));
+                    account.get().apiKey(), account.get().senderId(), e164, body);
             outcome = SendOutcome.ofRecipient(result.statusCode(), result.status(), result.messageId());
         } catch (AfricasTalkingClient.TransportFailure e) {
             outcome = SendOutcome.ofTransport(e.httpStatus(), e.getMessage());
         }
         if (outcome instanceof SendOutcome.Sent sent) {
-            log(customerId, e164, brand, "SENT", null, sent.messageId());
+            log(customerId, e164, template, masked, "SENT", null, sent.messageId());
             return Delivery.SENT;
         }
-        log(customerId, e164, brand, "FAILED", reason(outcome), null);
+        log(customerId, e164, template, masked, "FAILED", reason(outcome), null);
         return Delivery.FAILED;
     }
 
@@ -78,8 +99,8 @@ class OneTimeCodeSender implements OneTimeCodes {
         };
     }
 
-    private void log(final UUID customerId, final String e164, final String brand, final String status, final String reason,
-                     final String messageId) {
+    private void log(final UUID customerId, final String e164, final String template, final String masked,
+                     final String status, final String reason, final String messageId) {
         final Instant now = clock.instant();
         tx.executeWithoutResult(s -> jdbc.sql("""
                         insert into notifications_notification
@@ -92,9 +113,9 @@ class OneTimeCodeSender implements OneTimeCodes {
                 .param("tenantId", TenantContext.requireTenantId())
                 .param("customerId", customerId)
                 .param("recipient", e164)
-                .param("template", TEMPLATE_KEY)
-                .param("body", BODY.formatted("******", brand))
-                .param("dedupe", "sign-in-code:" + UUID.randomUUID())
+                .param("template", template)
+                .param("body", masked)
+                .param("dedupe", template.toLowerCase() + ":" + UUID.randomUUID())
                 .param("status", status)
                 .param("messageId", messageId)
                 .param("reason", reason)

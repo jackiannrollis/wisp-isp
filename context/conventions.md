@@ -62,7 +62,7 @@ context/            this folder
 - Timestamps in ISO 8601 UTC; money as `{ "amount": 250000, "currency": "KES" }` in minor units.
 - Callback endpoints (`/callbacks/mpesa/<tenant token>/...`) are outside `/api/v1`, unauthenticated by JWT, IP-restricted, and respond within one second.
 - OpenAPI generated from code and published at `/api/docs`; the frontend's models are generated from it in CI.
-- WebSocket topic `/topic/tenant/<id>/dashboard` pushes dashboard counters and router status.
+- WebSocket topic `/topic/tenant/<id>/dashboard` (pushing dashboard counters and router status) is deferred to v2 (decisions.md 2026-10-20); until then the admin app polls `GET /api/v1/dashboard` every 30 seconds.
 
 ## Database
 

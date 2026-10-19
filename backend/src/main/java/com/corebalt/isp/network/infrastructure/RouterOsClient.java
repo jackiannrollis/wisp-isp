@@ -7,7 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,8 +18,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * RouterOS v7 REST over the WireGuard tunnel (N6): {@code GET /rest/system/resource} with basic
- * auth. Plain HTTP on the tunnel address; WireGuard already encrypts the path, and the router's www
+ * RouterOS v7 REST over the WireGuard tunnel (N6): {@code GET /rest/system/resource} and
+ * {@code /rest/ppp/active} with basic auth. Plain HTTP on the tunnel address; WireGuard already encrypts the path, and the router's www
  * service only listens on the tunnel. RouterOS returns every value as a string.
  */
 @Component
@@ -55,7 +57,37 @@ public class RouterOsClient {
     }
 
     public Resource resource(final String tunnelIp, final String username, final String password) throws PollFailure {
-        final HttpRequest request = HttpRequest.newBuilder(URI.create(scheme + "://" + tunnelIp + ":" + port + "/rest/system/resource"))
+        final HttpResponse<String> response = get(tunnelIp, "/rest/system/resource", username, password);
+        try {
+            final JsonNode body = json.readTree(response.body());
+            return new Resource(text(body, "version"), text(body, "board-name"), uptime(text(body, "uptime")),
+                    integer(text(body, "cpu-load")), number(text(body, "free-memory")), number(text(body, "total-memory")));
+        } catch (RuntimeException e) {
+            throw new PollFailure("unreadable answer");
+        }
+    }
+
+    /** The usernames of the router's active PPP sessions ({@code GET /rest/ppp/active}), sorted. */
+    public List<String> pppActive(final String tunnelIp, final String username, final String password) throws PollFailure {
+        final HttpResponse<String> response = get(tunnelIp, "/rest/ppp/active", username, password);
+        try {
+            final List<String> names = new ArrayList<>();
+            for (final JsonNode session : json.readTree(response.body())) {
+                final String name = text(session, "name");
+                if (name != null) {
+                    names.add(name);
+                }
+            }
+            names.sort(null);
+            return names;
+        } catch (RuntimeException e) {
+            throw new PollFailure("unreadable answer");
+        }
+    }
+
+    private HttpResponse<String> get(final String tunnelIp, final String path, final String username, final String password)
+            throws PollFailure {
+        final HttpRequest request = HttpRequest.newBuilder(URI.create(scheme + "://" + tunnelIp + ":" + port + path))
                 .timeout(timeout)
                 .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
                         (username + ":" + password).getBytes(StandardCharsets.UTF_8)))
@@ -76,13 +108,7 @@ public class RouterOsClient {
         if (response.statusCode() != 200) {
             throw new PollFailure("HTTP " + response.statusCode());
         }
-        try {
-            final JsonNode body = json.readTree(response.body());
-            return new Resource(text(body, "version"), text(body, "board-name"), uptime(text(body, "uptime")),
-                    integer(text(body, "cpu-load")), number(text(body, "free-memory")), number(text(body, "total-memory")));
-        } catch (RuntimeException e) {
-            throw new PollFailure("unreadable answer");
-        }
+        return response;
     }
 
     /** RouterOS uptime such as {@code 1w2d3h4m5s}. */

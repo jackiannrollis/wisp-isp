@@ -14,6 +14,7 @@ import com.corebalt.isp.support.TestTenants;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +85,31 @@ class RouterMonitoringIT extends IntegrationTest {
         assertThat(router.get("uptimeSeconds").asLong()).isEqualTo(7 * 86_400 + 2 * 86_400 + 3 * 3_600 + 4 * 60 + 5);
         assertThat(router.get("cpuLoad").asInt()).isEqualTo(3);
         assertThat(router.get("lastSeenAt").isNull()).isFalse();
+    }
+
+    @Test
+    void ADR0011_thePollKeepsTheRoutersSessionListBesideRadacct() {
+        assertThat(api.get("/api/v1/routers/" + routerId + "/sessions").json().get("router").isNull())
+                .as("no snapshot before a poll").isTrue();
+        setCredential(FakeRouterOs.PASSWORD);
+        ROUTER_OS.sessions(tunnelIp, List.of("ZZ000002", "ZZ000001"));
+        OwnerSql.client().sql("""
+                        insert into radacct (acctsessionid, acctuniqueid, username, nasipaddress, acctstarttime)
+                        values ('s1', :u1, 'ZZ000001', cast(:nas as inet), now() - interval '10 minutes'),
+                               ('s3', :u3, 'ZZ000003', cast(:nas as inet), now() - interval '2 minutes')
+                        """)
+                .param("u1", "mon-1-" + tenant).param("u3", "mon-3-" + tenant).param("nas", tunnelIp).update();
+
+        assertThat(poll()).isOne();
+
+        final JsonNode sessions = api.get("/api/v1/routers/" + routerId + "/sessions").json();
+        assertThat(sessions.get("router").get("count").asInt()).isEqualTo(2);
+        assertThat(sessions.get("router").get("usernames")).extracting(JsonNode::asString).containsExactly("ZZ000001", "ZZ000002");
+        assertThat(sessions.get("router").get("ageSeconds").asLong()).isBetween(0L, 30L);
+        assertThat(sessions.get("radius")).extracting(s -> s.get("username").asString()).containsExactly("ZZ000001", "ZZ000003");
+        assertThat(sessions.get("onlyInRadius")).extracting(JsonNode::asString).containsExactly("ZZ000003");
+        assertThat(sessions.get("onlyOnRouter")).extracting(JsonNode::asString).containsExactly("ZZ000002");
+        assertThat(api.get("/api/v1/routers/" + UUID.randomUUID() + "/sessions").status()).isEqualTo(404);
     }
 
     @Test

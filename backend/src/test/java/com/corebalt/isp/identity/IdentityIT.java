@@ -295,6 +295,50 @@ class IdentityIT extends IntegrationTest {
         assertThat(owner.post("/api/v1/staff/" + onlyOwner.id() + "/disable", "{}").status()).isEqualTo(409);
     }
 
+    @Test
+    void Q11_M3_aTemporaryPasswordMaySendBySmsMaskedInTheLogAndAudited() {
+        customerWithSms("Sms Setup"); // configures the tenant's SMS account
+        final String e164 = phone();
+        final String local = "0" + e164.substring(4);
+
+        // No phone: refused before any invitation exists.
+        assertThat(owner.post("/api/v1/staff?sendSms=true", "{\"email\":\"nophone@isp.example.test\",\"displayName\":\"No Phone\","
+                + "\"roleId\":\"" + roleId("Support") + "\"}").status()).isEqualTo(409);
+        assertThat(OwnerSql.client().sql("select count(*) from identity_staff_user where email = 'nophone@isp.example.test'")
+                .query(Long.class).single()).isZero();
+
+        final Api.Response invited = owner.post("/api/v1/staff?sendSms=true", "{\"email\":\"sms@isp.example.test\","
+                + "\"displayName\":\"Sms Staff\",\"phone\":\"" + local + "\",\"roleId\":\"" + roleId("Support") + "\"}");
+        assertThat(invited.status()).as(invited.body()).isEqualTo(201);
+        final String password = invited.json().get("temporaryPassword").asString();
+        assertThat(invited.json().get("smsDelivery").asString()).isEqualTo("SENT");
+        assertThat(invited.json().get("staff").get("phone").asString()).as("stored in E.164").isEqualTo(e164);
+        final String message = AT.requestsTo(e164).getLast().form().get("message");
+        assertThat(message).contains(password).contains("72 hours").hasSizeLessThanOrEqualTo(160);
+
+        final String id = invited.json().get("staff").get("id").asString();
+        final String reset = owner.post("/api/v1/staff/" + id + "/temporary-password?sendSms=true").json()
+                .get("temporaryPassword").asString();
+        assertThat(AT.requestsTo(e164).getLast().form().get("message")).contains(reset);
+
+        // Never stored or audited in clear (A3): the log body is masked, the audit row names only the outcome.
+        assertThat(OwnerSql.client().sql("""
+                        select body from notifications_notification where tenant_id = :t and template_key = 'STAFF_TEMPORARY_PASSWORD'
+                        """).param("t", tenant.id()).query(String.class).list())
+                .hasSize(2).allSatisfy(body -> assertThat(body).contains("**************").doesNotContain(password)
+                        .doesNotContain(reset));
+        assertThat(OwnerSql.client().sql("""
+                        select coalesce(after_state::text, '') from identity_audit_log
+                        where tenant_id = :t and action = 'identity.temporary_password_sms'
+                        """).param("t", tenant.id()).query(String.class).list())
+                .hasSize(2).allSatisfy(after -> assertThat(after).contains("SENT").doesNotContain(password));
+
+        // The SMS changes nothing else: the same expiry and forced change at first sign-in.
+        final JsonNode first = post("/api/v1/auth/login", Map.of("tenant", tenant.code(), "email", "sms@isp.example.test",
+                "password", reset)).json();
+        assertThat(first.get("status").asString()).isEqualTo("CHANGE_PASSWORD");
+    }
+
     // --- portal ---
 
     @Test

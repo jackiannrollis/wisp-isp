@@ -3,6 +3,7 @@ package com.corebalt.isp.identity.infrastructure;
 import com.corebalt.isp.identity.application.AuditLog;
 import com.corebalt.isp.identity.application.Roles;
 import com.corebalt.isp.identity.application.StaffAdmin;
+import com.corebalt.isp.identity.application.TemporaryPasswordSms;
 import com.corebalt.isp.identity.application.StaffSignIn;
 import com.corebalt.isp.shared.security.CurrentActor;
 import com.corebalt.isp.shared.security.Permissions;
@@ -51,9 +52,11 @@ final class StaffControllers {
         private static final Set<String> SORTABLE = Set.of("email", "displayName", "createdAt", "lastLoginAt");
 
         private final StaffAdmin staff;
+        private final TemporaryPasswordSms sms;
 
-        StaffApi(final StaffAdmin staff) {
+        StaffApi(final StaffAdmin staff, final TemporaryPasswordSms sms) {
             this.staff = staff;
+            this.sms = sms;
         }
 
         @GetMapping
@@ -77,17 +80,28 @@ final class StaffControllers {
 
         @PostMapping
         @PreAuthorize("hasAuthority('staff.manage')")
-        @Operation(summary = "Invite a staff member; the temporary password (valid 72 h) is in this response only")
-        ResponseEntity<StaffAdmin.Invitation> invite(@RequestBody final StaffAdmin.InviteRequest request) {
-            final StaffAdmin.Invitation invitation = staff.invite(request);
+        @Operation(summary = "Invite a staff member; the temporary password (valid 72 h) is in this response only, "
+                + "and also sent to their phone by SMS when sendSms is true")
+        ResponseEntity<StaffAdmin.Invitation> invite(@RequestBody final StaffAdmin.InviteRequest request,
+                                                     @RequestParam(defaultValue = "false") final boolean sendSms) {
+            if (sendSms) {
+                TemporaryPasswordSms.requirePhone(request.phone());
+            }
+            final StaffAdmin.Invitation created = staff.invite(request);
+            final StaffAdmin.Invitation invitation = sendSms ? sms.send(created) : created;
             return ResponseEntity.created(URI.create("/api/v1/staff/" + invitation.staff().id())).body(invitation);
         }
 
         @PostMapping("/{id}/temporary-password")
         @PreAuthorize("hasAuthority('staff.manage')")
         @Operation(summary = "Regenerate an unused invitation, or reset a password: a new temporary password, shown once; sessions end")
-        StaffAdmin.Invitation temporaryPassword(@PathVariable final UUID id) {
-            return staff.newTemporaryPassword(id);
+        StaffAdmin.Invitation temporaryPassword(@PathVariable final UUID id,
+                                                @RequestParam(defaultValue = "false") final boolean sendSms) {
+            if (sendSms) {
+                TemporaryPasswordSms.requirePhone(staff.get(id).phone());
+            }
+            final StaffAdmin.Invitation invitation = staff.newTemporaryPassword(id);
+            return sendSms ? sms.send(invitation) : invitation;
         }
 
         @PostMapping("/{id}/disable")

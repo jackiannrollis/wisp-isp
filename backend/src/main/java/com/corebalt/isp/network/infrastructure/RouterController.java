@@ -1,6 +1,8 @@
 package com.corebalt.isp.network.infrastructure;
 
 import com.corebalt.isp.network.api.RouterDto;
+import com.corebalt.isp.network.api.RouterSessionsDto;
+import com.corebalt.isp.network.application.SessionViews;
 import com.corebalt.isp.network.api.RouterRequest;
 import com.corebalt.isp.network.api.RouterSecretDto;
 import com.corebalt.isp.network.application.RouterService;
@@ -32,9 +34,17 @@ class RouterController {
     private static final Set<String> SORTABLE = Set.of("name", "createdAt");
 
     private final RouterService service;
+    private final SessionViews sessions;
 
-    RouterController(final RouterService service) {
+    RouterController(final RouterService service, final SessionViews sessions) {
         this.service = service;
+        this.sessions = sessions;
+    }
+
+    @GetMapping("/{id}/sessions")
+    @Operation(summary = "Open sessions in radacct beside the router's own /ppp/active list as last polled, with its age")
+    RouterSessionsDto sessions(@PathVariable final UUID id) {
+        return sessions.routerSessions(id);
     }
 
     @GetMapping

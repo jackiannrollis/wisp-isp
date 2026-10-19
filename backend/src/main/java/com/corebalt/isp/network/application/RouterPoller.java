@@ -104,22 +104,54 @@ public class RouterPoller {
     private boolean poll(final Target target) {
         final String password = tx.execute(s -> secrets.decrypt(REST_PURPOSE + target.id(), target.password()));
         RouterOsClient.Resource resource = null;
+        List<String> sessions = null;
         String failure = null;
         try {
             resource = routerOs.resource(target.tunnelIp(), target.username(), password);
+            sessions = pppActive(target, password);
         } catch (RouterOsClient.PollFailure e) {
             failure = e.getMessage();
         }
         final RouterOsClient.Resource answer = resource;
+        final List<String> snapshot = sessions;
         final String error = failure;
         tx.executeWithoutResult(s -> {
             if (answer != null) {
                 answered(target, answer);
+                if (snapshot != null) {
+                    snapshot(target, snapshot);
+                }
             } else {
                 missed(target, error);
             }
         });
         return answer != null;
+    }
+
+    /**
+     * The router's own session list, for the router page beside radacct (docs/06). A failure here does not
+     * make the router missed: the resource call already proved it answers; the old snapshot just ages.
+     */
+    private List<String> pppActive(final Target target, final String password) {
+        try {
+            return routerOs.pppActive(target.tunnelIp(), target.username(), password);
+        } catch (RouterOsClient.PollFailure e) {
+            log.warn("Router {} answered but /ppp/active failed: {}", target.id(), e.getMessage());
+            return null;
+        }
+    }
+
+    private void snapshot(final Target target, final List<String> sessions) {
+        jdbc.sql("""
+                        update network_router
+                        set ppp_active_count = :count, ppp_active_users = :users, ppp_active_at = :at
+                        where id = :id
+                        """)
+                .param("count", sessions.size())
+                .param("users", sessions.toArray(String[]::new))
+                .param("at", Timestamp.from(clock.instant()))
+                .param("id", target.id())
+                .update();
     }
 
     private void answered(final Target target, final RouterOsClient.Resource resource) {

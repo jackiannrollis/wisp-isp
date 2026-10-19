@@ -6,8 +6,10 @@ import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Stand-in RouterOS v7 REST API: {@code GET /rest/system/resource} with basic auth, answering like
@@ -23,6 +25,7 @@ public final class FakeRouterOs implements AutoCloseable {
 
     private final HttpServer server;
     private final Map<String, Boolean> down = new ConcurrentHashMap<>();
+    private final Map<String, List<String>> sessions = new ConcurrentHashMap<>();
 
     public FakeRouterOs() {
         try {
@@ -58,7 +61,29 @@ public final class FakeRouterOs implements AutoCloseable {
             }
             exchange.close();
         });
+        server.createContext("/rest/ppp/active", exchange -> {
+            final String address = exchange.getLocalAddress().getAddress().getHostAddress();
+            final String expected = "Basic " + Base64.getEncoder().encodeToString(
+                    (USERNAME + ":" + PASSWORD).getBytes(StandardCharsets.UTF_8));
+            final int status = down.getOrDefault(address, false) ? 503
+                    : expected.equals(exchange.getRequestHeaders().getFirst("Authorization")) ? 200 : 401;
+            final String body = status != 200 ? "" : sessions.getOrDefault(address, List.of()).stream()
+                    .map(name -> "{\".id\":\"*1\",\"name\":\"" + name + "\",\"service\":\"pppoe\",\"uptime\":\"5m\"}")
+                    .collect(Collectors.joining(",", "[", "]"));
+            final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length == 0 ? -1 : bytes.length);
+            if (bytes.length > 0) {
+                exchange.getResponseBody().write(bytes);
+            }
+            exchange.close();
+        });
         server.start();
+    }
+
+    /** The PPPoE sessions the router at {@code tunnelIp} reports in /ppp/active. */
+    public void sessions(final String tunnelIp, final List<String> usernames) {
+        sessions.put(tunnelIp, List.copyOf(usernames));
     }
 
     public int port() {

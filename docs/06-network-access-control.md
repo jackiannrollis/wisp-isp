@@ -55,7 +55,7 @@ Expired users are accepted into `RESTRICTED`, never rejected: a rejected PPPoE c
 - Router firewall rules for that list: allow DNS, allow the platform's portal and pay-page addresses, redirect TCP 80 to the pay page, drop everything else.
 - HTTPS sites cannot be redirected; the customer sees a browser error instead of the pay page. The SMS with a pay link and STK Push therefore carry most of the restore traffic, and the pay page is kept tiny so it loads on anything.
 - M-Pesa itself runs over the phone's cellular network, so a customer can pay even while fully cut off.
-- The pay page shows the outstanding amount and a one-tap STK Push; after payment it polls the platform and shows "Internet restored" once the CoA has gone through.
+- The pay page shows the outstanding amount and a one-tap STK Push per line (that line's shortfall), plus "pay all" for every due line. After payment it polls `GET /api/v1/portal/lines/{id}/restore-status?since=<payment time>` and shows "Internet restored" once the line is FULL and every session from before the payment was changed by an acknowledged CoA or Disconnect (a line with no such session needs none: its next login gets the new profile). After 90 seconds without that it shows the "restart your router" fallback. The API keeps the last CoA outcome per line (`network_line_coa`) from the worker's `SessionReauthorized` and `SessionReauthorizationFailed`.
 
 ## Router onboarding script
 
@@ -94,7 +94,7 @@ The platform verifies the script worked by polling `/system/resource` over the t
 4. Stale sessions: a session with no update for 15 minutes is closed with `acctterminatecause = 'Stale'` and its last update as stop time. If the router reports it again, the same row reopens.
 5. Every 15 minutes a job adds each session's growth since the last run (a per-session high-water mark, never negative) to `network_usage_daily` for the tenant-local day the job runs in. The portal, dashboard and reports read only `network_usage_daily` (N7).
 6. Fair-use: when a subscription's cycle usage passes `fup_bytes`, `UsageThresholdReached` triggers a CoA to the throttle speed until the next renewal.
-7. Active sessions for the dashboard are `radacct` rows with no stop time, cross-checked against `/ppp/active` over REST when staff open a router page.
+7. Active sessions for the dashboard are `radacct` rows with no stop time. The cross-check against the router follows ADR 0011 (the API never talks to routers): the tunnel worker reads `/ppp/active` with each 60-second poll and stores a snapshot on the router (count, usernames, fetched_at). The router page (`GET /api/v1/routers/{id}/sessions`) shows radacct's open sessions beside that snapshot with its age and the usernames found on only one side; its refresh button publishes `RouterPollRequested` (`POST /api/v1/routers/{id}/poll`) and re-reads a few seconds later. Whether the onboarding script's read-only REST user may read `/ppp/active` on a real router is unproven until the network lab runs.
 
 ## Router monitoring
 

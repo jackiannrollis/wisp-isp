@@ -312,7 +312,7 @@ export interface paths {
         /** List staff; q matches email or name */
         get: operations["list_1"];
         put?: never;
-        /** Invite a staff member; the temporary password (valid 72 h) is in this response only */
+        /** Invite a staff member; the temporary password (valid 72 h) is in this response only, and also sent to their phone by SMS when sendSms is true */
         post: operations["invite"];
         delete?: never;
         options?: never;
@@ -1153,6 +1153,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/routers/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open sessions in radacct beside the router's own /ppp/active list as last polled, with its age */
+        get: operations["sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipts": {
         parameters: {
             query?: never;
@@ -1281,6 +1298,23 @@ export interface paths {
         };
         /** My line's daily usage; tenant-local days, the last 30 by default */
         get: operations["usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/lines/{id}/restore-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether my line's access is restored since a payment (since = when the payment was made) */
+        get: operations["restoreStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1878,6 +1912,7 @@ export interface components {
             temporaryPassword?: string;
             /** Format: date-time */
             expiresAt?: string;
+            smsDelivery?: string;
         };
         Reason: {
             reason?: string;
@@ -2169,6 +2204,30 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        OpenSession: {
+            username?: string;
+            acctSessionId?: string;
+            framedIp?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            lastHeardAt?: string;
+        };
+        RouterSessionsDto: {
+            radius?: components["schemas"]["OpenSession"][];
+            router?: components["schemas"]["Snapshot"];
+            onlyInRadius?: string[];
+            onlyOnRouter?: string[];
+        };
+        Snapshot: {
+            /** Format: int32 */
+            count?: number;
+            usernames?: string[];
+            /** Format: date-time */
+            fetchedAt?: string;
+            /** Format: int64 */
+            ageSeconds?: number;
+        };
         PageResponseReceiptDto: {
             items?: components["schemas"]["ReceiptDto"][];
             /** Format: int32 */
@@ -2246,6 +2305,16 @@ export interface components {
             inputOctets?: number;
             /** Format: int64 */
             outputOctets?: number;
+        };
+        RestoreStatus: {
+            accessProfile?: string;
+            /** Format: date-time */
+            lastCoaAt?: string;
+            lastCoaAction?: string;
+            lastCoaResult?: string;
+            /** Format: int64 */
+            sessionsFromBefore?: number;
+            restored?: boolean;
         };
         PermissionDto: {
             code?: string;
@@ -3082,7 +3151,9 @@ export interface operations {
     };
     invite: {
         parameters: {
-            query?: never;
+            query?: {
+                sendSms?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3106,7 +3177,9 @@ export interface operations {
     };
     temporaryPassword: {
         parameters: {
-            query?: never;
+            query?: {
+                sendSms?: boolean;
+            };
             header?: never;
             path: {
                 id: string;
@@ -4376,6 +4449,28 @@ export interface operations {
             };
         };
     };
+    sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterSessionsDto"];
+                };
+            };
+        };
+    };
     receipts: {
         parameters: {
             query?: {
@@ -4552,6 +4647,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["UsageDay"][];
+                };
+            };
+        };
+    };
+    restoreStatus: {
+        parameters: {
+            query: {
+                since: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RestoreStatus"];
                 };
             };
         };

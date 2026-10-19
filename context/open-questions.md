@@ -14,11 +14,11 @@ Decisions still pending. Do not invent an answer in code; pick the stated defaul
 | Q8 | Public marketing site: Angular SSR or a static generator? | Static generator; separate repository | Corebalt | After Gate 1 |
 | Q9 | Retention of `radacct` detail beyond 13 months for lawful requests | 13 months of detail, roll-ups kept 7 years | Legal | Before ODPC registration |
 | Q10 | Is C2B validation (reject unknown references before charge) available on the pilot's shortcode? | Assume not; rely on the suspense queue | Pilot ISP | Daraja go-live |
-| Q11 | Step 8 asked for an optional "send by SMS" of a staff member's temporary password; M3 says messages never include secrets. Allow it (as an M3 exception), or not? | Not built: the password is shown once to the staff member who invited, who passes it on | Product, security | Before the admin invite screen ships |
 
 ## Resolved
 
 | Date | Question | Answer | Where it now lives |
 |---|---|---|---|
+| 2026-10-20 | Q11: optional "send by SMS" of a staff member's temporary password, against M3? | Yes, as an explicit M3 exception: fixed wording, to the staff member's own phone, 72-hour expiry, forced change at first sign-in, audit row, logged masked | context/domain-rules.md M3; `TemporaryPasswordSms` |
 | 2026-10-17 | Frontend framework: Next.js or Angular? | Angular 22 | [ADR 0002](../docs/adr/0002-angular-for-web-apps.md) |
 | 2026-10-17 | Message broker from day one or Postgres-backed jobs first? | RabbitMQ from day one with a transactional outbox | [ADR 0003](../docs/adr/0003-rabbitmq-with-transactional-outbox.md) |

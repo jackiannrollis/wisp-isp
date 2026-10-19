@@ -58,6 +58,9 @@ class TunnelWorkerIT extends IntegrationTest {
 
             // The scheduled round, as isp_worker.
             await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(status(first)).isEqualTo("ONLINE"));
+            assertThat(OwnerSql.client().sql("select ppp_active_count from network_router where id = :id")
+                    .param("id", UUID.fromString(first)).query(Integer.class).single())
+                    .as("the /ppp/active snapshot is written with isp_worker's grants").isZero();
 
             // A poll request published by the API (through its relay) and consumed only by the worker.
             final String second = monitoredRouter(api, "127.0.6.3", "Worker-B");

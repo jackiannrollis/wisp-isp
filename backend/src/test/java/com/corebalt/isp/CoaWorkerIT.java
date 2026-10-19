@@ -16,6 +16,7 @@ import com.corebalt.isp.support.FakeNas;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
+import com.corebalt.isp.support.TestTokens;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -122,6 +123,45 @@ class CoaWorkerIT extends IntegrationTest {
         assertThat(request.packet().string(RadiusPacket.USER_NAME)).contains(username);
         assertThat(request.packet().string(RadiusPacket.ACCT_SESSION_ID)).contains("81b00001");
         awaitOutbox("SessionReauthorized", 1);
+        // The API keeps the outcome per line for the pay page.
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).untilAsserted(() -> {
+            relayAll();
+            assertThat(OwnerSql.client().sql("select last_coa_action || ':' || last_coa_result from network_line_coa where subscription_id = :s")
+                    .param("s", lineId).query(String.class).optional()).contains("DISCONNECT:ACK");
+        });
+    }
+
+    @Test
+    void N5_thePayPageSeesTheLineRestoredOnceItsSessionWasChanged() {
+        activeLineWithSession("81b00006");
+        final Instant paid = Instant.now();
+        final String customer = OwnerSql.client().sql("select customer_id::text from subscriptions_subscription where id = :id")
+                .param("id", lineId).query(String.class).single();
+        OwnerSql.client().sql("insert into identity_customer_credential (tenant_id, customer_id) values (:t, cast(:c as uuid))")
+                .param("t", tenant).param("c", customer).update();
+        final Api portal = new Api(port, TestTokens.customer(UUID.fromString(customer), tenant));
+        final String path = "/api/v1/portal/lines/" + lineId + "/restore-status?since=" + paid;
+
+        // FULL, but the session from before the payment has not been changed yet.
+        final JsonNode before = portal.get(path).json();
+        assertThat(before.get("accessProfile").asString()).isEqualTo("FULL");
+        assertThat(before.get("sessionsFromBefore").asLong()).isOne();
+        assertThat(before.get("restored").asBoolean()).isFalse();
+
+        pause();
+        resume();
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).untilAsserted(() -> {
+            relayAll();
+            final JsonNode after = portal.get(path).json();
+            assertThat(after.get("lastCoaResult").asString()).isEqualTo("ACK");
+            assertThat(after.get("restored").asBoolean()).isTrue();
+        });
+        assertThat(new Api(port, TestTokens.customer(UUID.randomUUID(), tenant)).get(path).status()).isIn(401, 404);
+    }
+
+    private void resume() {
+        assertThat(api.postWithKey("/api/v1/subscriptions/" + lineId + "/resume", UUID.randomUUID().toString(), null).status())
+                .isEqualTo(200);
     }
 
     @Test

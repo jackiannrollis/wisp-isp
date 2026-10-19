@@ -13,4 +13,10 @@ public interface OneTimeCodes {
 
     /** Runs in the caller's tenant context; must not be called inside a transaction (it calls the provider). */
     Delivery sendSignInCode(UUID customerId, String e164, String code);
+
+    /**
+     * Sends a staff member's temporary password (Q11, the M3 exception for staff invitations): fixed
+     * wording, logged with the password masked, never retried. Same calling rules as above.
+     */
+    Delivery sendTemporaryPassword(String e164, String password);
 }

@@ -1,5 +1,6 @@
 package com.corebalt.isp.identity.application;
 
+import com.corebalt.isp.customers.api.CustomerFacade;
 import com.corebalt.isp.identity.domain.Credentials;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
@@ -46,23 +47,37 @@ public class StaffAdmin {
 
     public record InviteRequest(String email, String displayName, String phone, UUID roleId) {}
 
-    /** The temporary password is in this response only. */
-    public record Invitation(StaffDto staff, String temporaryPassword, Instant expiresAt) {}
+    /**
+     * The temporary password is in this response only. {@code smsDelivery} is set when it was also sent by
+     * SMS (Q11): SENT, NOT_CONFIGURED or FAILED.
+     */
+    public record Invitation(StaffDto staff, String temporaryPassword, Instant expiresAt, String smsDelivery) {
+
+        Invitation(final StaffDto staff, final String temporaryPassword, final Instant expiresAt) {
+            this(staff, temporaryPassword, expiresAt, null);
+        }
+
+        Invitation withSmsDelivery(final String delivery) {
+            return new Invitation(staff, temporaryPassword, expiresAt, delivery);
+        }
+    }
 
     private final JdbcClient jdbc;
     private final Roles roles;
     private final TokenVersions versions;
     private final RefreshTokens refreshTokens;
     private final AuditTrail audit;
+    private final CustomerFacade phones;
     private final Clock clock;
 
     StaffAdmin(final JdbcClient jdbc, final Roles roles, final TokenVersions versions, final RefreshTokens refreshTokens,
-               final AuditTrail audit, final Clock clock) {
+               final AuditTrail audit, final CustomerFacade phones, final Clock clock) {
         this.jdbc = jdbc;
         this.roles = roles;
         this.versions = versions;
         this.refreshTokens = refreshTokens;
         this.audit = audit;
+        this.phones = phones;
         this.clock = clock;
     }
 
@@ -103,6 +118,15 @@ public class StaffAdmin {
         }
     }
 
+    /** A staff phone is stored in E.164, like customers' (Q11: it may receive the temporary password). */
+    private String phone(final String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        return phones.normalisePhone(phone.strip())
+                .orElseThrow(() -> InvalidRequestException.of("phone", "not a valid phone number"));
+    }
+
     @Transactional
     public Invitation invite(final InviteRequest request) {
         validate(request, null);
@@ -125,7 +149,7 @@ public class StaffAdmin {
                 .param("tenantId", TenantContext.requireTenantId())
                 .param("email", request.email().strip())
                 .param("name", request.displayName().strip())
-                .param("phone", request.phone() == null || request.phone().isBlank() ? null : request.phone().strip())
+                .param("phone", phone(request.phone()))
                 .param("hash", Credentials.hash(temporary))
                 .param("role", request.roleId())
                 .param("expires", Timestamp.from(now.plus(INVITATION_TTL)))

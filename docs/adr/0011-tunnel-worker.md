@@ -21,7 +21,7 @@ Routers are reached only through WireGuard (N6, ADR 0006): RouterOS REST and SNM
   - Its HTTP port answers only `/actuator/health`; everything else is a 404, and no port is published.
 - **Database role `isp_worker`.** It is not `isp_app` and holds only these grants, which `DatabaseGrantsIT` pins exactly:
   - SELECT on `tenancy_tenant` (`id`, `status`) and on `tenancy_tenant_data_key`, to iterate tenants and unwrap the data key.
-  - SELECT on the `network_router` columns it polls with, and UPDATE on its status columns.
+  - SELECT on the `network_router` columns it polls with, and UPDATE on its status columns and the `/ppp/active` snapshot (`ppp_active_count`, `ppp_active_users`, `ppp_active_at`).
   - INSERT on `outbox_event` and on `shared_processed_event`.
   - SELECT on `radius_client_v3` (`tenant_id`, `nasname`, `secret`), for CoA. It reads the router secret when it sends, never caches it, so a rotated secret takes effect on the next request. ADR 0009 names `isp_worker` as the second reader; a future Go service would use the same role.
 
