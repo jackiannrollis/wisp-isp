@@ -3,6 +3,8 @@ package com.corebalt.isp.network;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.corebalt.isp.network.infrastructure.RadiusPacket;
+import com.corebalt.isp.support.FakeNas;
 import com.corebalt.isp.support.IntegrationTest;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -93,6 +95,8 @@ class RadiusAuthIT extends IntegrationTest {
                         .withEnv("RADIUS_DB_USER", "isp_radius")
                         .withEnv("RADIUS_DB_PASSWORD", RADIUS_PASSWORD)
                         .withEnv("RADIUS_LAB_SECRET", LAB_SECRET)
+                        // CoA interop below: radclient in the container talks to a fake router on the host.
+                        .withExtraHost("host.docker.internal", "host-gateway")
                         .withCommand("freeradius", "-f", "-l", "stdout")
                         .waitingFor(
                                 Wait.forLogMessage(".*Ready to process requests.*", 1)
@@ -105,6 +109,37 @@ class RadiusAuthIT extends IntegrationTest {
         if (freeradius != null) {
             freeradius.stop();
         }
+    }
+
+    @Test
+    void N5_theWorkersCoaCodecAgreesWithRadclient() throws Exception {
+        try (FakeNas nas = new FakeNas("0.0.0.0", 0, LAB_SECRET)) {
+            final ExecResult coa = dynamicAuthorization(nas, "coa",
+                    "User-Name = CB000001\nAcct-Session-Id = 81c00001\nMikrotik-Rate-Limit = \"2M/4M\"\n");
+            assertThat(coa.getStdout()).as(coa.getStderr()).contains("Received CoA-ACK");
+            assertThat(nas.received()).singleElement().satisfies(r -> {
+                assertThat(r.signedWithSecret()).isTrue();
+                assertThat(r.packet().code()).isEqualTo(RadiusPacket.COA_REQUEST);
+                assertThat(r.packet().string(RadiusPacket.USER_NAME)).contains("CB000001");
+                assertThat(r.packet().string(RadiusPacket.ACCT_SESSION_ID)).contains("81c00001");
+                assertThat(r.packet().vendorString(RadiusPacket.MIKROTIK_VENDOR, RadiusPacket.MIKROTIK_RATE_LIMIT))
+                        .contains("2M/4M");
+            });
+
+            nas.mode(FakeNas.Mode.SESSION_GONE);
+            final ExecResult disconnect = dynamicAuthorization(nas, "disconnect",
+                    "User-Name = CB000001\nAcct-Session-Id = 81c00001\n");
+            assertThat(disconnect.getStdout()).as(disconnect.getStderr())
+                    .contains("Received Disconnect-NAK")
+                    .contains("Session-Context-Not-Found");
+        }
+    }
+
+    /** radclient as the sender, the worker's codec in the fake router: both directions must verify. */
+    private ExecResult dynamicAuthorization(final FakeNas nas, final String type, final String attributes) throws Exception {
+        return freeradius.execInContainer("sh", "-c",
+                "printf \"$1\" | radclient -x -r 2 -t 3 \"host.docker.internal:$2\" \"$3\" \"$RADIUS_LAB_SECRET\"",
+                "sh", attributes, String.valueOf(nas.port()), type);
     }
 
     @Test

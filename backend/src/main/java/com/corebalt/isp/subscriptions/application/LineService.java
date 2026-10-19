@@ -22,6 +22,7 @@ import com.corebalt.isp.subscriptions.domain.PppoeUsernames;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -138,6 +139,12 @@ public class LineService implements SubscriptionDirectory {
     public Optional<LineInfo> line(final UUID subscriptionId) {
         return lines.findById(subscriptionId).map(l -> new LineInfo(l.getId(), l.getCustomerId(), l.getPppoeUsername(),
                 l.getPackageId(), l.packageForNextRenewal(), l.getExpiresAt(), l.getGraceDays()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> accessProfile(final UUID subscriptionId, final Instant at, final Instant expiresAt) {
+        return lines.findById(subscriptionId).map(l -> views.profile(l, at, expiresAt).name());
     }
 
     private Subscription load(final UUID subscriptionId) {

@@ -94,6 +94,14 @@ public class PackageService implements PackageCatalog {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<PackageSpeeds> speeds(final UUID packageId) {
+        return packages.findById(packageId)
+                .map(p -> new PackageSpeeds(p.getUploadKbps(), p.getDownloadKbps(), p.getThrottleUploadKbps(),
+                        p.getThrottleDownloadKbps()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<PackageTerms> terms(final UUID packageId) {
         return packages.findById(packageId)
                 .map(p -> new PackageTerms(

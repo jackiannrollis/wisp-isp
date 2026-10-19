@@ -2,6 +2,9 @@ package com.corebalt.isp.notifications.infrastructure;
 
 import com.corebalt.isp.network.api.RouterOffline;
 import com.corebalt.isp.network.api.RouterOnline;
+import com.corebalt.isp.network.api.SessionReauthorizationFailed;
+import com.corebalt.isp.network.api.SessionReauthorized;
+import com.corebalt.isp.notifications.application.CoaAlerts;
 import com.corebalt.isp.notifications.application.MessageComposer;
 import com.corebalt.isp.notifications.application.RouterAlerts;
 import com.corebalt.isp.payments.api.PaymentUnmatched;
@@ -28,18 +31,34 @@ class NotificationListeners {
     static final String PACKAGES = "notifications.package-changes";
     static final String ROUTERS_OFFLINE = "notifications.routers-offline";
     static final String ROUTERS_ONLINE = "notifications.routers-online";
+    static final String COA_FAILED = "notifications.coa-failed";
+    static final String COA_DONE = "notifications.coa-done";
 
     private final IdempotentConsumer consumer;
     private final MessageComposer composer;
     private final RouterAlerts routerAlerts;
+    private final CoaAlerts coaAlerts;
     private final JsonMapper json;
 
     NotificationListeners(final IdempotentConsumer consumer, final MessageComposer composer, final RouterAlerts routerAlerts,
-                          final JsonMapper json) {
+                          final CoaAlerts coaAlerts, final JsonMapper json) {
         this.consumer = consumer;
         this.composer = composer;
         this.routerAlerts = routerAlerts;
+        this.coaAlerts = coaAlerts;
         this.json = json;
+    }
+
+    @RabbitListener(queues = COA_FAILED)
+    void coaFailed(final Message message) {
+        final SessionReauthorizationFailed event = EventQueues.read(json, message, SessionReauthorizationFailed.class);
+        consumer.handleOnce(COA_FAILED, message, () -> coaAlerts.failed(event));
+    }
+
+    @RabbitListener(queues = COA_DONE)
+    void coaDone(final Message message) {
+        final SessionReauthorized event = EventQueues.read(json, message, SessionReauthorized.class);
+        consumer.handleOnce(COA_DONE, message, () -> coaAlerts.reauthorized(event));
     }
 
     @RabbitListener(queues = ROUTERS_OFFLINE)
@@ -104,6 +123,16 @@ class NotificationListeners {
         @Bean
         Declarables notificationsRoutersOnlineQueue() {
             return EventQueues.declare(ROUTERS_ONLINE, EventQueues.routingKey(RouterOnline.class, 1));
+        }
+
+        @Bean
+        Declarables notificationsCoaFailedQueue() {
+            return EventQueues.declare(COA_FAILED, EventQueues.routingKey(SessionReauthorizationFailed.class, 1));
+        }
+
+        @Bean
+        Declarables notificationsCoaDoneQueue() {
+            return EventQueues.declare(COA_DONE, EventQueues.routingKey(SessionReauthorized.class, 1));
         }
 
         @Bean

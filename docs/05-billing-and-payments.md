@@ -108,7 +108,7 @@ Request shapes are pinned by contract tests against a fake Daraja; the sandbox o
 2. Start a tunnel to Caddy, for example `cloudflared tunnel --url http://localhost:8088`, and note its https URL.
 3. In `infra/.env` set `CALLBACK_BASE_URL` (the tunnel URL), `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET` and `DARAJA_SANDBOX_PASSKEY`; restart the stack and load the lab fixtures (`infra\scripts\up.ps1`, `infra\lab\scripts\seed.ps1`).
 4. Run `infra\scripts\daraja-sandbox.ps1` (or `.sh`). It configures tenant CB for the sandbox, registers the C2B URLs, simulates a C2B payment to CB000004 and waits until the ledger has credited it and the line is FULL, then sends an STK Push to the sandbox test number and waits for its result.
-5. The last step, the CoA to the router, is reported as skipped until the network module's CoA consumer exists; until then the 24-hour Session-Timeout cap bounds the delay.
+5. The last step, the CoA to the router, is reported as skipped: the sandbox payment has no live session on a real router. CoA and Disconnect are proven against a fake router by `CoaWorkerIT` and on a real router by the network lab (`lab.ps1`).
 
 If a sandbox callback is refused, the backend logs `Callback refused from <ip>`: Safaricom's sandbox may call from addresses outside the published production list; add it with `ISP_MPESA_CALLBACKALLOWEDCIDRS` for the lab only.
 

@@ -1,9 +1,14 @@
 package com.corebalt.isp.network.infrastructure;
 
+import com.corebalt.isp.network.api.NetworkAccessChanged;
 import com.corebalt.isp.network.api.RouterPollRequested;
 import com.corebalt.isp.network.application.RouterPoller;
+import com.corebalt.isp.network.application.SessionReauthorizer;
+import com.corebalt.isp.shared.outbox.DomainEvent;
 import com.corebalt.isp.shared.outbox.EventQueues;
 import com.corebalt.isp.shared.outbox.IdempotentConsumer;
+import com.corebalt.isp.shared.outbox.OutboxPublisher;
+import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.tenant.TenantIterator;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -33,9 +38,10 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * The tunnel worker (ADR 0011): the same image as the API, started with {@code isp.worker.enabled}
  * (profile {@code worker}). It polls routers every 60 s on its own executor (the API's scheduled
- * jobs are off), is the only consumer of {@code network.router-poll}, and answers HTTP only on
+ * jobs are off), is the only consumer of {@code network.router-poll} and {@code network.coa}
+ * (CoA and Disconnect, N5), and answers HTTP only on
  * {@code /actuator/health}. It connects as isp_worker and is the only process that decrypts router
- * REST credentials. Nothing here exists in the API.
+ * REST credentials, and the only one besides FreeRADIUS that reads router RADIUS secrets (ADR 0009). Nothing here exists in the API.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "isp.worker.enabled", havingValue = "true")
@@ -116,6 +122,36 @@ class TunnelWorker {
         @Override
         public boolean isRunning() {
             return executor != null && !executor.isShutdown();
+        }
+    }
+
+    /**
+     * NetworkAccessChanged (N5): the CoA or Disconnect is sent outside any transaction, then its outcome is
+     * published once (E2). A redelivery may send again, which is harmless: the request names the session
+     * by its Acct-Session-Id. Four consumers, so one unreachable router's retries do not hold up others.
+     */
+    @Component
+    @ConditionalOnProperty(name = "isp.worker.enabled", havingValue = "true")
+    static class CoaRequests {
+
+        private final SessionReauthorizer reauthorizer;
+        private final IdempotentConsumer consumer;
+        private final OutboxPublisher outbox;
+        private final JsonMapper json;
+
+        CoaRequests(final SessionReauthorizer reauthorizer, final IdempotentConsumer consumer, final OutboxPublisher outbox,
+                    final JsonMapper json) {
+            this.reauthorizer = reauthorizer;
+            this.consumer = consumer;
+            this.outbox = outbox;
+            this.json = json;
+        }
+
+        @RabbitListener(queues = AccessChangeListeners.COA, autoStartup = "true", concurrency = "4")
+        void accessChanged(final Message message) {
+            final NetworkAccessChanged event = EventQueues.read(json, message, NetworkAccessChanged.class);
+            final DomainEvent outcome = TenantContext.callAsTenant(event.tenantId(), () -> reauthorizer.send(event));
+            consumer.handleOnce(AccessChangeListeners.COA, message, () -> outbox.publish(outcome));
         }
     }
 

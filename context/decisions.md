@@ -75,6 +75,9 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-20 | Router online = RouterOS REST /system/resource answered over the tunnel, polled every 60 s; 3 misses = OFFLINE; accounting is only "last heard" | Step 8 decision; supersedes the WireGuard-handshake signal in docs/06 | docs/06 Router monitoring |
 | 2026-10-20 | Tunnel worker: same image, profile worker, role isp_worker with enumerated grants (pinned by DatabaseGrantsIT); health-only HTTP; one replica per hub | The API never talks to routers; only the worker holds router credentials | [ADR 0011](../docs/adr/0011-tunnel-worker.md) |
 | 2026-10-20 | CoA signing: isp_worker will read radius_client_v3 for the router secret at CoA time, never cached (user decision, step 8) | ADR 0009 keeps the API from reading secrets | ADR 0011; ADR 0009 amended with the CoA slice |
+| 2026-10-20 | CoA split: the API reads open sessions from radacct and publishes one NetworkAccessChanged per session; the worker only signs and sends, with SELECT on radius_client_v3 (tenant_id, nasname, secret) and no radacct or subscription grants | Keeps isp_worker's grants to the enumerated minimum | ADR 0011, ADR 0009, docs/06 |
+| 2026-10-20 | CoA rules: state change → Disconnect (not AUTO_RESUME_RECORDED); upgrade now → CoA with the rate for the current profile; renewal → Disconnect only when the profile changed; THROTTLED ↔ FULL is a Disconnect (address list) | N5; Session-Timeout covers an unchanged profile | docs/06 |
+| 2026-10-20 | CoA retries: first attempt plus 3 retries (2, 6, 14 s backoff, 2 s timeout); NAK 503 counts as done, other NAKs are final; failure opens a COA_FAILED alert per line, cleared by a later ACK; the API declares network.coa too, so restores wait for a worker | N5 "three retries"; docs/06 "about 30 seconds" | docs/06, ADR 0011 |
 
 ## How to add a row
 

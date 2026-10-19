@@ -15,6 +15,7 @@ docs/07 required PPPoE passwords and per-router RADIUS shared secrets to be enve
   - `isp_app` may SELECT only the key columns, which an UPDATE ... WHERE needs, never `secret`. It has no DELETE.
   - Only the views `radius_client_v3` and `v_radius_auth_v3`, which run as their owner, read `secret`, and `isp_radius` has SELECT on those views alone (N2).
   - A test proves both directions as `isp_app`.
+  - Amended 2026-10-20 (step 8, ADR 0011): `isp_worker`, the tunnel worker's role, is the second reader of router secrets, to sign CoA and Disconnect (N5). It has SELECT on `radius_client_v3` (`tenant_id`, `nasname`, `secret`) only, never on `network_radius_credential` or any PPPoE password, and reads the secret when it sends, never caching it, so a rotated secret takes effect on the next request. `DatabaseGrantsIT` pins this exactly. A future Go service for CoA would use the same role.
 - The platform generates every value with `SecureRandom`, from letters and digits without look-alikes:
   - PPPoE passwords have 16 characters.
   - Shared secrets have 32 characters.

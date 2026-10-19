@@ -66,4 +66,4 @@ done
 echo "   STK request: $STATUS"
 
 echo "== 5. CoA to the router"
-echo "   SKIPPED: the network module's CoA/Disconnect consumer is not built yet; Session-Timeout bounds the delay."
+echo "   SKIPPED: no live session on a real router here; CoA is proven by CoaWorkerIT and the network lab."

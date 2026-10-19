@@ -78,5 +78,5 @@ do {
 Write-Host "   STK request: $($stk.status) $($stk.resultCode) $($stk.resultDesc)"
 
 Step "5. CoA to the router"
-Write-Host "   SKIPPED: the network module's CoA/Disconnect consumer is not built yet; Session-Timeout bounds the delay."
+Write-Host "   SKIPPED: no live session on a real router here; CoA is proven by CoaWorkerIT and the network lab."
 Write-Host "Sandbox round-trip finished."

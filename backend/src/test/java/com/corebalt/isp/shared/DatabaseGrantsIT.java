@@ -32,7 +32,7 @@ class DatabaseGrantsIT extends IntegrationTest {
             """;
 
     @Test
-    void ADR0011_theTunnelWorkerHoldsOnlyItsEnumeratedGrants() {
+    void ADR0011_ADR0009_theTunnelWorkerHoldsOnlyItsEnumeratedGrants() {
         assertThat(privileges("isp_worker")).containsExactlyInAnyOrder(
                 "tenancy_tenant.id:SELECT",
                 "tenancy_tenant.status:SELECT",
@@ -59,6 +59,9 @@ class DatabaseGrantsIT extends IntegrationTest {
                 "network_router.cpu_load:UPDATE",
                 "network_router.free_memory_bytes:UPDATE",
                 "network_router.total_memory_bytes:UPDATE",
+                "radius_client_v3.tenant_id:SELECT",
+                "radius_client_v3.nasname:SELECT",
+                "radius_client_v3.secret:SELECT",
                 "outbox_event:INSERT",
                 "shared_processed_event:INSERT");
     }

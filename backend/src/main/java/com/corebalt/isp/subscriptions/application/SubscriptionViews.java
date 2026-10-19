@@ -2,6 +2,7 @@ package com.corebalt.isp.subscriptions.application;
 
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
+import com.corebalt.isp.subscriptions.domain.AccessProfile;
 import com.corebalt.isp.subscriptions.domain.DisplayStatus;
 import com.corebalt.isp.subscriptions.domain.GraceMode;
 import com.corebalt.isp.subscriptions.domain.Subscription;
@@ -29,6 +30,14 @@ class SubscriptionViews {
 
     SubscriptionDto toDto(final Subscription line) {
         return mapper().toDto(line);
+    }
+
+    /** The profile at {@code at}, with {@code expiresAt} in place of the stored expiry when not null. */
+    AccessProfile profile(final Subscription line, final Instant at, final Instant expiresAt) {
+        final AccessPolicy.Facts stored = line.facts();
+        final AccessPolicy.Facts facts = expiresAt == null ? stored : new AccessPolicy.Facts(
+                stored.state(), expiresAt, stored.graceDays(), stored.pausedAt(), stored.pauseUntil());
+        return AccessPolicy.evaluate(facts, GraceMode.valueOf(tenantProfile.currentPolicy().graceMode()), at).profile();
     }
 
     record Mapper(GraceMode graceMode, Instant now) {

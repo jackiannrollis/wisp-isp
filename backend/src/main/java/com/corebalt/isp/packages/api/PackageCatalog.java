@@ -15,9 +15,15 @@ public interface PackageCatalog {
     /** The terms a renewal is charged and timed by. */
     Optional<PackageTerms> terms(UUID packageId);
 
+    /** The speeds a CoA sets (N4, N5). */
+    Optional<PackageSpeeds> speeds(UUID packageId);
+
     /** {@code graceDays} null means "use the tenant default" (docs/04 Grace policy). */
     record PackageTerms(
             UUID id, String name, Money price, int durationMinutes, Integer graceDays, boolean prepaid, boolean sellableAsPppoe) {}
+
+    /** kbit/s; throttle speeds are null when the package has none (it stays at full speed when THROTTLED). */
+    record PackageSpeeds(int uploadKbps, int downloadKbps, Integer throttleUploadKbps, Integer throttleDownloadKbps) {}
 
     /** What other modules may know about a package. */
     record PackageSummary(UUID id, String name, String type, boolean active) {

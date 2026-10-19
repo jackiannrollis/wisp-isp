@@ -38,9 +38,15 @@ Expired users are accepted into `RESTRICTED`, never rejected: a rejected PPPoE c
 ## CoA and Disconnect
 
 - The network module sends RADIUS CoA (change attributes in place) or Disconnect-Request (drop the session so the client redials) to the router's tunnel IP on UDP 3799, signed with the router's secret.
-- Triggers: `SubscriptionRenewed`, `SubscriptionStateChanged`, package upgrade, fair-use threshold.
-- Upgrade and throttle use CoA to change `Mikrotik-Rate-Limit` without dropping the session; everything else uses Disconnect so the pool and address list change cleanly.
-- Retries: 3 attempts with backoff over 30 seconds; a failure raises an alert and the 24-hour `Session-Timeout` cap guarantees eventual consistency.
+- Who does what (ADR 0011): the API reads the line's open sessions from `radacct` and publishes one `NetworkAccessChanged` per session (router, username, Acct-Session-Id, action, rate). The tunnel worker reads the router's address and secret from `radius_client_v3` when it sends (ADR 0009), signs, sends and retries. A line with no open session gets nothing: its next login gets the new profile.
+- Requests name the session by `User-Name` and `Acct-Session-Id`; a CoA adds `Mikrotik-Rate-Limit` (N4).
+- Triggers (N5):
+  - `SubscriptionStateChanged`: Disconnect, except the cause `AUTO_RESUME_RECORDED` (S7).
+  - `SubscriptionPackageChanged` with timing NOW: CoA with the new package's rate while the line is FULL, or its throttle rate while THROTTLED; nothing for a RESTRICTED or rejected line.
+  - `SubscriptionRenewed`: Disconnect when the renewal changed the profile (RESTRICTED or THROTTLED back to FULL, which changes the pool or address list); nothing when it did not, because the session's `Session-Timeout` already ends it at the old boundary and the redial gets the new expiry. A first activation is covered by its `SubscriptionStateChanged`.
+  - Fair-use threshold: not built yet (v2, `UsageThresholdReached`).
+- Speed changes in place use CoA; any change of pool or address list uses Disconnect, including THROTTLED to FULL, because the `throttled` address list goes away.
+- Retries: the first attempt and three retries, waiting 2, 6 and 14 seconds between them, each attempt waiting 2 seconds for an answer (about 30 seconds in all). A NAK saying the session no longer exists (Error-Cause 503) counts as done; any other NAK is final. A failure publishes `SessionReauthorizationFailed`, which opens one `COA_FAILED` staff alert per line until a later request for the line is acknowledged, and the 24-hour `Session-Timeout` cap guarantees eventual consistency.
 - Routers need `/radius incoming set accept=yes port=3799`, which the onboarding script sets.
 
 ## Restricted mode, honestly

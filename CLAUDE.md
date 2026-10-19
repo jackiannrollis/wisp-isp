@@ -21,8 +21,9 @@ one payment message per payment, reminders in the sending window, templates with
 Daraja and Africa's Talking are verified against fakes only; their sandbox scripts have not run.
 Step 8 (dashboard and portal) is in progress. Done: sign-in and tokens (ADR 0010: staff, portal,
 platform admins, impersonation), RADIUS accounting into partitioned `radacct` with the usage roll-up,
-and the tunnel worker (ADR 0011) polling routers over RouterOS REST. Not yet: the CoA/Disconnect
-consumer in the worker, the dashboard and portal APIs, and both Angular apps.
+and the tunnel worker (ADR 0011) polling routers over RouterOS REST and sending CoA/Disconnect
+(N5; proven against a fake router and radclient, not yet on a real router). Not yet: the dashboard
+and portal APIs, and both Angular apps.
 
 ## Commands
 

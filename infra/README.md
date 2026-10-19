@@ -12,7 +12,7 @@ lab runbook is `infra/lab/README.md`.
 | `backend` | the API (profile `local`); runs migrations and every scheduled job | **never** |
 | `wireguard` | hub A: the WireGuard endpoint routers peer with | is the tunnel |
 | `freeradius` | RADIUS auth and accounting; reads two views, writes `radacct` | receives from routers |
-| `tunnel-worker` | the backend image in profile `worker` (ADR 0011): router polls, later CoA | **only this one** |
+| `tunnel-worker` | the backend image in profile `worker` (ADR 0011): router polls, CoA and Disconnect | **only this one** |
 | `caddy` | reverse proxy for the API and dev servers; lab pay page | no |
 
 ## Network layouts
