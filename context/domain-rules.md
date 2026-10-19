@@ -54,9 +54,9 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 ## Notifications (docs/04)
 
-- **M1** Every notification has a `dedupe_key` (event, subscription, `expires_at`); the same key is never sent twice.
-- **M2** Reminders respect the tenant sending window; `PAYMENT_RECEIVED` and `RESTORED` go out immediately.
-- **M3** Messages never include secrets, PINs or full national IDs.
+- **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment).
+- **M2** Reminders respect the tenant sending window (default 07:00 to 21:00, tenant time zone); the payment message (including its restored variant), the unrecognised-reference reply and package-change messages go out immediately.
+- **M3** Messages never include secrets, PINs or full national IDs: templates, including a tenant's own wording, may use only a fixed list of placeholders that carry none of them.
 
 ## Events and jobs (docs/02)
 

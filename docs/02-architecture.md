@@ -60,11 +60,11 @@ The monolith is one deployable, but its modules are strict. Spring Modulith veri
 | `identity` | Staff users, roles, permissions, 2FA, audit log, portal logins | `AuditRecorded` | every state-changing command |
 | `customers` | Customer profile, contact details, location | `CustomerCreated` | — |
 | `packages` | Package definitions and prices | `PackageChanged` | — |
-| `subscriptions` | Subscription (the line: package, router, PPPoE username, MAC, static IP), expiry, lifecycle states, renewals, proration, pause | `SubscriptionRenewed`, `SubscriptionStateChanged`, `SubscriptionPackageChanged`, `SubscriptionReminderDue` | `WalletCredited` |
+| `subscriptions` | Subscription (the line: package, router, PPPoE username, MAC, static IP), expiry, lifecycle states, renewals, proration, pause | `SubscriptionRenewed`, `SubscriptionStateChanged`, `SubscriptionPackageChanged`, `SubscriptionReminderDue`, `CreditApplied` | `WalletCredited` |
 | `billing` | Wallet, ledger, receipts, invoices, arrears, credit notes | `WalletCredited`, `WalletDebited`, `ReceiptIssued` | `PaymentReceived` |
 | `payments` | M-Pesa Daraja, STK Push, suspense queue, reconciliation, manual payments | `PaymentReceived`, `PaymentUnmatched` | — |
 | `network` | Routers, sites, IP pools, RADIUS credentials (PPPoE passwords, router secrets; ADR 0009), RADIUS entitlement rows, CoA, RouterOS REST, sessions, accounting ingest, usage roll-ups, fair-use | `NetworkAccessChanged`, `SessionReauthorized`, `RouterOffline`, `UsageThresholdReached` | `SubscriptionStateChanged`, `SubscriptionRenewed`, `SubscriptionPackageChanged` |
-| `notifications` | Templates, SMS dispatch (WhatsApp and email later), delivery log | `CustomerNotified` | most events above |
+| `notifications` | Templates, SMS dispatch (WhatsApp and email later), delivery log | `CustomerNotified` | `SubscriptionReminderDue`, `CreditApplied`, `PaymentUnmatched`, `SubscriptionPackageChanged` (router alerts later) |
 | `hotspot` (v2) | Hotspot plans, captive portal API, vouchers, hotspot sessions | `VoucherRedeemed` | `PaymentReceived` |
 | `support` (v2) | Tickets, outages, technician assignment | `TicketUpdated` | `RouterOffline` |
 | `reporting` | Dashboard counts, revenue and usage reports, read from the replica | — | — |

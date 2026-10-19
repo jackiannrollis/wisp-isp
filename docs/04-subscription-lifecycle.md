@@ -93,7 +93,22 @@ Templates and timing are per tenant. Defaults:
 | `PAYMENT_RECEIVED` | On renewal | "Payment of KES 2,500 received. Your Home Plus internet is renewed until 17 November 2026." |
 | `RESTORED` | When access returns from `RESTRICTED` | "Internet restored." |
 
+**The payment message.** One SMS per payment (dedupe key: the payment ID), sent after the renewal it caused is decided, so it states the amount, the receipt number and what happened. Variants: renewed ("renewed until 17 Nov"); restored (the same, plus "Internet is back within a minute; if not, restart your router", because it goes out before the router's CoA result is known); first activation; several lines renewed by one payment (each listed with its new expiry); partial (the amount still due and how to pay); credit kept (no line due); postpaid (balance due, once postpaid billing exists). A payment whose reference was not recognised gets a reply only when Daraja sent the payer's number unmasked; it asks the payer to use their customer number. Staff adjustments send no "received" message. Reminders for a line whose wallet already covers the next cycle say it renews automatically.
+
+**Templates and cost.** Every default fits one GSM-7 SMS (160 characters) with realistic values. Tenants may reword any template; the editor shows the rendered sample and the number of SMS parts (GSM-7: 160, then 153 per part; any other character switches to UCS-2: 70, then 67), so a change that doubles the bill is visible. Placeholders come from a fixed list with no secrets (M3).
+
+**Delivery (Africa's Talking).** Each tenant uses its own Africa's Talking account, API key and registered sender ID; recipients are always in E.164.
+- Sent: `100`, `101`, `102`.
+- Failed for good, never retried, the number flagged for staff: `403` invalid number, `404` unsupported number, `406` blacklisted.
+- The tenant's problem, held and retried hourly while tenant staff and the platform are alerted: `405` insufficient credit, `402` sender ID refused, HTTP 401 API key refused. The alert clears on the next successful send.
+- Anything else (server errors, timeouts): retried after 1, 5 and 30 minutes, then dead-lettered and alerted.
+- Delivery reports: `Success` is delivered; `Failed` and `Rejected` are failed with the reason kept; `Buffered` leaves the message sent; a report for an unknown message is dropped. The report URL carries a secret token (Africa's Talking publishes no fixed source addresses).
+
 Each notification has a `dedupe_key` of event, subscription and `expires_at`, so a rerun of the reminder job never sends a duplicate. The subscriptions module raises each due reminder once as a `SubscriptionReminderDue` event (recorded per dedupe key in `subscriptions_reminder`); the notifications module renders and sends it. Day counts (3 days, 1 day, due today) use the tenant's local dates; a window the job missed is skipped, and `RESTRICTED` is raised only in the first day after grace. Reminders are evaluated hourly in the tenant's time zone and sent in a sending window (default 07:00 to 21:00) except `PAYMENT_RECEIVED` and `RESTORED`, which go out immediately.
+
+### SMS sandbox round-trip
+
+Request shapes and the answer-to-behaviour mapping are pinned by tests against a fake Africa's Talking. To confirm against the sandbox: create a sandbox app and a sender ID, open a number in the simulator, start a tunnel to Caddy, set `AT_SANDBOX_API_KEY`, `AT_SANDBOX_SENDER_ID`, `AT_SANDBOX_TEST_NUMBER` and `CALLBACK_BASE_URL` in `infra/.env`, set the delivery report URL that the script prints in the sandbox dashboard, and run `infra\scripts\at-sandbox.ps1` (or `.sh`). It records a cash payment for CB000001 and waits for the SMS to be delivered.
 
 ## Grace policy
 
