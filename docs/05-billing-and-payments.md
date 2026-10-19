@@ -112,6 +112,14 @@ Request shapes are pinned by contract tests against a fake Daraja; the sandbox o
 
 If a sandbox callback is refused, the backend logs `Callback refused from <ip>`: Safaricom's sandbox may call from addresses outside the published production list; add it with `ISP_MPESA_CALLBACKALLOWEDCIDRS` for the lab only.
 
+## Dashboard figures
+
+The admin dashboard (`GET /api/v1/dashboard`) reports a period of tenant-local days, the current month by default:
+
+- **Renewals due**: ACTIVE lines whose `expires_at` falls in the period, and the sum of the price their next renewal sells (the scheduled package when a downgrade is pending, S10). This is the dashboard's "expected revenue"; it does not forecast lines that are already expired or new sign-ups.
+- **Collected**: payments received in the period on every channel, manual ones included (P4), reversed ones left out; the part still unmatched is shown separately (P3). Sums are taken over integer minor units (B2).
+- Lines by stored state and by derived display status (S1), routers by status, open sessions and usage (N7) complete it. Composed by the reporting module from the other modules' read interfaces.
+
 ## Receipts and invoices
 
 - A receipt is issued by billing for every credited payment with a per-tenant sequential number that is never reused (`CB-R000123`); it is available in the portal as a PDF and referenced in the `PAYMENT_RECEIVED` SMS.

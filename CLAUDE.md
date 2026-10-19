@@ -22,8 +22,8 @@ Daraja and Africa's Talking are verified against fakes only; their sandbox scrip
 Step 8 (dashboard and portal) is in progress. Done: sign-in and tokens (ADR 0010: staff, portal,
 platform admins, impersonation), RADIUS accounting into partitioned `radacct` with the usage roll-up,
 and the tunnel worker (ADR 0011) polling routers over RouterOS REST and sending CoA/Disconnect
-(N5; proven against a fake router and radclient, not yet on a real router). Not yet: the dashboard
-and portal APIs, and both Angular apps.
+(N5; proven against a fake router and radclient, not yet on a real router). The dashboard and portal
+APIs are done too (`/api/v1/dashboard`; `/api/v1/portal/...` per module). Not yet: both Angular apps.
 
 ## Commands
 
@@ -46,7 +46,8 @@ Unit tests are `*Test`, Testcontainers tests are `*IT` and extend `support/Integ
 connects as the non-owner role `isp_app` so row-level security is really exercised. Tests call the API
 with real RS256 tokens signed by a key generated per test JVM (`support/TestTokens`, `support/Api`).
 After `infra/lab/seed.sql` the local stack has a lab admin: tenant `CB`,
-`lab-admin@corebalt.example.test`, password `lab-admin-password` (fake, local only).
+`lab-admin@corebalt.example.test`, password `lab-admin-password` (fake, local only), and customer
+`CB000001` can sign into the portal with PIN `4071` (fake, local only).
 
 ### Frontend (`frontend/`, one Angular workspace with `admin` and `portal`)
 

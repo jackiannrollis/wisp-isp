@@ -6,6 +6,1510 @@
  */
 
 export interface paths {
+    "/api/v1/staff/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change the role: every session ends at the next request */
+        put: operations["role"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/secrets/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or replace a secret; the value can never be read back */
+        put: operations["put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SMS settings and the delivery-report URL to give Africa's Talking (never the API key) */
+        get: operations["view"];
+        /** Africa's Talking account (API key write-only), sender ID and sending window (M2) */
+        put: operations["configure"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/templates/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Use the tenant's own wording; only listed placeholders are allowed (M3) */
+        put: operations["saveTemplate"];
+        post?: never;
+        /** Back to the platform default */
+        delete: operations["resetTemplate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/mpesa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The M-Pesa settings and callback URLs (never the credentials) */
+        get: operations["view_1"];
+        /** Set the Paybill or Till and its Daraja credentials (write-only); returns the callback URLs */
+        put: operations["configure_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers/{id}/rest-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the RouterOS REST login the tunnel worker polls with; it can never be read back (T4) */
+        put: operations["setRestCredential"];
+        post?: never;
+        /** Stop monitoring the router */
+        delete: operations["removeRestCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit a role; everyone holding it gets a new token on the next request */
+        put: operations["update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One package */
+        get: operations["get"];
+        /** Revise a package; running cycles keep what they were sold (S6) */
+        put: operations["revise"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One customer */
+        get: operations["get_1"];
+        /** Replace a customer's profile; the number never changes */
+        put: operations["update_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List lines; filter by customer, stored state, router or package */
+        get: operations["list"];
+        put?: never;
+        /** Open a PENDING PPPoE line; the password in the response is shown only this once */
+        post: operations["open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close the line: its password is revoked and its static IP freed */
+        post: operations["terminate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin hold with a reason: Access-Reject until lifted */
+        post: operations["suspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume a PAUSED line; the paused time is added to its expiry (S7) */
+        post: operations["resume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/pppoe-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the PPPoE password; the new one is shown only this once. There is no way to reveal a password */
+        post: operations["regeneratePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause an ACTIVE line with time left (S7); RESTRICTED until resumed or pause_until */
+        post: operations["pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the package: an upgrade NOW charges proration (B6); a downgrade waits for the next renewal (S10) */
+        post: operations["changePackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/lift-suspension": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lift a hold; dates are re-evaluated, so an expired line returns RESTRICTED (S8) */
+        post: operations["liftSuspension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List staff; q matches email or name */
+        get: operations["list_1"];
+        put?: never;
+        /** Invite a staff member; the temporary password (valid 72 h) is in this response only */
+        post: operations["invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/{id}/temporary-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate an unused invitation, or reset a password: a new temporary password, shown once; sessions end */
+        post: operations["temporaryPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable: every session ends at the next request */
+        post: operations["disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/templates/{key}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render a draft with sample values and count its SMS parts (GSM-7 160/153, UCS-2 70/67) */
+        post: operations["preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/mpesa/register-urls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register the C2B confirmation and validation URLs with Safaricom */
+        post: operations["registerUrls"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the tenant's routers */
+        get: operations["list_2"];
+        put?: never;
+        /** Register a router; the RADIUS secret in the response is shown only this once */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers/{id}/radius-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the router's RADIUS secret; the new one is shown only this once */
+        post: operations["regenerateSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers/{id}/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask the tunnel worker to poll the router now (RouterPollRequested) */
+        post: operations["poll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/stk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pay Now: an M-Pesa STK Push to my phone; the payment arrives by callback */
+        post: operations["payNow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/session/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A new access token from the refresh cookie (rotated) */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/session/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the PIN (PIN_SETUP challenge) and sign in */
+        post: operations["pin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with the customer number (or phone) and PIN */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a sign-in code by SMS (to set or reset the PIN); the answer never says whether the number is known */
+        post: operations["code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal-auth/code/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the code: PIN_SETUP, or CHOOSE_ACCOUNT when several accounts share the phone */
+        post: operations["verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign an unmatched payment to a customer; the wallet is credited from it */
+        post: operations["assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/transaction-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask Daraja about a transaction missing from the platform; a completed one arrives as a payment */
+        post: operations["investigate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/stk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send an STK Push to the customer's phone (or another); the payment arrives by callback */
+        post: operations["stkPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/reconciliations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reconciliation runs, newest first */
+        get: operations["reconciliations"];
+        put?: never;
+        /** Compare an M-Pesa statement (CSV export) with recorded payments, both directions */
+        post: operations["reconcile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a cash, bank or M-Pesa payment by hand (P5); the wallet is credited from it */
+        post: operations["recordManual"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the tenant's packages */
+        get: operations["list_4"];
+        put?: never;
+        /** Create a package */
+        post: operations["create_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop selling a package; existing lines keep it */
+        post: operations["deactivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sell a package again */
+        post: operations["activate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change your password: every session ends, so sign in again */
+        post: operations["password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List customers; q matches name, number or phone */
+        get: operations["list_5"];
+        put?: never;
+        /** Register a customer; the number is assigned by the platform (T2) */
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive a customer; the number is never reused */
+        post: operations["archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}/wallet/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post an ADJUSTMENT with a reason (B1); a credit renews lines like a payment */
+        post: operations["adjust"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customer-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import customers from CSV, all rows or none
+         * @description Columns: name, phone (required), email, address, installation_location, lat, lng, package. Rows with a package get a PENDING line on routerId; their PPPoE passwords are in this response only.
+         */
+        post: operations["importCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The authenticator code (TOTP_REQUIRED challenge) */
+        post: operations["totp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/totp/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm the authenticator set up from TOTP_ENROLL with its first code */
+        post: operations["enroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A new access token from the refresh cookie (rotated); Origin must be a Corebalt page */
+        post: operations["refresh_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out: the refresh token's family is revoked */
+        post: operations["logout_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password (CHANGE_PASSWORD challenge) */
+        post: operations["password_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff sign-in: organisation code or subdomain, email, password */
+        post: operations["login_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tenants"];
+        put?: never;
+        /** Onboard a tenant in TRIAL with its built-in roles; the Owner's temporary password is shown once */
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/tenants/{tenantId}/impersonations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Act as a tenant staff member for at most 30 minutes; recorded in the tenant's audit log */
+        post: operations["impersonate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/impersonations/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End an impersonation; its token stops working at the next request */
+        post: operations["end"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TOTP code, or a recovery code (XXXX-XXXX), each usable once */
+        post: operations["totp_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/totp/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enroll_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/session/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refresh_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/session/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logout_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["password_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Platform admin sign-in; TOTP is mandatory */
+        post: operations["login_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One line (never its password) */
+        get: operations["get_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_3"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which secrets are set (never their values) */
+        get: operations["list_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every template with its current wording, a sample and its SMS part count */
+        get: operations["templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One router (never its secret) */
+        get: operations["get_4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Receipts, newest first, optionally of one customer (B7) */
+        get: operations["receipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My wallet balance */
+        get: operations["wallet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/wallet/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My statement, newest first */
+        get: operations["entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/stk/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of my STK requests and its outcome (the pay page polls it) */
+        get: operations["stkRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My receipts, newest first (B7) */
+        get: operations["receipts_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My payments, newest first */
+        get: operations["list_7"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My lines with status, package, expiry and what the next renewal needs */
+        get: operations["lines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/lines/{id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My line's daily usage; tenant-local days, the last 30 by default */
+        get: operations["usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/customer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My customer number, name and contact details */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The fixed permission codes; those marked requires2fa make a role require 2FA (A2) */
+        get: operations["permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List payments; filter by customer, status, channel and received time [receivedFrom, receivedBefore) */
+        get: operations["list_8"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/suspense": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unmatched payments with a likely-payer shortlist for masked numbers (P3) */
+        get: operations["suspense"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/stk/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One STK request and its outcome */
+        get: operations["stkRequest_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/reconciliations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One reconciliation run with its report */
+        get: operations["reconciliationRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages, newest first, optionally of one customer or in one status */
+        get: operations["messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/phone-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Numbers the SMS provider refused for good (invalid or blacklisted) */
+        get: operations["phoneFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open SMS problems staff must fix (credit exhausted, sender ID refused, API key refused, dead letters) */
+        get: operations["alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in staff member, role and permissions; impersonatedBy is set during an impersonation */
+        get: operations["me_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lines by status, renewals due and money collected in a period, routers and sessions */
+        get: operations["dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The customer's wallet balance */
+        get: operations["wallet_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}/wallet/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The customer's ledger entries, newest first (statement) */
+        get: operations["entries_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/branding": {
         parameters: {
             query?: never;
@@ -23,14 +1527,918 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The tenant's audit log, newest first; action matches by prefix (e.g. identity.) */
+        get: operations["list_9"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/tenants/{tenantId}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A tenant's staff, to choose whom to impersonate */
+        get: operations["staff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/impersonations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["recent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/jwks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public keys that verify the platform's tokens, retired ones included */
+        get: operations["jwks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/phone-flags/{phone}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Clear a flag after the number was corrected */
+        delete: operations["clearPhoneFlag"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RoleChange: {
+            /** Format: uuid */
+            roleId: string;
+        };
+        StaffDto: {
+            /** Format: uuid */
+            id?: string;
+            email?: string;
+            displayName?: string;
+            phone?: string;
+            status?: string;
+            /** Format: uuid */
+            roleId?: string;
+            roleName?: string;
+            totpEnabled?: boolean;
+            mustChangePassword?: boolean;
+            /** Format: date-time */
+            invitationExpiresAt?: string;
+            /** Format: date-time */
+            lastLoginAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        SecretValue: {
+            value: string;
+        };
+        SettingsRequest: {
+            atUsername: string;
+            senderId: string;
+            sandbox: boolean;
+            enabled?: boolean;
+            windowStart?: string;
+            windowEnd?: string;
+            apiKey?: string;
+        };
+        SettingsView: {
+            atUsername?: string;
+            senderId?: string;
+            sandbox?: boolean;
+            enabled?: boolean;
+            windowStart?: string;
+            windowEnd?: string;
+            deliveryReportUrl?: string;
+        };
+        TemplateBody: {
+            body: string;
+        };
+        TemplateView: {
+            key?: string;
+            immediate?: boolean;
+            body?: string;
+            custom?: boolean;
+            sample?: string;
+            encoding?: string;
+            /** Format: int32 */
+            length?: number;
+            /** Format: int32 */
+            segments?: number;
+        };
+        RestCredential: {
+            username: string;
+            password: string;
+        };
+        RouterDto: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            tunnelIp?: string;
+            status?: string;
+            restUsername?: string;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            /** Format: date-time */
+            offlineSince?: string;
+            /** Format: date-time */
+            lastPolledAt?: string;
+            lastPollError?: string;
+            /** Format: date-time */
+            lastAccountingAt?: string;
+            routerosVersion?: string;
+            boardName?: string;
+            /** Format: int64 */
+            uptimeSeconds?: number;
+            /** Format: int32 */
+            cpuLoad?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        RoleRequest: {
+            name?: string;
+            permissions?: string[];
+        };
+        RoleDto: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            permissions?: string[];
+            requires2fa?: boolean;
+            builtIn?: boolean;
+            /** Format: int64 */
+            members?: number;
+        };
+        MoneyDto: {
+            /** Format: int64 */
+            amount: number;
+            currency: string;
+        };
+        PackageRequest: {
+            name: string;
+            type?: string;
+            /** Format: int32 */
+            downloadKbps: number;
+            /** Format: int32 */
+            uploadKbps: number;
+            /** Format: int32 */
+            durationMinutes: number;
+            price: components["schemas"]["MoneyDto"];
+            /** Format: int32 */
+            graceDays?: number;
+            /** Format: int64 */
+            dataCapBytes?: number;
+            /** Format: int64 */
+            fupBytes?: number;
+            /** Format: int32 */
+            throttleDownloadKbps?: number;
+            /** Format: int32 */
+            throttleUploadKbps?: number;
+            /** Format: int32 */
+            deviceLimit?: number;
+            billingMode?: string;
+        };
+        PackageDto: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            type?: string;
+            /** Format: int32 */
+            downloadKbps?: number;
+            /** Format: int32 */
+            uploadKbps?: number;
+            /** Format: int32 */
+            durationMinutes?: number;
+            price?: components["schemas"]["MoneyDto"];
+            /** Format: int32 */
+            graceDays?: number;
+            /** Format: int64 */
+            dataCapBytes?: number;
+            /** Format: int64 */
+            fupBytes?: number;
+            /** Format: int32 */
+            throttleDownloadKbps?: number;
+            /** Format: int32 */
+            throttleUploadKbps?: number;
+            /** Format: int32 */
+            deviceLimit?: number;
+            billingMode?: string;
+            active?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        CustomerRequest: {
+            name: string;
+            phone: string;
+            /** Format: email */
+            email?: string;
+            address?: string;
+            installationLocation?: string;
+            lat?: number;
+            lng?: number;
+        };
+        CustomerDto: {
+            /** Format: uuid */
+            id?: string;
+            number?: string;
+            name?: string;
+            phone?: string;
+            email?: string;
+            address?: string;
+            installationLocation?: string;
+            lat?: number;
+            lng?: number;
+            status?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        CreateLineRequest: {
+            /** Format: uuid */
+            customerId: string;
+            /** Format: uuid */
+            packageId: string;
+            /** Format: uuid */
+            routerId: string;
+        };
+        LineOpenedDto: {
+            subscription?: components["schemas"]["SubscriptionDto"];
+            pppoePassword?: string;
+        };
+        SubscriptionDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            customerId?: string;
+            /** Format: uuid */
+            packageId?: string;
+            /** Format: uuid */
+            routerId?: string;
+            pppoeUsername?: string;
+            state?: string;
+            accessProfile?: string;
+            displayStatus?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: int32 */
+            graceDays?: number;
+            /** Format: date-time */
+            pausedAt?: string;
+            /** Format: date-time */
+            pauseUntil?: string;
+            /** Format: date-time */
+            activatedAt?: string;
+            /** Format: date-time */
+            terminatedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ReasonRequest: {
+            reason: string;
+        };
+        PppoeCredentialDto: {
+            /** Format: uuid */
+            subscriptionId?: string;
+            pppoeUsername?: string;
+            pppoePassword?: string;
+        };
+        PauseRequest: {
+            /** Format: date-time */
+            pauseUntil: string;
+        };
+        PackageChangeRequest: {
+            /** Format: uuid */
+            packageId: string;
+            timing: string;
+        };
+        InviteRequest: {
+            email?: string;
+            displayName?: string;
+            phone?: string;
+            /** Format: uuid */
+            roleId?: string;
+        };
+        Invitation: {
+            staff?: components["schemas"]["StaffDto"];
+            temporaryPassword?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        Reason: {
+            reason?: string;
+        };
+        RouterRequest: {
+            name: string;
+            tunnelIp: string;
+        };
+        RouterSecretDto: {
+            router?: components["schemas"]["RouterDto"];
+            radiusSecret?: string;
+        };
+        PayRequest: {
+            amount: components["schemas"]["MoneyDto"];
+        };
+        StkRequestDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            customerId?: string;
+            amount?: components["schemas"]["MoneyDto"];
+            status?: string;
+            resultCode?: string;
+            resultDesc?: string;
+            /** Format: uuid */
+            paymentId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        Account: {
+            number?: string;
+            name?: string;
+            challenge?: string;
+        };
+        SignIn: {
+            status?: string;
+            accessToken?: string;
+            /** Format: int64 */
+            expiresIn?: number;
+            challenge?: string;
+            totpSecret?: string;
+            otpauthUri?: string;
+            recoveryCodes?: string[];
+            accounts?: components["schemas"]["Account"][];
+        };
+        NewPin: {
+            challenge: string;
+            pin: string;
+        };
+        PinLogin: {
+            tenant: string;
+            account: string;
+            pin: string;
+        };
+        CodeRequest: {
+            tenant: string;
+            phone: string;
+        };
+        CodeRequested: {
+            message?: string;
+        };
+        CodeCheck: {
+            tenant: string;
+            phone: string;
+            code: string;
+        };
+        AssignRequest: {
+            /** Format: uuid */
+            customerId: string;
+        };
+        PaymentDto: {
+            /** Format: uuid */
+            id?: string;
+            channel?: string;
+            reference?: string;
+            amount?: components["schemas"]["MoneyDto"];
+            /** Format: date-time */
+            receivedAt?: string;
+            status?: string;
+            /** Format: uuid */
+            customerId?: string;
+            /** Format: date-time */
+            matchedAt?: string;
+        };
+        InvestigateRequest: {
+            transactionId: string;
+        };
+        StkRequest: {
+            /** Format: uuid */
+            customerId: string;
+            amount: components["schemas"]["MoneyDto"];
+            phone?: string;
+        };
+        ExtraPayment: {
+            /** Format: uuid */
+            paymentId?: string;
+            reference?: string;
+            /** Format: int64 */
+            amountMinor?: number;
+            /** Format: date-time */
+            receivedAt?: string;
+        };
+        Report: {
+            missing?: components["schemas"]["StatementLine"][];
+            extra?: components["schemas"]["ExtraPayment"][];
+            uncredited?: components["schemas"]["ExtraPayment"][];
+        };
+        RunDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            periodFrom?: string;
+            /** Format: date-time */
+            periodTo?: string;
+            /** Format: int32 */
+            statementRows?: number;
+            /** Format: int32 */
+            missingCount?: number;
+            /** Format: int32 */
+            extraCount?: number;
+            /** Format: int32 */
+            uncreditedCount?: number;
+            report?: components["schemas"]["Report"];
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        StatementLine: {
+            receipt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: int64 */
+            paidInMinor?: number;
+            details?: string;
+        };
+        ManualPaymentRequest: {
+            /** Format: uuid */
+            customerId: string;
+            amount: components["schemas"]["MoneyDto"];
+            channel: string;
+            reference: string;
+            /** Format: date-time */
+            receivedAt?: string;
+            payerName?: string;
+            note?: string;
+        };
+        OwnPassword: {
+            currentPassword: string;
+            newPassword: string;
+        };
+        AdjustmentRequest: {
+            amount: components["schemas"]["MoneyDto"];
+            reason: string;
+        };
+        LedgerEntryDto: {
+            /** Format: uuid */
+            id?: string;
+            type?: string;
+            amount?: components["schemas"]["MoneyDto"];
+            balanceAfter?: components["schemas"]["MoneyDto"];
+            referenceType?: string;
+            /** Format: uuid */
+            referenceId?: string;
+            description?: string;
+            reason?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        CustomerImportResultDto: {
+            /** Format: int32 */
+            imported?: number;
+            rows?: components["schemas"]["Row"][];
+        };
+        Row: {
+            /** Format: int32 */
+            row?: number;
+            /** Format: uuid */
+            customerId?: string;
+            number?: string;
+            name?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            pppoeUsername?: string;
+            pppoePassword?: string;
+        };
+        Code: {
+            challenge: string;
+            code: string;
+        };
+        NewPassword: {
+            challenge: string;
+            newPassword: string;
+        };
+        StaffLogin: {
+            tenant: string;
+            email: string;
+            password: string;
+        };
+        CreateTenant: {
+            code?: string;
+            name?: string;
+            subdomain?: string;
+            ownerEmail?: string;
+            ownerName?: string;
+            ownerPhone?: string;
+        };
+        Created: {
+            tenant?: components["schemas"]["TenantRef"];
+            owner?: components["schemas"]["Invitation"];
+        };
+        TenantRef: {
+            /** Format: uuid */
+            id?: string;
+            code?: string;
+            name?: string;
+            subdomain?: string;
+            status?: string;
+        };
+        ImpersonationRequest: {
+            /** Format: uuid */
+            staffUserId: string;
+            reason: string;
+            /** Format: int32 */
+            minutes?: number;
+        };
+        Started: {
+            /** Format: uuid */
+            id?: string;
+            accessToken?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            staffUserId?: string;
+        };
+        ImpersonationDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            platformAdminId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            staffUserId?: string;
+            reason?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+        };
+        PlatformLogin: {
+            email: string;
+            password: string;
+        };
+        PageResponseSubscriptionDto: {
+            items?: components["schemas"]["SubscriptionDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PageResponseStaffDto: {
+            items?: components["schemas"]["StaffDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        StoredSecret: {
+            /** @enum {string} */
+            kind?: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
+            /** Format: int32 */
+            keyVersion?: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        PageResponseRouterDto: {
+            items?: components["schemas"]["RouterDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PageResponseReceiptDto: {
+            items?: components["schemas"]["ReceiptDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        ReceiptDto: {
+            /** Format: uuid */
+            id?: string;
+            number?: string;
+            /** Format: uuid */
+            paymentId?: string;
+            /** Format: uuid */
+            customerId?: string;
+            amount?: components["schemas"]["MoneyDto"];
+            /** Format: date-time */
+            issuedAt?: string;
+        };
+        WalletDto: {
+            /** Format: uuid */
+            customerId?: string;
+            balance?: components["schemas"]["MoneyDto"];
+        };
+        PageResponseLedgerEntryDto: {
+            items?: components["schemas"]["LedgerEntryDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PageResponsePaymentDto: {
+            items?: components["schemas"]["PaymentDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PortalLineDto: {
+            /** Format: uuid */
+            id?: string;
+            pppoeUsername?: string;
+            packageName?: string;
+            /** Format: int32 */
+            downloadKbps?: number;
+            /** Format: int32 */
+            uploadKbps?: number;
+            nextPackageName?: string;
+            renewalPrice?: components["schemas"]["MoneyDto"];
+            payToRenew?: components["schemas"]["MoneyDto"];
+            state?: string;
+            displayStatus?: string;
+            accessProfile?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: date-time */
+            pauseUntil?: string;
+        };
+        UsageDay: {
+            /** Format: date */
+            day?: string;
+            /** Format: int64 */
+            inputOctets?: number;
+            /** Format: int64 */
+            outputOctets?: number;
+        };
+        PermissionDto: {
+            code?: string;
+            requires2fa?: boolean;
+        };
+        CustomerSummary: {
+            /** Format: uuid */
+            id?: string;
+            number?: string;
+            name?: string;
+            active?: boolean;
+        };
+        PageResponseSuspenseItem: {
+            items?: components["schemas"]["SuspenseItem"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        SuspenseItem: {
+            /** Format: uuid */
+            id?: string;
+            channel?: string;
+            reference?: string;
+            accountRef?: string;
+            payerName?: string;
+            payerNumber?: string;
+            amount?: components["schemas"]["MoneyDto"];
+            /** Format: date-time */
+            receivedAt?: string;
+            likelyPayers?: components["schemas"]["CustomerSummary"][];
+        };
+        PageResponseRunDto: {
+            items?: components["schemas"]["RunDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PageResponsePackageDto: {
+            items?: components["schemas"]["PackageDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        MessageView: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            customerId?: string;
+            recipient?: string;
+            templateKey?: string;
+            body?: string;
+            status?: string;
+            /** Format: date-time */
+            scheduledFor?: string;
+            /** Format: int32 */
+            attempts?: number;
+            providerStatus?: string;
+            failureReason?: string;
+            /** Format: date-time */
+            sentAt?: string;
+            /** Format: date-time */
+            deliveredAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        PageResponseMessageView: {
+            items?: components["schemas"]["MessageView"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PhoneFlagView: {
+            phone?: string;
+            status?: string;
+            reason?: string;
+            /** Format: date-time */
+            flaggedAt?: string;
+        };
+        AlertView: {
+            kind?: string;
+            /** Format: uuid */
+            subjectId?: string;
+            detail?: string;
+            /** Format: date-time */
+            raisedAt?: string;
+        };
+        Me: {
+            /** Format: uuid */
+            id?: string;
+            email?: string;
+            displayName?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            tenantCode?: string;
+            tenantName?: string;
+            role?: string;
+            permissions?: string[];
+            totpEnabled?: boolean;
+            /** Format: uuid */
+            impersonatedBy?: string;
+        };
+        DashboardDto: {
+            /** Format: date */
+            from?: string;
+            /** Format: date */
+            to?: string;
+            zone?: string;
+            /** Format: date-time */
+            asOf?: string;
+            lines?: components["schemas"]["Lines"];
+            revenue?: components["schemas"]["Revenue"];
+            network?: components["schemas"]["Network"];
+        };
+        Lines: {
+            /** Format: int64 */
+            total?: number;
+            byState?: {
+                [key: string]: number;
+            };
+            byDisplayStatus?: {
+                [key: string]: number;
+            };
+        };
+        Network: {
+            routersByStatus?: {
+                [key: string]: number;
+            };
+            /** Format: int64 */
+            activeSessions?: number;
+            /** Format: int64 */
+            inputOctets?: number;
+            /** Format: int64 */
+            outputOctets?: number;
+        };
+        Revenue: {
+            /** Format: int64 */
+            renewalsDueLines?: number;
+            renewalsDue?: components["schemas"]["MoneyDto"];
+            /** Format: int64 */
+            payments?: number;
+            collected?: components["schemas"]["MoneyDto"];
+            /** Format: int64 */
+            unmatchedPayments?: number;
+            unmatched?: components["schemas"]["MoneyDto"];
+        };
+        PageResponseCustomerDto: {
+            items?: components["schemas"]["CustomerDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
         BrandingDto: {
             name?: string;
             logoUrl?: string;
             primaryColor?: string;
+        };
+        AuditRow: {
+            /** Format: uuid */
+            id?: string;
+            actorType?: string;
+            /** Format: uuid */
+            actorId?: string;
+            actorName?: string;
+            /** Format: uuid */
+            onBehalfOf?: string;
+            action?: string;
+            targetType?: string;
+            /** Format: uuid */
+            targetId?: string;
+            before?: string;
+            after?: string;
+            reason?: string;
+            correlationId?: string;
+            /** Format: date-time */
+            occurredAt?: string;
+        };
+        PageResponseAuditRow: {
+            items?: components["schemas"]["AuditRow"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
     };
     responses: never;
@@ -41,6 +2449,2393 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleChange"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StaffDto"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecretValue"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    configure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    saveTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TemplateView"];
+                };
+            };
+        };
+    };
+    resetTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TemplateView"];
+                };
+            };
+        };
+    };
+    view_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    configure_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    setRestCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestCredential"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterDto"];
+                };
+            };
+        };
+    };
+    removeRestCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterDto"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RoleDto"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PackageDto"];
+                };
+            };
+        };
+    };
+    revise: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PackageDto"];
+                };
+            };
+        };
+    };
+    get_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                customerId?: string;
+                state?: "PENDING" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "TERMINATED";
+                routerId?: string;
+                packageId?: string;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseSubscriptionDto"];
+                };
+            };
+        };
+    };
+    open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLineRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LineOpenedDto"];
+                };
+            };
+        };
+    };
+    terminate: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    suspend: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    resume: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    regeneratePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PppoeCredentialDto"];
+                };
+            };
+        };
+    };
+    pause: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PauseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    changePackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    liftSuspension: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: {
+                status?: string;
+                q?: string;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseStaffDto"];
+                };
+            };
+        };
+    };
+    invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Invitation"];
+                };
+            };
+        };
+    };
+    temporaryPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Invitation"];
+                };
+            };
+        };
+    };
+    enable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StaffDto"];
+                };
+            };
+        };
+    };
+    disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Reason"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StaffDto"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TemplateView"];
+                };
+            };
+        };
+    };
+    registerUrls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SettingsView"];
+                };
+            };
+        };
+    };
+    list_2: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseRouterDto"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouterRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterSecretDto"];
+                };
+            };
+        };
+    };
+    regenerateSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterSecretDto"];
+                };
+            };
+        };
+    };
+    poll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RoleDto"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RoleDto"];
+                };
+            };
+        };
+    };
+    payNow: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StkRequestDto"];
+                };
+            };
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPin"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PinLogin"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    code: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CodeRequested"];
+                };
+            };
+        };
+    };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeCheck"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    assign: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PaymentDto"];
+                };
+            };
+        };
+    };
+    investigate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvestigateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    stkPush: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StkRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StkRequestDto"];
+                };
+            };
+        };
+    };
+    reconciliations: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseRunDto"];
+                };
+            };
+        };
+    };
+    reconcile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+                "text/plain": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunDto"];
+                };
+            };
+        };
+    };
+    recordManual: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualPaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PaymentDto"];
+                };
+            };
+        };
+    };
+    list_4: {
+        parameters: {
+            query?: {
+                active?: boolean;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponsePackageDto"];
+                };
+            };
+        };
+    };
+    create_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PackageDto"];
+                };
+            };
+        };
+    };
+    deactivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PackageDto"];
+                };
+            };
+        };
+    };
+    activate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PackageDto"];
+                };
+            };
+        };
+    };
+    password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnPassword"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_5: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: "ACTIVE" | "ARCHIVED";
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseCustomerDto"];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    adjust: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LedgerEntryDto"];
+                };
+            };
+        };
+    };
+    importCsv: {
+        parameters: {
+            query?: {
+                routerId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+                "text/plain": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerImportResultDto"];
+                };
+            };
+        };
+    };
+    totp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Code"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    enroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Code"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    refresh_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    logout_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    password_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPassword"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    login_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffLogin"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    tenants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantRef"][];
+                };
+            };
+        };
+    };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTenant"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Created"];
+                };
+            };
+        };
+    };
+    impersonate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImpersonationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Started"];
+                };
+            };
+        };
+    };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImpersonationDto"];
+                };
+            };
+        };
+    };
+    totp_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Code"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    enroll_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Code"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    refresh_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    logout_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    password_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPassword"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    login_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformLogin"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SignIn"];
+                };
+            };
+        };
+    };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    get_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StaffDto"];
+                };
+            };
+        };
+    };
+    list_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StoredSecret"][];
+                };
+            };
+        };
+    };
+    templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TemplateView"][];
+                };
+            };
+        };
+    };
+    get_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterDto"];
+                };
+            };
+        };
+    };
+    receipts: {
+        parameters: {
+            query?: {
+                customerId?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseReceiptDto"];
+                };
+            };
+        };
+    };
+    wallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WalletDto"];
+                };
+            };
+        };
+    };
+    entries: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseLedgerEntryDto"];
+                };
+            };
+        };
+    };
+    stkRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StkRequestDto"];
+                };
+            };
+        };
+    };
+    receipts_1: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseReceiptDto"];
+                };
+            };
+        };
+    };
+    list_7: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponsePaymentDto"];
+                };
+            };
+        };
+    };
+    lines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PortalLineDto"][];
+                };
+            };
+        };
+    };
+    usage: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["UsageDay"][];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PermissionDto"][];
+                };
+            };
+        };
+    };
+    list_8: {
+        parameters: {
+            query?: {
+                customerId?: string;
+                status?: string;
+                channel?: string;
+                receivedFrom?: string;
+                receivedBefore?: string;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponsePaymentDto"];
+                };
+            };
+        };
+    };
+    suspense: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseSuspenseItem"];
+                };
+            };
+        };
+    };
+    stkRequest_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StkRequestDto"];
+                };
+            };
+        };
+    };
+    reconciliationRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunDto"];
+                };
+            };
+        };
+    };
+    messages: {
+        parameters: {
+            query?: {
+                customerId?: string;
+                status?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseMessageView"];
+                };
+            };
+        };
+    };
+    phoneFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PhoneFlagView"][];
+                };
+            };
+        };
+    };
+    alerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AlertView"][];
+                };
+            };
+        };
+    };
+    me_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Me"];
+                };
+            };
+        };
+    };
+    dashboard: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DashboardDto"];
+                };
+            };
+        };
+    };
+    wallet_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WalletDto"];
+                };
+            };
+        };
+    };
+    entries_1: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseLedgerEntryDto"];
+                };
+            };
+        };
+    };
     branding: {
         parameters: {
             query?: never;
@@ -58,6 +4853,120 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["BrandingDto"];
                 };
+            };
+        };
+    };
+    list_9: {
+        parameters: {
+            query?: {
+                action?: string;
+                targetType?: string;
+                targetId?: string;
+                actorId?: string;
+                from?: string;
+                to?: string;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseAuditRow"];
+                };
+            };
+        };
+    };
+    staff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseStaffDto"];
+                };
+            };
+        };
+    };
+    recent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImpersonationDto"][];
+                };
+            };
+        };
+    };
+    jwks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    clearPhoneFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phone: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

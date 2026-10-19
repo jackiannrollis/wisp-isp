@@ -20,6 +20,7 @@ import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.PppoeUsernames;
 import com.corebalt.isp.subscriptions.domain.Subscription;
+import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -128,11 +130,34 @@ public class LineService implements SubscriptionDirectory {
 
     @Transactional(readOnly = true)
     public PageResponse<SubscriptionDto> list(final UUID customerId, final Pageable page) {
-        final SubscriptionViews.Mapper mapper = views.mapper();
-        return PageResponse.of(
-                customerId == null ? lines.findAll(page) : lines.findByCustomerId(customerId, page),
-                mapper::toDto);
+        return list(new LineFilter(customerId, null, null, null), page);
     }
+
+    /**
+     * Filters on stored columns only. A derived display status (S1) cannot be filtered here without
+     * evaluating every line before paging, so it is not offered.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<SubscriptionDto> list(final LineFilter filter, final Pageable page) {
+        final SubscriptionViews.Mapper mapper = views.mapper();
+        Specification<Subscription> where = Specification.unrestricted();
+        if (filter.customerId() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("customerId"), filter.customerId()));
+        }
+        if (filter.state() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("state"), filter.state()));
+        }
+        if (filter.routerId() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("routerId"), filter.routerId()));
+        }
+        if (filter.packageId() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("packageId"), filter.packageId()));
+        }
+        return PageResponse.of(lines.findAll(where, page), mapper::toDto);
+    }
+
+    /** Staff list filters; null means any. */
+    public record LineFilter(UUID customerId, SubscriptionState state, UUID routerId, UUID packageId) {}
 
     @Override
     @Transactional(readOnly = true)

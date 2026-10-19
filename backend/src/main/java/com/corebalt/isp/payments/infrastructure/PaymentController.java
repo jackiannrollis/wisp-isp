@@ -9,6 +9,8 @@ import com.corebalt.isp.shared.web.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
@@ -39,13 +41,18 @@ class PaymentController {
     }
 
     @GetMapping
-    @Operation(summary = "List payments, optionally of one customer")
+    @Operation(summary = "List payments; filter by customer, status, channel and received time [receivedFrom, receivedBefore)")
     PageResponse<PaymentDto> list(
             @RequestParam(required = false) final UUID customerId,
+            @RequestParam(required = false) @Pattern(regexp = "MATCHED|UNMATCHED|REVERSED") final String status,
+            @RequestParam(required = false) @Pattern(regexp = "MPESA_PAYBILL|MPESA_STK|CASH|BANK|CARD") final String channel,
+            @RequestParam(required = false) final Instant receivedFrom,
+            @RequestParam(required = false) final Instant receivedBefore,
             @RequestParam(defaultValue = "0") final int page,
             @RequestParam(defaultValue = "50") final int size,
             @RequestParam(required = false) final String sort) {
-        return service.list(customerId, PageRequests.of(page, size, sort, SORTABLE, Sort.by("receivedAt").descending()));
+        return service.list(new PaymentService.PaymentFilter(customerId, status, channel, receivedFrom, receivedBefore),
+                PageRequests.of(page, size, sort, SORTABLE, Sort.by("receivedAt").descending()));
     }
 
     @PostMapping("/manual")

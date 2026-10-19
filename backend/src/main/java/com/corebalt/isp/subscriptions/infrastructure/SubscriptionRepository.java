@@ -10,11 +10,12 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 /** Row-level security limits every query to the current tenant (T1). */
-public interface SubscriptionRepository extends JpaRepository<Subscription, UUID> {
+public interface SubscriptionRepository extends JpaRepository<Subscription, UUID>, JpaSpecificationExecutor<Subscription> {
 
     long countByCustomerId(UUID customerId);
 

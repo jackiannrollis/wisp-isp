@@ -141,6 +141,14 @@ FROM tenancy_tenant t WHERE t.code = 'CB'
 ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = 'ACTIVE', role_id = EXCLUDED.role_id,
     must_change_password = false, password_expires_at = NULL, failed_logins = 0, locked_until = NULL, updated_at = now();
 
+-- Portal PIN of customer CB000001 (account CB000001, obvious fake PIN '4071', Argon2id hash below),
+-- so the portal can be signed into on the local stack without an SMS code. Developer machines only.
+INSERT INTO identity_customer_credential (tenant_id, customer_id, pin_hash, pin_set_at)
+SELECT t.id, '01900000-0000-7000-8000-0000000c0001'::uuid,
+       '$argon2id$v=19$m=16384,t=2,p=1$vT+ahW8ir7BE13v+HqRJ1g$hoFqVPCAbbSXVGGT9WSDvpYuzyZYIsq/8nP6ReOa+cM', now()
+FROM tenancy_tenant t WHERE t.code = 'CB'
+ON CONFLICT (tenant_id, customer_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash, failed_logins = 0, locked_until = NULL;
+
 COMMIT;
 
 SELECT s.pppoe_username, s.state, s.expires_at, s.grace_days, s.pause_until, t.grace_mode

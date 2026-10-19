@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
@@ -119,10 +120,32 @@ public class PaymentService implements MatchedPayments, PaymentInstructions {
 
     @Transactional(readOnly = true)
     public PageResponse<PaymentDto> list(final UUID customerId, final Pageable page) {
-        return PageResponse.of(
-                customerId == null ? payments.findAll(page) : payments.findByCustomerId(customerId, page),
-                PaymentService::toDto);
+        return list(new PaymentFilter(customerId, null, null, null, null), page);
     }
+
+    @Transactional(readOnly = true)
+    public PageResponse<PaymentDto> list(final PaymentFilter filter, final Pageable page) {
+        Specification<Payment> where = Specification.unrestricted();
+        if (filter.customerId() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("customerId"), filter.customerId()));
+        }
+        if (filter.status() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("status"), filter.status()));
+        }
+        if (filter.channel() != null) {
+            where = where.and((root, query, cb) -> cb.equal(root.get("channel"), filter.channel()));
+        }
+        if (filter.receivedFrom() != null) {
+            where = where.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("receivedAt"), filter.receivedFrom()));
+        }
+        if (filter.receivedBefore() != null) {
+            where = where.and((root, query, cb) -> cb.lessThan(root.get("receivedAt"), filter.receivedBefore()));
+        }
+        return PageResponse.of(payments.findAll(where, page), PaymentService::toDto);
+    }
+
+    /** Staff list filters; null means any. Received times are instants, [from, before). */
+    public record PaymentFilter(UUID customerId, String status, String channel, Instant receivedFrom, Instant receivedBefore) {}
 
     /**
      * The suspense queue (P3): unmatched payments, newest first, with what staff need to assign

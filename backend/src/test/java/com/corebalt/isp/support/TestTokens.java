@@ -49,6 +49,12 @@ public final class TestTokens {
                 Tokens.PERMISSIONS, List.of(permissions), Tokens.VERSION, 0));
     }
 
+    /** A CUSTOMER (portal) access token at token version 0; the customer needs an identity_customer_credential row. */
+    public static String customer(final UUID customerId, final UUID tenantId) {
+        return sign(Map.of("sub", customerId.toString(), Tokens.TYPE, Tokens.CUSTOMER, Tokens.TENANT, tenantId.toString(),
+                Tokens.VERSION, 0));
+    }
+
     private static String sign(final KeyPair keys, final Map<String, Object> claims) {
         final Instant now = Instant.now();
         final JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()

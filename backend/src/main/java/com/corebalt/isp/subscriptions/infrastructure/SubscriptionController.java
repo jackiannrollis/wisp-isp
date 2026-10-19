@@ -12,6 +12,7 @@ import com.corebalt.isp.subscriptions.api.ReasonRequest;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.application.LifecycleService;
 import com.corebalt.isp.subscriptions.application.LineService;
+import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.subscriptions.application.PackageChangeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Subscriptions")
 class SubscriptionController {
 
-    private static final Set<String> SORTABLE = Set.of("pppoeUsername", "createdAt");
+    private static final Set<String> SORTABLE = Set.of("pppoeUsername", "createdAt", "expiresAt", "state");
 
     private final LineService service;
     private final LifecycleService lifecycle;
@@ -56,13 +57,17 @@ class SubscriptionController {
     }
 
     @GetMapping
-    @Operation(summary = "List lines, optionally of one customer")
+    @Operation(summary = "List lines; filter by customer, stored state, router or package")
     PageResponse<SubscriptionDto> list(
             @RequestParam(required = false) final UUID customerId,
+            @RequestParam(required = false) final SubscriptionState state,
+            @RequestParam(required = false) final UUID routerId,
+            @RequestParam(required = false) final UUID packageId,
             @RequestParam(defaultValue = "0") final int page,
             @RequestParam(defaultValue = "50") final int size,
             @RequestParam(required = false) final String sort) {
-        return service.list(customerId, PageRequests.of(page, size, sort, SORTABLE, Sort.by("pppoeUsername")));
+        return service.list(new LineService.LineFilter(customerId, state, routerId, packageId),
+                PageRequests.of(page, size, sort, SORTABLE, Sort.by("pppoeUsername")));
     }
 
     @PostMapping

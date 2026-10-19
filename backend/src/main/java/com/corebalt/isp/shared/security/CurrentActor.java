@@ -3,6 +3,7 @@ package com.corebalt.isp.shared.security;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -34,6 +35,14 @@ public final class CurrentActor {
     /** The customer of a CUSTOMER (portal) token; otherwise empty. */
     public static Optional<UUID> customerId() {
         return token().filter(t -> Tokens.CUSTOMER.equals(t.getClaimAsString(Tokens.TYPE))).flatMap(CurrentActor::subject);
+    }
+
+    /**
+     * The portal's customer. Portal endpoints take the customer only from here, never from the request:
+     * row-level security separates tenants, not customers of one tenant.
+     */
+    public static UUID requireCustomerId() {
+        return customerId().orElseThrow(() -> new AccessDeniedException("a customer token is required"));
     }
 
     /** The platform admin of a PLATFORM token; otherwise empty. */
