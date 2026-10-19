@@ -20,7 +20,8 @@ import org.testcontainers.utility.MountableFile;
             "isp.secrets.master-key=dGVzdC1tYXN0ZXIta2V5LW5vdC1hLXNlY3JldCEhISE=",
             "isp.mpesa.callback-allowed-cidrs=127.0.0.1/32,::1/128",
             "isp.mpesa.jobs.initial-delay=1h",
-            "isp.mpesa.callbacks.sweep-initial-delay=1h"})
+            "isp.mpesa.callbacks.sweep-initial-delay=1h",
+            "isp.sms.initial-delay=1h"})
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 
@@ -36,6 +37,9 @@ public abstract class IntegrationTest {
 
     /** One fake Daraja for the whole test JVM (production-shaped answers; see FakeDaraja). */
     protected static final FakeDaraja DARAJA = new FakeDaraja();
+
+    /** One fake Africa's Talking for the whole test JVM. */
+    protected static final FakeAfricasTalking AT = new FakeAfricasTalking();
 
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
 
@@ -54,6 +58,8 @@ public abstract class IntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("isp.mpesa.daraja.sandbox-url", DARAJA::baseUrl);
         registry.add("isp.mpesa.daraja.production-url", DARAJA::baseUrl);
+        registry.add("isp.sms.at.sandbox-url", AT::baseUrl);
+        registry.add("isp.sms.at.production-url", AT::baseUrl);
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
         registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);

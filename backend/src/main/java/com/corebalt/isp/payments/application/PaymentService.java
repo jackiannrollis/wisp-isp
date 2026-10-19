@@ -6,6 +6,7 @@ import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.payments.api.ManualPaymentRequest;
 import com.corebalt.isp.payments.api.MatchedPayments;
 import com.corebalt.isp.payments.api.PaymentDto;
+import com.corebalt.isp.payments.api.PaymentInstructions;
 import com.corebalt.isp.payments.api.PaymentReceived;
 import com.corebalt.isp.payments.domain.Msisdn;
 import com.corebalt.isp.payments.domain.Payment;
@@ -25,6 +26,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,7 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
  * event. Manual payments need {@code payments.record_manual}, a reference and an audit row (P5).
  */
 @Service
-public class PaymentService implements MatchedPayments {
+public class PaymentService implements MatchedPayments, PaymentInstructions {
 
     private final PaymentRepository payments;
     private final CustomerFacade customers;
@@ -45,6 +47,7 @@ public class PaymentService implements MatchedPayments {
     private final AuditTrail audit;
     private final JsonMapper jsonMapper;
     private final MpesaIngestion ingestion;
+    private final java.util.function.Supplier<Optional<String>> mpesaShortcode;
     private final Clock clock;
 
     PaymentService(
@@ -54,6 +57,7 @@ public class PaymentService implements MatchedPayments {
             final AuditTrail audit,
             final JsonMapper jsonMapper,
             final MpesaIngestion ingestion,
+            final org.springframework.jdbc.core.simple.JdbcClient jdbc,
             final Clock clock) {
         this.payments = payments;
         this.customers = customers;
@@ -61,6 +65,7 @@ public class PaymentService implements MatchedPayments {
         this.audit = audit;
         this.jsonMapper = jsonMapper;
         this.ingestion = ingestion;
+        this.mpesaShortcode = () -> jdbc.sql("select shortcode from payments_mpesa_config").query(String.class).optional();
         this.clock = clock;
     }
 
@@ -154,6 +159,21 @@ public class PaymentService implements MatchedPayments {
     public record SuspenseItem(
             UUID id, String channel, String reference, String accountRef, String payerName, String payerNumber,
             MoneyDto amount, Instant receivedAt, List<com.corebalt.isp.customers.api.CustomerSummary> likelyPayers) {}
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> shortcode() {
+        return mpesaShortcode.get();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Unmatched> unmatched(final UUID paymentId) {
+        return payments.findById(paymentId)
+                .filter(p -> "UNMATCHED".equals(p.getStatus()))
+                .map(p -> new Unmatched(p.getAmountMinor(), p.getAccountRef(),
+                        Msisdn.parse(p.getMsisdn()) instanceof Msisdn.Plain plain ? Optional.of(plain.e164()) : Optional.empty()));
+    }
 
     @Override
     @Transactional(readOnly = true)

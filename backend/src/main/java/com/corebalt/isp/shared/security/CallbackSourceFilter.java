@@ -14,7 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Admits provider callbacks only from allowed networks (docs/05 Callback handling 1). The address
+ * Admits M-Pesa callbacks only from allowed networks (docs/05 Callback handling 1); SMS delivery
+ * reports rely on their path token, as Africa's Talking publishes no fixed addresses. The address
  * is the request's remote address; behind Caddy, Tomcat's RemoteIpValve
  * ({@code server.forward-headers-strategy: native}) sets it from X-Forwarded-For, trusting only
  * internal proxies, so the backend port must never be reachable except through the proxy.
@@ -27,6 +28,12 @@ public class CallbackSourceFilter extends OncePerRequestFilter {
 
     public CallbackSourceFilter(final List<String> cidrs) {
         this.allowed = cidrs.stream().map(String::strip).filter(c -> !c.isEmpty()).map(Cidr::parse).toList();
+    }
+
+    /** Only provider callbacks with published source addresses (M-Pesa) are checked. */
+    @Override
+    protected boolean shouldNotFilter(final HttpServletRequest request) {
+        return !request.getRequestURI().startsWith(request.getContextPath() + "/callbacks/mpesa/");
     }
 
     @Override

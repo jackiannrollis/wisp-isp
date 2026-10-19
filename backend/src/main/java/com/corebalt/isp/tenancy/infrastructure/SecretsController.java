@@ -40,8 +40,8 @@ class SecretsController {
     @PutMapping("/{kind}")
     @Operation(summary = "Set or replace a secret; the value can never be read back")
     ResponseEntity<Void> put(@PathVariable final SecretKind kind, @Valid @RequestBody final SecretValue body) {
-        if (kind == SecretKind.MPESA_CALLBACK_TOKEN) {
-            // Issued by the M-Pesa settings together with its route hash; never set by hand.
+        if (kind == SecretKind.MPESA_CALLBACK_TOKEN || kind == SecretKind.SMS_CALLBACK_TOKEN) {
+            // Issued by the M-Pesa or SMS settings together with its route hash; never set by hand.
             throw InvalidRequestException.of("kind", "set by the platform, not by staff");
         }
         secrets.put(kind, body.value().strip());

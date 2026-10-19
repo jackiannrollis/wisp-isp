@@ -16,12 +16,14 @@ import com.corebalt.isp.subscriptions.api.LineCredentialStore;
 import com.corebalt.isp.subscriptions.api.LineOpenedDto;
 import com.corebalt.isp.subscriptions.api.PppoeCredentialDto;
 import com.corebalt.isp.subscriptions.api.RouterDirectory;
+import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.PppoeUsernames;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
 import java.time.Clock;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -34,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
  * retried regeneration simply issues another one (decisions.md 2026-10-19).
  */
 @Service
-public class LineService {
+public class LineService implements SubscriptionDirectory {
 
     private final SubscriptionRepository lines;
     private final CustomerFacade customers;
@@ -129,6 +131,13 @@ public class LineService {
         return PageResponse.of(
                 customerId == null ? lines.findAll(page) : lines.findByCustomerId(customerId, page),
                 mapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LineInfo> line(final UUID subscriptionId) {
+        return lines.findById(subscriptionId).map(l -> new LineInfo(l.getId(), l.getCustomerId(), l.getPppoeUsername(),
+                l.getPackageId(), l.packageForNextRenewal(), l.getExpiresAt(), l.getGraceDays()));
     }
 
     private Subscription load(final UUID subscriptionId) {

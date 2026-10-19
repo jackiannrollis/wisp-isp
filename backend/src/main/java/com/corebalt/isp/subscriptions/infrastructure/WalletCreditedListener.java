@@ -34,7 +34,8 @@ class WalletCreditedListener {
     @RabbitListener(queues = QUEUE)
     void onMessage(final Message message) {
         final WalletCredited event = EventQueues.read(jsonMapper, message, WalletCredited.class);
-        consumer.handleOnce(QUEUE, message, () -> renewals.renewOnCredit(event.customerId()));
+        consumer.handleOnce(QUEUE, message, () -> renewals.renewOnCredit(new RenewalTriggers.Credit(
+                event.customerId(), event.entryType(), event.referenceId(), event.amountMinor(), event.currency())));
     }
 
     @Configuration(proxyBeanMethods = false)

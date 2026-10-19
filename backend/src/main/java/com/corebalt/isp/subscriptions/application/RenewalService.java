@@ -80,6 +80,7 @@ public class RenewalService {
                 lines.findForUpdate(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
         // Fail before charging if the line cannot be renewed (paused, suspended, terminated).
         line.requireRenewable();
+        final String before = views.toDto(line).accessProfile();
         final PackageTerms terms =
                 packages.terms(line.packageForNextRenewal()).orElseThrow(() -> new NotFoundException("Package"));
         final Money price = terms.price();
@@ -135,7 +136,7 @@ public class RenewalService {
                     UuidV7.next(clock), line.getTenantId(), now, line.getId(), line.getCustomerId(),
                     renewal.from().name(), SubscriptionState.ACTIVE.name(), Cause.RENEWAL));
         }
-        return new RenewalResultDto(RenewalResultDto.Outcome.RENEWED, views.toDto(line));
+        return new RenewalResultDto(RenewalResultDto.Outcome.RENEWED, views.toDto(line), before);
     }
 
     private Optional<ProRata.Grant> proRata(final Money balance, final Money price, final int durationMinutes) {
@@ -146,6 +147,7 @@ public class RenewalService {
     }
 
     private RenewalResultDto insufficient(final Subscription line) {
-        return new RenewalResultDto(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE, views.toDto(line));
+        final var dto = views.toDto(line);
+        return new RenewalResultDto(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE, dto, dto.accessProfile());
     }
 }

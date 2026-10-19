@@ -10,16 +10,17 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 ## Current phase
 
-Steps 1, 3, 4, 5 and 6 of the v1 build order (docs/09) are done; step 2, the network lab, is done
+Steps 1 and 3 to 7 of the v1 build order (docs/09) are done; step 2, the network lab, is done
 except its Hyper-V half (`infra/lab/scripts/lab.ps1`), which has not run yet, so CoA/Disconnect,
 the restricted-mode rules and Session-Timeout on a real router are unproven (status note in
 `infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v4`; `AccessPolicy`
-agrees with the view under test (S3); credentials follow ADR 0009. Money: M-Pesa C2B and STK
-callbacks (store, ack, process; P1-P3, P6), manual payments, the suspense queue and statement
-reconciliation in payments; the ledger, receipts and `WalletCredited` in billing; renewals in
-subscriptions. Daraja is verified against a fake only: the sandbox round-trip
-(`infra/scripts/daraja-sandbox.ps1`) has not run. Next is step 7, notifications. Not yet: the
-network-side CoA/Disconnect consumer, admin screens (step 8), roles and token issuing (identity).
+agrees with the view under test (S3); credentials follow ADR 0009. Money: M-Pesa callbacks, manual
+payments, suspense and reconciliation (payments); ledger and receipts (billing); renewals and
+`CreditApplied` (subscriptions). Notifications: SMS through each tenant's Africa's Talking account,
+one payment message per payment, reminders in the sending window, templates with part counts.
+Daraja and Africa's Talking are verified against fakes only; their sandbox scripts have not run.
+Next is step 8, dashboard and portal. Not yet: the network-side CoA/Disconnect consumer, roles and
+token issuing (identity).
 
 ## Commands
 
@@ -65,6 +66,7 @@ First time: copy `infra/.env.example` to `infra/.env` and change the passwords.
 | Load the network-lab fixtures (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
 | RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
 | Daraja sandbox round-trip (needs `DARAJA_SANDBOX_*` and an https `CALLBACK_BASE_URL` in `.env`; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
+| Africa's Talking sandbox round-trip (needs `AT_SANDBOX_*` and an https `CALLBACK_BASE_URL`; skips otherwise) | `infra\scripts\at-sandbox.ps1` | `infra/scripts/at-sandbox.sh` |
 | All checks (what CI runs) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
 Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672

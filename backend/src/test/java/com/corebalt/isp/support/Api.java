@@ -22,7 +22,7 @@ public final class Api {
 
     /** Staff of the tenant holding every permission code checked so far (A2). */
     public Api(final int port, final UUID tenantId) {
-        this(port, tenantId, "payments.record_manual", "billing.adjust", "settings.secrets", "payments.assign", "payments.stk", "payments.reconcile");
+        this(port, tenantId, "payments.record_manual", "billing.adjust", "settings.secrets", "payments.assign", "payments.stk", "payments.reconcile", "settings.notifications");
     }
 
     public Api(final int port, final UUID tenantId, final String... permissions) {

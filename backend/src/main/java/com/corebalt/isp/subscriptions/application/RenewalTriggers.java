@@ -8,6 +8,14 @@ import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import com.corebalt.isp.shared.id.UuidV7;
+import com.corebalt.isp.shared.money.Money;
+import com.corebalt.isp.shared.outbox.OutboxPublisher;
+import com.corebalt.isp.shared.tenant.TenantContext;
+import com.corebalt.isp.subscriptions.api.CreditApplied;
+import com.corebalt.isp.subscriptions.api.WalletCharger;
+import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +51,8 @@ public class RenewalTriggers {
     private final RenewalService renewals;
     private final PackageCatalog packages;
     private final TransactionTemplate tx;
+    private final WalletCharger wallet;
+    private final OutboxPublisher outbox;
     private final Clock clock;
 
     RenewalTriggers(
@@ -50,24 +60,57 @@ public class RenewalTriggers {
             final RenewalService renewals,
             final PackageCatalog packages,
             final TransactionTemplate tx,
+            final WalletCharger wallet,
+            final OutboxPublisher outbox,
             final Clock clock) {
         this.lines = lines;
         this.renewals = renewals;
         this.packages = packages;
         this.tx = tx;
+        this.wallet = wallet;
+        this.outbox = outbox;
         this.clock = clock;
     }
 
-    /** In the WalletCredited consumer's transaction; returns how many lines renewed. */
+    /** A credit as WalletCredited reports it. */
+    public record Credit(UUID customerId, String entryType, UUID referenceId, long amountMinor, String currency) {}
+
+    /**
+     * In the WalletCredited consumer's transaction: renews what the balance covers, then publishes
+     * {@link CreditApplied} with the outcome (the payment SMS is built from it). Returns how many
+     * lines renewed.
+     */
     @Transactional
-    public int renewOnCredit(final UUID customerId) {
-        int renewed = 0;
-        for (final Subscription line : lines.findRenewableByCustomer(customerId)) {
-            if (renewals.renew(line.getId()).outcome() == RenewalResultDto.Outcome.RENEWED) {
-                renewed++;
+    public int renewOnCredit(final Credit credit) {
+        final List<CreditApplied.RenewedLine> renewed = new ArrayList<>();
+        UUID firstUncovered = null;
+        for (final Subscription line : lines.findRenewableByCustomer(credit.customerId())) {
+            final RenewalResultDto result = renewals.renew(line.getId());
+            if (result.outcome() == RenewalResultDto.Outcome.RENEWED) {
+                renewed.add(new CreditApplied.RenewedLine(line.getId(), result.subscription().packageId(),
+                        result.subscription().expiresAt(), result.previousAccessProfile()));
+            } else if (firstUncovered == null) {
+                firstUncovered = line.getId();
             }
         }
-        return renewed;
+        final Currency currency = Currency.getInstance(credit.currency());
+        final Money balance = wallet.balance(credit.customerId(), currency);
+        CreditApplied.Due due = null;
+        if (firstUncovered != null) {
+            final Subscription line = lines.findById(firstUncovered).orElseThrow();
+            final Optional<PackageTerms> terms = packages.terms(line.packageForNextRenewal());
+            if (terms.isPresent()) {
+                final Money missing = terms.get().price().minus(balance);
+                if (missing.isPositive()) {
+                    due = new CreditApplied.Due(line.getId(), terms.get().id(), missing.minorUnits());
+                }
+            }
+        }
+        final Instant now = clock.instant();
+        outbox.publish(new CreditApplied(UuidV7.next(clock), TenantContext.requireTenantId(), now,
+                credit.customerId(), credit.entryType(), credit.referenceId(), credit.amountMinor(), credit.currency(),
+                List.copyOf(renewed), balance.minorUnits(), due));
+        return renewed.size();
     }
 
     /** The current tenant's due lines, each renewal in its own transaction; returns how many renewed. */

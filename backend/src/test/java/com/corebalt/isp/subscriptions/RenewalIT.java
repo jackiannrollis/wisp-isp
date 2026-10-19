@@ -61,7 +61,8 @@ class RenewalIT extends IntegrationTest {
         renew(lineId);
         final Instant firstExpiry = expiresAt(lineId);
         fund(500_000);
-        assertThat(TenantContext.callAsTenant(tenant, () -> triggers.renewOnCredit(customerId))).isOne();
+        assertThat(TenantContext.callAsTenant(tenant, () -> triggers.renewOnCredit(
+                new RenewalTriggers.Credit(customerId, "ADJUSTMENT", UUID.randomUUID(), 500_000, "KES")))).isOne();
         assertThat(expiresAt(lineId)).isEqualTo(firstExpiry.plus(Duration.ofDays(30)));
         assertThat(balance()).isEqualTo(250_000);
     }

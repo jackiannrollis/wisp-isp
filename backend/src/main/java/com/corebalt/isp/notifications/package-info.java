@@ -9,6 +9,7 @@
                 "shared",
                 "tenancy :: api",
                 "customers :: api",
+                "packages :: api",
                 "subscriptions :: api",
                 "billing :: api",
                 "payments :: api",

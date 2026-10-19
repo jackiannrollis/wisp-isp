@@ -1,6 +1,7 @@
 package com.corebalt.isp.billing.application;
 
 import com.corebalt.isp.billing.api.ReceiptIssued;
+import com.corebalt.isp.billing.api.Receipts;
 import com.corebalt.isp.billing.api.WalletCredited;
 import com.corebalt.isp.billing.api.WalletDebited;
 import com.corebalt.isp.billing.api.WalletDtos.LedgerEntryDto;
@@ -44,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
  * their own transactions.
  */
 @Service
-public class WalletService implements Wallets {
+public class WalletService implements Wallets, Receipts {
 
     private static final Logger log = LoggerFactory.getLogger(WalletService.class);
 
@@ -136,7 +137,7 @@ public class WalletService implements Wallets {
                 .update();
         outbox.publish(new WalletCredited(
                 UuidV7.next(clock), payment.tenantId(), posted.at(), payment.customerId(), posted.walletId(),
-                posted.entryId(), "PAYMENT", payment.amountMinor(), payment.currency()));
+                posted.entryId(), "PAYMENT", payment.paymentId(), payment.amountMinor(), payment.currency()));
         outbox.publish(new ReceiptIssued(
                 UuidV7.next(clock), payment.tenantId(), posted.at(), receiptId, number, payment.paymentId(),
                 payment.customerId(), payment.amountMinor(), payment.currency()));
@@ -167,7 +168,7 @@ public class WalletService implements Wallets {
         if (amount.isPositive()) {
             outbox.publish(new WalletCredited(
                     UuidV7.next(clock), TenantContext.requireTenantId(), posted.at(), customerId, posted.walletId(),
-                    posted.entryId(), "ADJUSTMENT", amount.minorUnits(), amount.currency().getCurrencyCode()));
+                    posted.entryId(), "ADJUSTMENT", adjustmentId, amount.minorUnits(), amount.currency().getCurrencyCode()));
         } else {
             outbox.publish(new WalletDebited(
                     UuidV7.next(clock), TenantContext.requireTenantId(), posted.at(), customerId, posted.walletId(),
@@ -175,6 +176,15 @@ public class WalletService implements Wallets {
                     "ADJUSTMENT", adjustmentId));
         }
         return entry(posted.entryId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<String> numberForPayment(final UUID paymentId) {
+        return jdbc.sql("select number from billing_receipt where payment_id = :paymentId")
+                .param("paymentId", paymentId)
+                .query(String.class)
+                .optional();
     }
 
     @Transactional(readOnly = true)

@@ -35,6 +35,9 @@ public final class Permissions {
     /** Upload M-Pesa statements and run Transaction Status investigations. */
     public static final String PAYMENTS_RECONCILE = "payments.reconcile";
 
+    /** M2, M3: edit SMS templates and the sending window. */
+    public static final String SETTINGS_NOTIFICATIONS = "settings.notifications";
+
     private Permissions() {}
 
     static AbstractAuthenticationToken authentication(final Jwt jwt) {
