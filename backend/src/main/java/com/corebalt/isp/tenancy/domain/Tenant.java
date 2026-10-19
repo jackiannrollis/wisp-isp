@@ -53,6 +53,9 @@ public class Tenant {
     @Column(name = "max_pause_days", nullable = false)
     private int maxPauseDays;
 
+    @Column(name = "partial_payment_rule", nullable = false)
+    private String partialPaymentRule;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -107,5 +110,9 @@ public class Tenant {
 
     public int getMaxPauseDays() {
         return maxPauseDays;
+    }
+
+    public String getPartialPaymentRule() {
+        return partialPaymentRule;
     }
 }

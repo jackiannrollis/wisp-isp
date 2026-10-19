@@ -2,6 +2,8 @@ package com.corebalt.isp.subscriptions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.corebalt.isp.billing.application.WalletService;
+import com.corebalt.isp.shared.money.Money;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.subscriptions.api.RenewalResultDto;
 import com.corebalt.isp.subscriptions.application.ReminderService;
@@ -9,7 +11,6 @@ import com.corebalt.isp.subscriptions.application.RenewalService;
 import com.corebalt.isp.subscriptions.application.LifecycleService;
 import com.corebalt.isp.support.Api;
 import com.corebalt.isp.support.Catalog;
-import com.corebalt.isp.support.InMemoryWalletCharger;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
@@ -41,7 +42,7 @@ class LifecycleIT extends IntegrationTest {
     @Autowired RenewalService renewals;
     @Autowired LifecycleService lifecycle;
     @Autowired ReminderService reminders;
-    @Autowired InMemoryWalletCharger wallet;
+    @Autowired WalletService wallets;
 
     UUID tenant;
     Api api;
@@ -65,17 +66,17 @@ class LifecycleIT extends IntegrationTest {
 
     @Test
     void B5_renewalWaitsForTheFullPrice() {
-        wallet.setBalance(customerId, 249_999);
+        fund(249_999);
         final RenewalResultDto result = renew();
         assertThat(result.outcome()).isEqualTo(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE);
         assertThat(result.subscription().state()).isEqualTo("PENDING");
-        assertThat(wallet.balance(customerId)).isEqualTo(249_999);
+        assertThat(balance()).isEqualTo(249_999);
     }
 
     @Test
     void S5_S6_firstRenewalActivatesChargesAndCopiesGraceDays() {
         OwnerSql.client().sql("update tenancy_tenant set default_grace_days = 2 where id = :id").param("id", tenant).update();
-        wallet.setBalance(customerId, 300_000);
+        fund(300_000);
         final RenewalResultDto result = renew();
         assertThat(result.outcome()).isEqualTo(RenewalResultDto.Outcome.RENEWED);
         assertThat(result.subscription().state()).isEqualTo("ACTIVE");
@@ -84,7 +85,7 @@ class LifecycleIT extends IntegrationTest {
         assertThat(result.subscription().graceDays()).isEqualTo(2);
         assertThat(Duration.between(result.subscription().activatedAt(), result.subscription().expiresAt()))
                 .isEqualTo(Duration.ofDays(30));
-        assertThat(wallet.balance(customerId)).isEqualTo(50_000);
+        assertThat(balance()).isEqualTo(50_000);
         assertThat(events("SubscriptionRenewed")).hasSize(1);
         assertThat(events("SubscriptionStateChanged")).containsExactly("PENDING>ACTIVE RENEWAL");
     }
@@ -95,7 +96,7 @@ class LifecycleIT extends IntegrationTest {
                 "{\"customerId\":\"" + customerId + "\",\"packageId\":\"" + api.get("/api/v1/packages").json().get("items").get(0).get("id").asString()
                         + "\",\"routerId\":\"" + api.get("/api/v1/routers").json().get("items").get(0).get("id").asString() + "\"}")
                 .json().get("subscription").get("id").asString();
-        wallet.setBalance(customerId, 250_000);
+        fund(250_000);
         assertThat(renew().outcome()).isEqualTo(RenewalResultDto.Outcome.RENEWED);
         assertThat(TenantContext.callAsTenant(tenant, () -> renewals.renew(UUID.fromString(secondLine))).outcome())
                 .isEqualTo(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE);
@@ -232,12 +233,22 @@ class LifecycleIT extends IntegrationTest {
         assertThat((String) due.getFirst().get("dedupe")).startsWith(due.getFirst().get("event") + ":" + lineId + ":");
     }
 
+    /** Credits the wallet as staff would (an ADJUSTMENT with a reason); the renewal is run by the test. */
+    private void fund(final long minorUnits) {
+        TenantContext.runAsTenant(tenant, () -> tx.executeWithoutResult(
+                s -> wallets.adjust(customerId, Money.ofMinor(minorUnits, "KES"), "test funding")));
+    }
+
+    private long balance() {
+        return TenantContext.callAsTenant(tenant, () -> wallets.balance(customerId, Money.KES).minorUnits());
+    }
+
     private RenewalResultDto renew() {
         return TenantContext.callAsTenant(tenant, () -> renewals.renew(lineId));
     }
 
     private void activate() {
-        wallet.setBalance(customerId, 250_000);
+        fund(250_000);
         assertThat(renew().outcome()).isEqualTo(RenewalResultDto.Outcome.RENEWED);
     }
 

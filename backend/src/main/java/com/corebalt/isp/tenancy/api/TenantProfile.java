@@ -12,8 +12,10 @@ public interface TenantProfile {
     TenantPolicy currentPolicy();
 
     /**
-     * {@code graceMode} is {@code FULL_SPEED} or {@code THROTTLED}; {@code zone} is for day
+     * {@code graceMode} is {@code FULL_SPEED} or {@code THROTTLED}; {@code partialPaymentRule} is
+     * {@code WAIT_FOR_FULL} or {@code PRO_RATA_DAYS} (docs/05 Partial payments); {@code zone} is for day
      * boundaries and display only (conventions.md, Time).
      */
-    record TenantPolicy(String code, ZoneId zone, int defaultGraceDays, String graceMode, int maxPauseDays) {}
+    record TenantPolicy(
+            String code, ZoneId zone, int defaultGraceDays, String graceMode, int maxPauseDays, String partialPaymentRule) {}
 }

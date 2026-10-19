@@ -25,6 +25,18 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
     @Query("select s from Subscription s where s.id = :id")
     Optional<Subscription> findForUpdate(UUID id);
 
+    /** PENDING and ACTIVE lines of a customer, PENDING first, then earliest expiry first. */
+    @Query("select s from Subscription s where s.customerId = :customerId and s.state in "
+            + "(com.corebalt.isp.subscriptions.domain.SubscriptionState.PENDING, "
+            + "com.corebalt.isp.subscriptions.domain.SubscriptionState.ACTIVE) "
+            + "order by s.expiresAt asc nulls first, s.createdAt asc")
+    List<Subscription> findRenewableByCustomer(UUID customerId);
+
+    /** ACTIVE lines expiring before {@code horizon} (expired ones included), earliest first. */
+    @Query("select s from Subscription s where s.state = com.corebalt.isp.subscriptions.domain.SubscriptionState.ACTIVE "
+            + "and s.expiresAt < :horizon order by s.customerId, s.expiresAt")
+    List<Subscription> findActiveExpiringBefore(Instant horizon);
+
     @Query("select s.id from Subscription s where s.state = :state and s.pauseUntil <= :now order by s.pauseUntil")
     List<UUID> findIdsPausedUntilBefore(SubscriptionState state, Instant now);
 

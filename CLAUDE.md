@@ -10,14 +10,15 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 ## Current phase
 
-Steps 1, 3 and 4 of the v1 build order (docs/09) are done; step 2, the network lab, is done
+Steps 1, 3, 4 and 5 of the v1 build order (docs/09) are done; step 2, the network lab, is done
 except its Hyper-V half (`infra/lab/scripts/lab.ps1`), which has not run yet, so CoA/Disconnect,
 the restricted-mode rules and Session-Timeout on a real router are unproven (status note in
 `infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v4`; `AccessPolicy`
-agrees with the view under test (S3); credentials follow ADR 0009. The API has customers (CSV
-import), packages, routers, lines with show-once passwords and lifecycle transitions with
-`Idempotency-Key`. Renewal has no endpoint: it waits for the billing module's `WalletCharger`
-(step 5). No network-side CoA consumer, admin screens (step 8) or permission checks (identity) yet.
+agrees with the view under test (S3); credentials follow ADR 0009. Money: manual payments
+(payments) publish `PaymentReceived`; billing credits the append-only ledger, issues receipts and
+publishes `WalletCredited`; subscriptions renews on credit and, from stored credit, shortly before
+expiry; package changes charge proration. Next is step 6, M-Pesa. Not yet: the network-side
+CoA/Disconnect consumer, admin screens (step 8), roles and token issuing (identity).
 
 ## Commands
 

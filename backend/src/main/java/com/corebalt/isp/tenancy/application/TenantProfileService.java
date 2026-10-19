@@ -32,7 +32,8 @@ class TenantProfileService implements TenantProfile {
                 ZoneId.of(tenant.getTimeZone()),
                 tenant.getDefaultGraceDays(),
                 tenant.getGraceMode(),
-                tenant.getMaxPauseDays());
+                tenant.getMaxPauseDays(),
+                tenant.getPartialPaymentRule());
     }
 
     private Tenant current() {

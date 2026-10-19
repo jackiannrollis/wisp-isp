@@ -16,7 +16,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The hourly subscription job (docs/04 Enforcement, 4): records resumes the RADIUS view has already
- * applied at pause_until, then raises due reminders, tenant by tenant through
+ * applied at pause_until, renews due lines from credit already in the wallet (the bounded E4
+ * exception, {@link RenewalTriggers}), then raises due reminders, tenant by tenant through
  * {@link TenantIterator}. Access never waits for it (E4). Disabled in tests, which call
  * {@link #runForCurrentTenant()} directly.
  */
@@ -30,6 +31,7 @@ class SubscriptionJobs {
     private final SubscriptionRepository lines;
     private final LifecycleService lifecycle;
     private final ReminderService reminders;
+    private final RenewalTriggers renewals;
     private final TransactionTemplate tx;
     private final Clock clock;
 
@@ -38,12 +40,14 @@ class SubscriptionJobs {
             final SubscriptionRepository lines,
             final LifecycleService lifecycle,
             final ReminderService reminders,
+            final RenewalTriggers renewals,
             final TransactionTemplate tx,
             final Clock clock) {
         this.tenants = tenants;
         this.lines = lines;
         this.lifecycle = lifecycle;
         this.reminders = reminders;
+        this.renewals = renewals;
         this.tx = tx;
         this.clock = clock;
     }
@@ -66,9 +70,12 @@ class SubscriptionJobs {
                 log.info("Auto-resume of {} skipped: {}", id, e.getMessage());
             }
         }
+        // Renew from stored credit before reminders, so a line that just renewed gets no "pay now".
+        final int renewed = renewals.renewDue();
         final int raised = reminders.raiseDue();
-        if (raised > 0 || !pauseOver.isEmpty()) {
-            log.info("Subscription job: {} resumes recorded, {} reminders raised", pauseOver.size(), raised);
+        if (raised > 0 || renewed > 0 || !pauseOver.isEmpty()) {
+            log.info("Subscription job: {} resumes recorded, {} due renewals, {} reminders raised",
+                    pauseOver.size(), renewed, raised);
         }
     }
 }

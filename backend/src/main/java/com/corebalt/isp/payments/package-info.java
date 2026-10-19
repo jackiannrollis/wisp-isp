@@ -8,7 +8,8 @@
         allowedDependencies = {
                 "shared",
                 "tenancy :: api",
-                "customers :: api"
+                "customers :: api",
+                "identity :: api"
         })
 package com.corebalt.isp.payments;
 

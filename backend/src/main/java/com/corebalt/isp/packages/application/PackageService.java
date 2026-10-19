@@ -96,7 +96,10 @@ public class PackageService implements PackageCatalog {
     @Transactional(readOnly = true)
     public Optional<PackageTerms> terms(final UUID packageId) {
         return packages.findById(packageId)
-                .map(p -> new PackageTerms(p.getId(), p.getName(), p.getPrice(), p.getDurationMinutes(), p.getGraceDays()));
+                .map(p -> new PackageTerms(
+                        p.getId(), p.getName(), p.getPrice(), p.getDurationMinutes(), p.getGraceDays(),
+                        p.getBillingMode() == BillingMode.PREPAID,
+                        p.isActive() && p.getType() == PackageType.PPPOE));
     }
 
     @Override

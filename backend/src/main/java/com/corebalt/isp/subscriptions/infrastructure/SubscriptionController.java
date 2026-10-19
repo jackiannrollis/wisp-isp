@@ -5,12 +5,14 @@ import com.corebalt.isp.shared.web.PageRequests;
 import com.corebalt.isp.shared.web.PageResponse;
 import com.corebalt.isp.subscriptions.api.CreateLineRequest;
 import com.corebalt.isp.subscriptions.api.LineOpenedDto;
+import com.corebalt.isp.subscriptions.api.PackageChangeRequest;
 import com.corebalt.isp.subscriptions.api.PauseRequest;
 import com.corebalt.isp.subscriptions.api.PppoeCredentialDto;
 import com.corebalt.isp.subscriptions.api.ReasonRequest;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.application.LifecycleService;
 import com.corebalt.isp.subscriptions.application.LineService;
+import com.corebalt.isp.subscriptions.application.PackageChangeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -38,12 +40,17 @@ class SubscriptionController {
 
     private final LineService service;
     private final LifecycleService lifecycle;
+    private final PackageChangeService packageChanges;
     private final IdempotentRequests idempotent;
 
     SubscriptionController(
-            final LineService service, final LifecycleService lifecycle, final IdempotentRequests idempotent) {
+            final LineService service,
+            final LifecycleService lifecycle,
+            final PackageChangeService packageChanges,
+            final IdempotentRequests idempotent) {
         this.service = service;
         this.lifecycle = lifecycle;
+        this.packageChanges = packageChanges;
         this.idempotent = idempotent;
     }
 
@@ -129,6 +136,17 @@ class SubscriptionController {
         return respond(idempotent.execute(
                 key, "POST /subscriptions/" + id + "/terminate", request, SubscriptionDto.class,
                 () -> lifecycle.terminate(id, request.reason())));
+    }
+
+    @PostMapping("/{id}/package")
+    @Operation(summary = "Change the package: an upgrade NOW charges proration (B6); a downgrade waits for the next renewal (S10)")
+    ResponseEntity<SubscriptionDto> changePackage(
+            @RequestHeader(IdempotentRequests.HEADER) final String key,
+            @PathVariable final UUID id,
+            @Valid @RequestBody final PackageChangeRequest request) {
+        return respond(idempotent.execute(
+                key, "POST /subscriptions/" + id + "/package", request, SubscriptionDto.class,
+                () -> packageChanges.change(id, request.packageId(), PackageChangeService.Timing.valueOf(request.timing()))));
     }
 
     private static ResponseEntity<SubscriptionDto> respond(final IdempotentRequests.Result<SubscriptionDto> result) {

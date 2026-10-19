@@ -31,6 +31,18 @@ spring:
     username: ${ISP_RABBITMQ_USER:isp}
     password: ${ISP_RABBITMQ_PASSWORD:}
     publisher-confirm-type: simple
+    # Consumers (conventions.md, Events and queues): prefetch 10; three retries with backoff
+    # 5 s, 30 s, 2 min, then the message is rejected into the queue's .dlq.
+    listener:
+      simple:
+        prefetch: 10
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 5s
+          multiplier: 6
+          max-interval: 2m
+          max-attempts: 4
   mvc:
     problemdetails:
       enabled: true

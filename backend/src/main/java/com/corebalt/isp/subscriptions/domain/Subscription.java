@@ -46,6 +46,9 @@ public class Subscription {
     @Column(name = "router_id", nullable = false)
     private UUID routerId;
 
+    @Column(name = "pending_package_id")
+    private UUID pendingPackageId;
+
     @Column(name = "pppoe_username", nullable = false, updatable = false)
     private String pppoeUsername;
 
@@ -117,9 +120,10 @@ public class Subscription {
      * S5, S6: an early renewal extends from the current expiry, so no paid time is lost; a line past
      * grace (or a first activation) starts from {@code now}. The clock time of the base is kept
      * because the period is a whole number of minutes added to an instant (Q6 default: exact
-     * timestamps). {@code graceDays} is copied for the new cycle.
+     * timestamps). {@code graceDays} is copied for the new cycle, and the package the cycle was sold
+     * for becomes the line's package, clearing a pending change (S10).
      */
-    public Renewal renew(final Duration period, final int graceDays, final Instant now) {
+    public Renewal renew(final Duration period, final int graceDays, final UUID packageId, final Instant now) {
         requireRenewable();
         final SubscriptionState from = state;
         final Instant previousExpiresAt = expiresAt;
@@ -134,8 +138,38 @@ public class Subscription {
         state = SubscriptionState.ACTIVE;
         expiresAt = base.plus(period);
         this.graceDays = graceDays;
+        this.packageId = packageId;
+        pendingPackageId = null;
         updatedAt = now;
         return new Renewal(from, previousExpiresAt, expiresAt);
+    }
+
+    /** The package the next renewal sells: a pending change, else the current package (S10). */
+    public UUID packageForNextRenewal() {
+        return pendingPackageId != null ? pendingPackageId : packageId;
+    }
+
+    /**
+     * S10: an immediate change (upgrade, paid by proration) during the paid period, before expiry.
+     * The expiry does not move.
+     */
+    public void changePackageNow(final UUID newPackageId, final Instant now) {
+        if (state != SubscriptionState.ACTIVE || !now.isBefore(expiresAt)) {
+            throw new LifecycleViolation("S10: an immediate package change needs an ACTIVE line before its expiry; "
+                    + "change it at the next renewal instead.");
+        }
+        packageId = newPackageId;
+        pendingPackageId = null;
+        updatedAt = now;
+    }
+
+    /** S10: a downgrade, or an upgrade the customer takes at the next cycle. */
+    public void changePackageAtRenewal(final UUID newPackageId, final Instant now) {
+        if (state == SubscriptionState.TERMINATED) {
+            throw new LifecycleViolation("A TERMINATED line has no next renewal.");
+        }
+        pendingPackageId = newPackageId.equals(packageId) ? null : newPackageId;
+        updatedAt = now;
     }
 
     /**
@@ -257,6 +291,10 @@ public class Subscription {
 
     public UUID getRouterId() {
         return routerId;
+    }
+
+    public UUID getPendingPackageId() {
+        return pendingPackageId;
     }
 
     public String getPppoeUsername() {

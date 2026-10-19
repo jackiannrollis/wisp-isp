@@ -9,7 +9,8 @@
                 "shared",
                 "tenancy :: api",
                 "customers :: api",
-                "payments :: api"
+                "payments :: api",
+                "identity :: api"
         })
 package com.corebalt.isp.billing;
 

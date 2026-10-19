@@ -20,9 +20,16 @@ public final class Api {
     private final int port;
     private final String bearer;
 
+    /** Staff of the tenant holding every permission code checked so far (A2). */
     public Api(final int port, final UUID tenantId) {
+        this(port, tenantId, "payments.record_manual", "billing.adjust");
+    }
+
+    public Api(final int port, final UUID tenantId, final String... permissions) {
         this.port = port;
-        this.bearer = token("{\"sub\":\"" + UUID.randomUUID() + "\",\"tenant_id\":\"" + tenantId + "\"}");
+        final String codes = String.join(",", java.util.Arrays.stream(permissions).map(p -> "\"" + p + "\"").toList());
+        this.bearer = token("{\"sub\":\"" + UUID.randomUUID() + "\",\"tenant_id\":\"" + tenantId
+                + "\",\"permissions\":[" + codes + "]}");
     }
 
     public Response get(final String path) {

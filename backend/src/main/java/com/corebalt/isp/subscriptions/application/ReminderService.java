@@ -1,9 +1,11 @@
 package com.corebalt.isp.subscriptions.application;
 
+import com.corebalt.isp.packages.api.PackageCatalog;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.outbox.OutboxPublisher;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.subscriptions.api.SubscriptionReminderDue;
+import com.corebalt.isp.subscriptions.api.WalletCharger;
 import com.corebalt.isp.subscriptions.domain.ReminderSchedule;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
@@ -30,6 +32,8 @@ public class ReminderService {
     private final TenantProfile tenantProfile;
     private final OutboxPublisher outbox;
     private final JdbcClient jdbc;
+    private final PackageCatalog packages;
+    private final WalletCharger wallet;
     private final Clock clock;
 
     ReminderService(
@@ -37,12 +41,25 @@ public class ReminderService {
             final TenantProfile tenantProfile,
             final OutboxPublisher outbox,
             final JdbcClient jdbc,
+            final PackageCatalog packages,
+            final WalletCharger wallet,
             final Clock clock) {
         this.lines = lines;
         this.tenantProfile = tenantProfile;
         this.outbox = outbox;
         this.jdbc = jdbc;
+        this.packages = packages;
+        this.wallet = wallet;
         this.clock = clock;
+    }
+
+    /** The wallet already holds the next cycle's price of a prepaid package. */
+    private boolean renewsAutomatically(final Subscription line) {
+        return packages.terms(line.packageForNextRenewal())
+                .filter(PackageCatalog.PackageTerms::prepaid)
+                .map(terms -> wallet.balance(line.getCustomerId(), terms.price().currency())
+                        .isGreaterThanOrEqualTo(terms.price()))
+                .orElse(false);
     }
 
     /** Returns how many reminders were raised. */
@@ -89,7 +106,8 @@ public class ReminderService {
                 line.getCustomerId(),
                 event.name(),
                 line.getExpiresAt(),
-                dedupeKey));
+                dedupeKey,
+                renewsAutomatically(line)));
         return true;
     }
 }

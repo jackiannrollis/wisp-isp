@@ -5,6 +5,7 @@ import com.corebalt.isp.shared.web.ProblemTypes;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
@@ -16,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * own IP-restricted chain with the payments module. Everything else is denied.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableMethodSecurity
 class SecurityConfig {
 
     @Bean
@@ -42,7 +44,7 @@ class SecurityConfig {
                                         .denyAll())
                 .oauth2ResourceServer(
                         oauth2 ->
-                                oauth2.jwt(jwt -> {})
+                                oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(Permissions::authentication))
                                         .authenticationEntryPoint(
                                                 (request, response, e) ->
                                                         problems.write(
