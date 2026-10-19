@@ -13,6 +13,7 @@ import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -98,7 +99,13 @@ public class CallbackInbox {
 
     private void processQuietly(final UUID tenantId, final UUID callbackId) {
         try {
-            TenantContext.runAsTenant(tenantId, () -> processor.process(callbackId));
+            try {
+                TenantContext.runAsTenant(tenantId, () -> processor.process(callbackId));
+            } catch (DataIntegrityViolationException e) {
+                // The same TransID arrived twice at once and the other copy committed first; processed
+                // again now, this copy is found to be a duplicate and recorded without side effects (P1).
+                TenantContext.runAsTenant(tenantId, () -> processor.process(callbackId));
+            }
         } catch (RuntimeException e) {
             // Never log the body: it carries payer data (A3).
             log.warn("M-Pesa callback {} failed: {}", callbackId, e.getClass().getSimpleName());
