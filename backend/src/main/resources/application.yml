@@ -82,6 +82,9 @@ logging:
     com.corebalt.isp: INFO
 
 isp:
+  secrets:
+    # docs/07: the platform master key lives outside the database (base64, 32 bytes).
+    master-key: ${ISP_MASTER_KEY:}
   outbox:
     relay:
       enabled: true

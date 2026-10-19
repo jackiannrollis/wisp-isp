@@ -23,6 +23,15 @@ public final class Permissions {
     /** B1: post a wallet ADJUSTMENT with a reason (for example free days). */
     public static final String BILLING_ADJUST = "billing.adjust";
 
+    /** T4: set or replace tenant secrets (M-Pesa, SMS) and the M-Pesa settings that use them. */
+    public static final String SETTINGS_SECRETS = "settings.secrets";
+
+    /** P3: assign an unmatched payment from the suspense queue to a customer. */
+    public static final String PAYMENTS_ASSIGN = "payments.assign";
+
+    /** Start an M-Pesa STK Push for a customer. */
+    public static final String PAYMENTS_STK = "payments.stk";
+
     private Permissions() {}
 
     static AbstractAuthenticationToken authentication(final Jwt jwt) {

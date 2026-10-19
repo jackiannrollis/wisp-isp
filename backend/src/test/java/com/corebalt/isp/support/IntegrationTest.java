@@ -15,7 +15,9 @@ import org.testcontainers.utility.MountableFile;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"isp.outbox.relay.interval=1h", "isp.subscriptions.jobs.enabled=false", "isp.billing.checks.initial-delay=1h"})
+        properties = {"isp.outbox.relay.interval=1h", "isp.subscriptions.jobs.enabled=false", "isp.billing.checks.initial-delay=1h",
+            // Obvious fake master key for tests only (base64 of 32 bytes "test-master-key-not-a-secret!!!!").
+            "isp.secrets.master-key=dGVzdC1tYXN0ZXIta2V5LW5vdC1hLXNlY3JldCEhISE="})
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 

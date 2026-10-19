@@ -67,6 +67,8 @@ services:
       ISP_RABBITMQ_HOST: rabbitmq
       ISP_RABBITMQ_USER: ${RABBITMQ_USER:-isp}
       ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # Tenant-secret master key (docs/07): outside the database, only in the environment.
+      ISP_MASTER_KEY: ${ISP_MASTER_KEY:?set in infra/.env}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

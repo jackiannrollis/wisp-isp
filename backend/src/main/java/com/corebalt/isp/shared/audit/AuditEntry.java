@@ -1,4 +1,4 @@
-package com.corebalt.isp.identity.api;
+package com.corebalt.isp.shared.audit;
 
 import java.util.Map;
 import java.util.Objects;

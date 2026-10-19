@@ -1,7 +1,7 @@
 package com.corebalt.isp.network.infrastructure;
 
-import com.corebalt.isp.identity.api.AuditEntry;
-import com.corebalt.isp.identity.api.AuditTrail;
+import com.corebalt.isp.shared.audit.AuditEntry;
+import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.network.domain.SecretGenerator;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.tenant.TenantContext;

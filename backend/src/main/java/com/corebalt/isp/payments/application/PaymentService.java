@@ -1,8 +1,8 @@
 package com.corebalt.isp.payments.application;
 
 import com.corebalt.isp.customers.api.CustomerFacade;
-import com.corebalt.isp.identity.api.AuditEntry;
-import com.corebalt.isp.identity.api.AuditTrail;
+import com.corebalt.isp.shared.audit.AuditEntry;
+import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.payments.api.ManualPaymentRequest;
 import com.corebalt.isp.payments.api.MatchedPayments;
 import com.corebalt.isp.payments.api.PaymentDto;

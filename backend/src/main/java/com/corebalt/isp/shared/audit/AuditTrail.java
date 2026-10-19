@@ -1,4 +1,4 @@
-package com.corebalt.isp.identity.api;
+package com.corebalt.isp.shared.audit;
 
 /**
  * Writes an append-only audit row (A1) inside the caller's transaction, for the current tenant and

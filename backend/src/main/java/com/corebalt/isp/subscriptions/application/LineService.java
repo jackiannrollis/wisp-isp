@@ -2,8 +2,8 @@ package com.corebalt.isp.subscriptions.application;
 
 import com.corebalt.isp.customers.api.CustomerFacade;
 import com.corebalt.isp.customers.api.CustomerSummary;
-import com.corebalt.isp.identity.api.AuditEntry;
-import com.corebalt.isp.identity.api.AuditTrail;
+import com.corebalt.isp.shared.audit.AuditEntry;
+import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.packages.api.PackageCatalog;
 import com.corebalt.isp.packages.api.PackageCatalog.PackageSummary;
 import com.corebalt.isp.shared.id.UuidV7;
