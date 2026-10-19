@@ -52,6 +52,11 @@ walled garden with a pay page, and CoA/Disconnect change a live session. See doc
 
 Every password is `lab-password`.
 
+FreeRADIUS loads its clients (`radius_client_v3`) only at start. After registering a router or
+regenerating its secret through the API (`POST /api/v1/routers`, `.../radius-secret`), run
+`docker compose restart freeradius` in `infra/` (seed.ps1 does this for the fixtures). Lines and
+PPPoE passwords need no restart: they are read on every login.
+
 ## Running the VM lab (Windows, Hyper-V)
 
 Prerequisites, once:
