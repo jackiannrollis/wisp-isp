@@ -1,0 +1,11 @@
+# LAB ONLY: the second CHR plays a customer's router. ether1 (Default Switch) is management only and
+# carries no default route; ether2 (private switch) dials PPPoE, and all test traffic goes that way.
+
+/system identity set name="{{CLIENT_NAME}}"
+/ip dhcp-client set [find interface={{MGMT_INTERFACE}}] add-default-route=no use-peer-dns=no
+/interface pppoe-client remove [find name=pppoe-out1]
+/interface pppoe-client add name=pppoe-out1 interface={{PPPOE_INTERFACE}} service-name=corebalt \
+    user="{{PPPOE_USER}}" password="{{PPPOE_PASSWORD}}" add-default-route=yes use-peer-dns=yes disabled=no
+/ip dns set servers=""
+
+:log info "pppoe client configured for {{PPPOE_USER}}"

@@ -12,8 +12,9 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 Step 1 of the v1 build order (docs/09), the foundation, is done. Step 2, the network lab, is in
 progress: FreeRADIUS reads `v_radius_auth_v2` over two lab tables (`network_lab_router`,
-`network_lab_line`) that step 3 replaces with real tables and a v3 view. No business features exist
-yet. Build the next steps in order; each should end with something demonstrable.
+`network_lab_line`) that step 3 replaces with real tables and a v3 view. The Hyper-V half
+(`infra/lab/scripts/lab.ps1`) has not run yet, so CoA/Disconnect and the restricted-mode rules are
+unproven (see the status note in `infra/lab/README.md`). No business features exist yet. Build the next steps in order; each should end with something demonstrable.
 
 ## Commands
 

@@ -1,0 +1,17 @@
+# LAB ONLY: what a real ISP router already has before onboarding. The lab CHR gets a WAN on the
+# Hyper-V Default Switch (ether1, DHCP), a customer LAN (ether2, private switch), NAT to the
+# internet and a DNS resolver for its PPPoE customers. Not part of the onboarding script.
+
+/system identity set name="{{ROUTER_NAME}}"
+/ip dhcp-client set [find interface={{WAN_INTERFACE}}] add-default-route=yes use-peer-dns=yes
+
+/ip dns set allow-remote-requests=yes
+
+/ip firewall nat remove [find comment~"lab-base"]
+/ip firewall filter remove [find comment~"lab-base"]
+/ip firewall nat add chain=srcnat out-interface={{WAN_INTERFACE}} action=masquerade comment="lab-base: NAT to the internet"
+# The resolver answers PPPoE customers only, never the WAN side.
+/ip firewall filter add chain=input in-interface={{WAN_INTERFACE}} protocol=udp dst-port=53 action=drop comment="lab-base: no open resolver"
+/ip firewall filter add chain=input in-interface={{WAN_INTERFACE}} protocol=tcp dst-port=53 action=drop comment="lab-base: no open resolver"
+
+:log info "lab-base applied"

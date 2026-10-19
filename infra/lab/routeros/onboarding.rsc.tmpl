@@ -1,0 +1,82 @@
+# Corebalt router onboarding script (docs/06, Router onboarding script; N1, N5, N6).
+# Generated for {{ROUTER_NAME}} ({{ROUTER_ID}}). Paste once into the router terminal; safe to re-run:
+# every object it creates carries a "corebalt" comment and is replaced on the next run.
+# It never writes a customer into router configuration (N1): customers come from RADIUS.
+#
+# Step-2 lab stand-in for the generator the network module will own. Placeholders are filled by
+# infra/lab/scripts/lab.ps1; production adds hub B and RADIUS node B where marked.
+
+# 1. Identity and the platform router ID
+/system identity set name="{{ROUTER_NAME}}"
+/system note set note="Corebalt router {{ROUTER_ID}}" show-at-login=no
+
+# 2. WireGuard to the hubs. RADIUS, CoA, REST and SNMP travel only through the tunnel (N6).
+:if ([:len [/interface wireguard find name=wg-corebalt]] = 0) do={
+    /interface wireguard add name=wg-corebalt listen-port=13231 mtu=1420 comment="corebalt"
+}
+/interface wireguard peers remove [find interface=wg-corebalt]
+/interface wireguard peers add interface=wg-corebalt name=corebalt-hub-a public-key="{{HUB_A_PUBLIC_KEY}}" \
+    endpoint-address={{HUB_A_ENDPOINT}} endpoint-port={{HUB_A_PORT}} allowed-address={{HUB_A_TUNNEL_IP}}/32 \
+    persistent-keepalive=25s comment="corebalt hub A"
+# production: a second peer for hub B (Nairobi)
+/ip address remove [find interface=wg-corebalt]
+/ip address add interface=wg-corebalt address={{TUNNEL_ADDRESS}} comment="corebalt tunnel"
+
+# 3. RADIUS: per-router secret, PPP and hotspot, CoA/Disconnect accepted on UDP 3799 (N5)
+/radius remove [find comment~"corebalt"]
+/radius add address={{HUB_A_TUNNEL_IP}} secret="{{RADIUS_SECRET}}" service=ppp,hotspot \
+    src-address={{TUNNEL_IP}} timeout=1500ms comment="corebalt radius A"
+# production: a second entry for RADIUS node B (Nairobi) after node A
+/radius incoming set accept=yes port=3799
+
+# 4. PPP authentication and accounting through RADIUS
+/ppp aaa set use-radius=yes accounting=yes interim-update=5m
+
+# 5. The full and restricted pools and the PPPoE server profile that uses RADIUS
+/interface pppoe-server server remove [find service-name="corebalt"]
+/ppp profile remove [find name="corebalt-radius"]
+/ip pool remove [find comment~"corebalt"]
+/ip pool add name=full ranges={{FULL_POOL}} comment="corebalt full"
+/ip pool add name=restricted ranges={{RESTRICTED_POOL}} comment="corebalt restricted"
+/ppp profile add name=corebalt-radius local-address={{PPP_LOCAL_ADDRESS}} dns-server={{PPP_LOCAL_ADDRESS}} \
+    change-tcp-mss=yes only-one=yes comment="corebalt: speed, pool and address list come from RADIUS"
+/interface pppoe-server server add service-name=corebalt interface={{PPPOE_INTERFACE}} \
+    default-profile=corebalt-radius authentication=pap,chap one-session-per-host=yes disabled=no
+
+# 6. Address lists and the restricted-mode rules (docs/06, Restricted mode; N3). RADIUS puts
+# restricted sessions in the "restricted" list: they may resolve DNS and reach the portal and pay
+# page; plain HTTP is redirected to the pay page; everything else is dropped. HTTPS cannot be
+# redirected (the browser shows an error), which is why SMS and STK Push carry most restores.
+/ip firewall address-list remove [find comment~"corebalt"]
+/ip firewall address-list add list=corebalt-portal address={{PORTAL_ADDRESS}} comment="corebalt portal and pay page"
+/ip firewall nat remove [find comment~"corebalt"]
+/ip firewall filter remove [find comment~"corebalt"]
+/ip firewall nat add chain=dstnat src-address-list=restricted dst-address-list=!corebalt-portal protocol=tcp \
+    dst-port=80 action=dst-nat to-addresses={{PORTAL_ADDRESS}} to-ports={{PAYPAGE_PORT}} \
+    comment="corebalt restricted: HTTP to the pay page"
+/ip firewall filter add chain=forward src-address-list=restricted protocol=udp dst-port=53 action=accept \
+    comment="corebalt restricted: DNS"
+/ip firewall filter add chain=forward src-address-list=restricted protocol=tcp dst-port=53 action=accept \
+    comment="corebalt restricted: DNS"
+/ip firewall filter add chain=forward src-address-list=restricted dst-address-list=corebalt-portal action=accept \
+    comment="corebalt restricted: portal and pay page"
+/ip firewall filter add chain=forward src-address-list=restricted action=drop \
+    comment="corebalt restricted: everything else"
+
+# 7. Management access for the platform: a read-only REST user and SNMP read-only, tunnel only
+:if ([:len [/user group find name=corebalt-read]] = 0) do={
+    /user group add name=corebalt-read policy=read,api,rest-api comment="corebalt"
+}
+/user remove [find name=corebalt-api]
+/user add name=corebalt-api group=corebalt-read password="{{REST_PASSWORD}}" address={{HUB_A_TUNNEL_IP}}/32 \
+    comment="corebalt platform monitoring"
+/ip service set www address={{MANAGEMENT_ALLOWED}}
+/snmp community remove [find name="{{SNMP_COMMUNITY}}"]
+/snmp community add name="{{SNMP_COMMUNITY}}" addresses={{HUB_A_TUNNEL_IP}}/32 read-access=yes write-access=no
+:do { /snmp community set [find default=yes] addresses=127.0.0.1/32 } on-error={}
+/snmp set enabled=yes
+
+# 8. NTP so accounting timestamps are right
+/system ntp client set enabled=yes servers={{NTP_SERVERS}}
+
+:log info "corebalt onboarding applied for {{ROUTER_NAME}}"
