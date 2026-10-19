@@ -22,7 +22,7 @@ public abstract class IntegrationTest {
     /** Throwaway password for the test container only; not a real secret. */
     static final String APP_PASSWORD = "isp_app_test_only";
 
-    static final PostgreSQLContainer POSTGRES =
+    protected static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer("postgres:17.11")
                     .withDatabaseName("isp")
                     .withCopyFileToContainer(
