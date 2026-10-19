@@ -36,7 +36,7 @@ context/            this folder
 - **Validation.** Bean Validation on request DTOs at the boundary; domain invariants enforced again in the domain layer (`domain-rules.md` IDs in the exception message).
 - **Mapping.** MapStruct for DTO ↔ domain; no entity leaves a module.
 - **Errors.** RFC 9457 problem details; stable `type` URIs per error; never leak stack traces or SQL.
-- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v3`) and switched in FreeRADIUS config, never altered in place.
+- **Migrations.** Flyway, `V<yyyyMMddHHmm>__<module>_<description>.sql`; backwards compatible with the previous release; no data migration mixed with schema changes; views used by FreeRADIUS are versioned (`v_radius_auth_v4`) and switched in FreeRADIUS config, never altered in place.
 - **Secrets.** Through `SecretStore` only; never in properties files, logs, events or test fixtures (use fakes).
 - **Logging.** Structured JSON via the logging MDC with `tenantId`, `correlationId`, `module`; phone numbers masked; no payloads with secrets.
 - **Tests.** Unit tests for domain rules (cite rule IDs in test names: `S5_renewalExtendsFromCurrentExpiry`); Testcontainers for PostgreSQL and RabbitMQ; a FreeRADIUS integration test runs `radtest` against the view; the `AccessPolicy`-versus-view agreement test runs on every migration touching either.
@@ -58,7 +58,7 @@ context/            this folder
 
 - Base path `/api/v1`; resources plural and kebab-case (`/customers`, `/ledger-entries`); IDs are UUIDs; tenant never in the path (it comes from the principal or subdomain).
 - `GET` lists: `page`, `size` (max 200), `sort`, filter parameters named after fields; responses carry `items`, `page`, `size`, `total`.
-- Writes that move money or change access require an `Idempotency-Key` header; replays return the original result.
+- Writes that move money or change access require an `Idempotency-Key` header (1 to 100 characters, unique per tenant); replays return the original result with `Idempotent-Replayed: true`, and the same key with a different request is a 422. `shared.web.IdempotentRequests` stores the response in the business transaction. Responses that carry a secret (show-once passwords) are not idempotent: a replay would reveal the secret again.
 - Timestamps in ISO 8601 UTC; money as `{ "amount": 250000, "currency": "KES" }` in minor units.
 - Callback endpoints (`/callbacks/mpesa/<tenant token>/...`) are outside `/api/v1`, unauthenticated by JWT, IP-restricted, and respond within one second.
 - OpenAPI generated from code and published at `/api/docs`; the frontend's models are generated from it in CI.

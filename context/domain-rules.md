@@ -17,7 +17,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **S4** Every accepted login carries `Session-Timeout` = seconds until the next profile change, capped at 86400.
 - **S5** A renewal extends from the current `expires_at` when the line is not yet past grace, and from the moment of payment when it is. The clock time of `expires_at` is preserved.
 - **S6** `grace_days` is copied onto the subscription at each renewal; a policy change never shortens a cycle already paid for.
-- **S7** Pause freezes the clock: on resume `expires_at += now − paused_at`. Only an `ACTIVE` line with time remaining can be paused; a paused line is `RESTRICTED`, not rejected.
+- **S7** Pause freezes the clock: on resume `expires_at += now − paused_at`. Only an `ACTIVE` line with time remaining can be paused, for at most the tenant's `max_pause_days`; a paused line is `RESTRICTED`, not rejected. At `pause_until` the line resumes by itself: the RADIUS view and `AccessPolicy` treat it as `ACTIVE` with `expires_at + (pause_until − paused_at)` from that instant (E4); the job only records it, with cause `AUTO_RESUME_RECORDED`, which needs no CoA.
 - **S8** Lifting a suspension re-evaluates dates; a line that expired during the hold returns as `RESTRICTED`.
 - **S9** Every state transition writes an audit row and publishes `SubscriptionStateChanged`.
 - **S10** Downgrades always apply at the next renewal; immediate upgrades charge proration and change speed by CoA.

@@ -32,7 +32,9 @@ stateDiagram-v2
     TERMINATED --> [*]
 ```
 
-Every transition writes an audit row and publishes `SubscriptionStateChanged`, which the network module turns into a CoA or Disconnect.
+Every transition writes an audit row and publishes `SubscriptionStateChanged` with a cause, which the network module turns into a CoA or Disconnect. The cause `AUTO_RESUME_RECORDED` (a job recording a resume the RADIUS view already applied at `pause_until`) needs neither: the customer's session is already on the new profile.
+
+Staff transitions (pause, resume, suspend, lift, terminate) change access, so the API requires an `Idempotency-Key` on each and replays the original response for a repeated key. Renewal has no endpoint: it happens when money reaches the wallet (or through a wallet adjustment with a reason), charging through the billing module's wallet lock so one payment never renews two lines.
 
 ## How access is decided
 
@@ -68,13 +70,14 @@ The same logic lives in two places that must agree: the `v_radius_auth` SQL view
 
 - Only an `ACTIVE` subscription with time remaining can be paused; maximum length is a tenant setting (default 30 days).
 - `paused_at` is recorded. On resume, `expires_at += now - paused_at`, so paid days are returned.
-- A paused line is `RESTRICTED`, not rejected, so the customer can still reach the portal to resume.
-- Reaching `pause_until` resumes automatically.
+- A paused line is `RESTRICTED`, not rejected, so the customer can still reach the portal to resume; its `Session-Timeout` runs to `pause_until`.
+- Reaching `pause_until` resumes automatically without waiting for any job: from that instant the RADIUS view (and `AccessPolicy`) evaluate the line as `ACTIVE` with `expires_at + (pause_until - paused_at)`. The hourly job later records the same shift.
+- Suspending a paused line first returns the paused days, then suspends.
 
 ## Suspension and termination
 
 - `SUSPENDED` is an admin action with a reason; access is `REJECT`; the router drops the session at once. Lifting the hold re-evaluates dates: a subscription that expired during the hold comes back as `RESTRICTED`, not `FULL`.
-- `TERMINATED` removes the RADIUS entitlement and frees the static IP; the customer, ledger and accounting history remain for records and lawful requests. Any wallet balance is settled by refund or credit note.
+- `TERMINATED` revokes the PPPoE password (RADIUS rejects it with "Account terminated") and frees the static IP; the customer, ledger and accounting history remain for records and lawful requests. Any wallet balance is settled by refund or credit note.
 
 ## Reminders
 
@@ -90,7 +93,7 @@ Templates and timing are per tenant. Defaults:
 | `PAYMENT_RECEIVED` | On renewal | "Payment of KES 2,500 received. Your Home Plus internet is renewed until 17 November 2026." |
 | `RESTORED` | When access returns from `RESTRICTED` | "Internet restored." |
 
-Each notification has a `dedupe_key` of event, subscription and `expires_at`, so a rerun of the reminder job never sends a duplicate. Reminders are evaluated hourly in the tenant's time zone and sent in a sending window (default 07:00 to 21:00) except `PAYMENT_RECEIVED` and `RESTORED`, which go out immediately.
+Each notification has a `dedupe_key` of event, subscription and `expires_at`, so a rerun of the reminder job never sends a duplicate. The subscriptions module raises each due reminder once as a `SubscriptionReminderDue` event (recorded per dedupe key in `subscriptions_reminder`); the notifications module renders and sends it. Day counts (3 days, 1 day, due today) use the tenant's local dates; a window the job missed is skipped, and `RESTRICTED` is raised only in the first day after grace. Reminders are evaluated hourly in the tenant's time zone and sent in a sending window (default 07:00 to 21:00) except `PAYMENT_RECEIVED` and `RESTORED`, which go out immediately.
 
 ## Grace policy
 
