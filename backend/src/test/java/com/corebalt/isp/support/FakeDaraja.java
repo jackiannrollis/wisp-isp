@@ -32,6 +32,7 @@ public final class FakeDaraja implements AutoCloseable {
     private final HttpServer server;
     private final List<Recorded> requests = new CopyOnWriteArrayList<>();
     private final Map<String, Answer> answers = new ConcurrentHashMap<>();
+    private final Map<String, Runnable> beforeAnswer = new ConcurrentHashMap<>();
 
     public FakeDaraja() {
         try {
@@ -56,6 +57,10 @@ public final class FakeDaraja implements AutoCloseable {
             final String path = exchange.getRequestURI().getPath();
             requests.add(new Recorded(exchange.getRequestMethod(), exchange.getRequestURI().toString(),
                     Map.copyOf(exchange.getRequestHeaders()), body));
+            final Runnable hook = beforeAnswer.remove(path);
+            if (hook != null) {
+                hook.run();
+            }
             final Answer answer = answers.getOrDefault(path, new Answer(404, "{\"errorCode\":\"404.001.01\"}"));
             final byte[] bytes = answer.body().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -72,6 +77,11 @@ public final class FakeDaraja implements AutoCloseable {
 
     public void respond(final String path, final int status, final String body) {
         answers.put(path, new Answer(status, body));
+    }
+
+    /** Runs {@code hook} once, the next time {@code path} is called, before answering (races). */
+    public void beforeNextAnswer(final String path, final Runnable hook) {
+        beforeAnswer.put(path, hook);
     }
 
     public List<Recorded> requests() {

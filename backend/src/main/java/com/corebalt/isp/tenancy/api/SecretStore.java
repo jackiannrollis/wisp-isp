@@ -23,6 +23,8 @@ public interface SecretStore {
         MPESA_PASSKEY,
         MPESA_INITIATOR_NAME,
         MPESA_SECURITY_CREDENTIAL,
+        /** The path token of the tenant's callback URLs; the route table keeps only its hash. */
+        MPESA_CALLBACK_TOKEN,
         SMS_API_KEY
     }
 

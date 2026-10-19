@@ -49,6 +49,9 @@ spring:
 
 server:
   port: 8080
+  # Behind Caddy: the client address comes from X-Forwarded-For, trusted only from internal proxies
+  # (Tomcat RemoteIpValve). The backend port must never be reachable except through the proxy.
+  forward-headers-strategy: native
   shutdown: graceful
   error:
     include-stacktrace: never
@@ -85,6 +88,15 @@ isp:
   secrets:
     # docs/07: the platform master key lives outside the database (base64, 32 bytes).
     master-key: ${ISP_MASTER_KEY:}
+  mpesa:
+    # Where Safaricom reaches this platform (the public HTTPS origin in front of Caddy).
+    callback-base-url: ${CALLBACK_BASE_URL:http://localhost:8088}
+    # Daraja callback source addresses. VERIFY against Safaricom's current publication before
+    # go-live; these are the ranges published for Daraja callbacks at the time of writing.
+    callback-allowed-cidrs: >-
+      196.201.214.200/32,196.201.214.206/32,196.201.213.114/32,196.201.214.207/32,
+      196.201.214.208/32,196.201.213.44/32,196.201.212.127/32,196.201.212.138/32,
+      196.201.212.129/32,196.201.212.136/32,196.201.212.74/32,196.201.212.69/32
   outbox:
     relay:
       enabled: true
@@ -96,6 +108,11 @@ spring:
   config:
     activate:
       on-profile: local
+isp:
+  mpesa:
+    # Local only: callbacks from this machine and the compose network (lab replays, the sandbox
+    # script through a tunnel). Never a 0.0.0.0/0 default.
+    callback-allowed-cidrs: 127.0.0.1/32,::1/128,172.16.0.0/12
 logging:
   level:
     com.corebalt.isp: DEBUG

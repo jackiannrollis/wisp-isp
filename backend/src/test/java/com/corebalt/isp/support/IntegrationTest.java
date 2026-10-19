@@ -17,7 +17,10 @@ import org.testcontainers.utility.MountableFile;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"isp.outbox.relay.interval=1h", "isp.subscriptions.jobs.enabled=false", "isp.billing.checks.initial-delay=1h",
             // Obvious fake master key for tests only (base64 of 32 bytes "test-master-key-not-a-secret!!!!").
-            "isp.secrets.master-key=dGVzdC1tYXN0ZXIta2V5LW5vdC1hLXNlY3JldCEhISE="})
+            "isp.secrets.master-key=dGVzdC1tYXN0ZXIta2V5LW5vdC1hLXNlY3JldCEhISE=",
+            "isp.mpesa.callback-allowed-cidrs=127.0.0.1/32,::1/128",
+            "isp.mpesa.jobs.initial-delay=1h",
+            "isp.mpesa.callbacks.sweep-initial-delay=1h"})
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 
@@ -30,6 +33,9 @@ public abstract class IntegrationTest {
                     .withCopyFileToContainer(
                             MountableFile.forClasspathResource("db/test-roles.sql"),
                             "/docker-entrypoint-initdb.d/00-test-roles.sql");
+
+    /** One fake Daraja for the whole test JVM (production-shaped answers; see FakeDaraja). */
+    protected static final FakeDaraja DARAJA = new FakeDaraja();
 
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management");
 
@@ -46,6 +52,8 @@ public abstract class IntegrationTest {
         registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
+        registry.add("isp.mpesa.daraja.sandbox-url", DARAJA::baseUrl);
+        registry.add("isp.mpesa.daraja.production-url", DARAJA::baseUrl);
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
         registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);

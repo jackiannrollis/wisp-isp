@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -108,6 +109,44 @@ public class CustomerService implements CustomerFacade {
         return customers.findById(customerId)
                 .map(c -> new CustomerSummary(
                         c.getId(), c.getNumber(), c.getName(), c.getStatus() == CustomerStatus.ACTIVE));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> phoneOf(final UUID customerId) {
+        return customers.findById(customerId).map(Customer::getPhone);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<CustomerSummary> findByNumber(final String number) {
+        return customers.findByNumber(number).map(CustomerService::summary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerSummary> findByPhone(final String e164) {
+        return customers.findByPhone(e164).stream().map(CustomerService::summary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerSummary> findByPhoneHash(final String sha256Hex) {
+        return customers.findByPhoneSha256(sha256Hex.toLowerCase(java.util.Locale.ROOT)).stream()
+                .map(CustomerService::summary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CustomerSummary> findByPhoneDigits(final String prefix, final String suffix) {
+        if (!prefix.matches("[0-9]*") || !suffix.matches("[0-9]*") || prefix.length() + suffix.length() < 6) {
+            return List.of();
+        }
+        return customers.findByPhoneDigits(prefix, suffix).stream().map(CustomerService::summary).toList();
+    }
+
+    private static CustomerSummary summary(final Customer c) {
+        return new CustomerSummary(c.getId(), c.getNumber(), c.getName(), c.getStatus() == CustomerStatus.ACTIVE);
     }
 
     @Override

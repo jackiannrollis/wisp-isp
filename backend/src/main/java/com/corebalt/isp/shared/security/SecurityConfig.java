@@ -2,7 +2,10 @@ package com.corebalt.isp.shared.security;
 
 import com.corebalt.isp.shared.web.ProblemResponseWriter;
 import com.corebalt.isp.shared.web.ProblemTypes;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.annotation.Order;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -20,7 +23,25 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 class SecurityConfig {
 
+    /**
+     * Provider callbacks (docs/05): no JWT, no CSRF, admitted only from the allowed networks; the
+     * tenant comes from the path token.
+     */
     @Bean
+    @Order(1)
+    SecurityFilterChain callbackSecurity(
+            final HttpSecurity http, @Value("${isp.mpesa.callback-allowed-cidrs}") final List<String> allowedCidrs)
+            throws Exception {
+        http.securityMatcher("/callbacks/**")
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(new CallbackSourceFilter(allowedCidrs), AuthorizationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain apiSecurity(final HttpSecurity http, final ProblemResponseWriter problems)
             throws Exception {
         http.csrf(csrf -> csrf.disable())

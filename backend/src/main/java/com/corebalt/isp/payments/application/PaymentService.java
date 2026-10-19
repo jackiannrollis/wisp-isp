@@ -7,6 +7,7 @@ import com.corebalt.isp.payments.api.ManualPaymentRequest;
 import com.corebalt.isp.payments.api.MatchedPayments;
 import com.corebalt.isp.payments.api.PaymentDto;
 import com.corebalt.isp.payments.api.PaymentReceived;
+import com.corebalt.isp.payments.domain.Msisdn;
 import com.corebalt.isp.payments.domain.Payment;
 import com.corebalt.isp.payments.infrastructure.PaymentRepository;
 import com.corebalt.isp.shared.id.UuidV7;
@@ -43,6 +44,7 @@ public class PaymentService implements MatchedPayments {
     private final OutboxPublisher outbox;
     private final AuditTrail audit;
     private final JsonMapper jsonMapper;
+    private final MpesaIngestion ingestion;
     private final Clock clock;
 
     PaymentService(
@@ -51,12 +53,14 @@ public class PaymentService implements MatchedPayments {
             final OutboxPublisher outbox,
             final AuditTrail audit,
             final JsonMapper jsonMapper,
+            final MpesaIngestion ingestion,
             final Clock clock) {
         this.payments = payments;
         this.customers = customers;
         this.outbox = outbox;
         this.audit = audit;
         this.jsonMapper = jsonMapper;
+        this.ingestion = ingestion;
         this.clock = clock;
     }
 
@@ -114,6 +118,42 @@ public class PaymentService implements MatchedPayments {
                 customerId == null ? payments.findAll(page) : payments.findByCustomerId(customerId, page),
                 PaymentService::toDto);
     }
+
+    /**
+     * The suspense queue (P3): unmatched payments, newest first, with what staff need to assign
+     * them. The payer's number is shown masked (A3). For a masked number, the shortlist holds the
+     * customers whose phone fits its visible digits; it is a hint for staff, never an automatic match.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<SuspenseItem> suspense(final Pageable page) {
+        return PageResponse.of(payments.findUnmatched(page), p -> new SuspenseItem(
+                p.getId(), p.getChannel(), p.getProviderTxnId(), p.getAccountRef(), p.getPayerName(),
+                Msisdn.display(p.getMsisdn()),
+                MoneyDto.of(Money.ofMinor(p.getAmountMinor(), p.getCurrency())), p.getReceivedAt(),
+                Msisdn.parse(p.getMsisdn()) instanceof Msisdn.Masked masked
+                        ? customers.findByPhoneDigits(masked.prefix(), masked.suffix())
+                        : List.of()));
+    }
+
+    /** P3: staff assign an unmatched payment; audited, then credited like any matched payment (P4). */
+    @Transactional
+    public PaymentDto assign(final UUID paymentId, final UUID customerId) {
+        final Payment payment = payments.findById(paymentId).orElseThrow(() -> new NotFoundException("Payment"));
+        customers.find(customerId).orElseThrow(() -> new NotFoundException("Customer"));
+        if (!"UNMATCHED".equals(payment.getStatus())) {
+            throw new ConflictException("P3: payment " + payment.getProviderTxnId() + " is already " + payment.getStatus() + ".");
+        }
+        final Instant now = clock.instant();
+        payment.assign(customerId, CurrentActor.staffId().orElse(null), now);
+        audit.record(new AuditEntry("payments.assigned", "payment", payment.getId(),
+                Map.of("status", "UNMATCHED"), Map.of("status", "MATCHED", "customerId", customerId.toString()), null));
+        ingestion.published(payment, now);
+        return toDto(payment);
+    }
+
+    public record SuspenseItem(
+            UUID id, String channel, String reference, String accountRef, String payerName, String payerNumber,
+            MoneyDto amount, Instant receivedAt, List<com.corebalt.isp.customers.api.CustomerSummary> likelyPayers) {}
 
     @Override
     @Transactional(readOnly = true)

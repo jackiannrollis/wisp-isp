@@ -36,7 +36,7 @@ CREATE TABLE tenancy_tenant_secret (
         REFERENCES tenancy_tenant_data_key (tenant_id, version),
     CONSTRAINT tenancy_tenant_secret_kind_ck CHECK (kind IN (
         'MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY',
-        'MPESA_INITIATOR_NAME', 'MPESA_SECURITY_CREDENTIAL', 'SMS_API_KEY'))
+        'MPESA_INITIATOR_NAME', 'MPESA_SECURITY_CREDENTIAL', 'MPESA_CALLBACK_TOKEN', 'SMS_API_KEY'))
 );
 
 ALTER TABLE tenancy_tenant_secret ENABLE ROW LEVEL SECURITY;

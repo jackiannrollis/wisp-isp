@@ -1,0 +1,20 @@
+{
+  "Result": {
+    "ResultType": 0,
+    "ResultCode": 0,
+    "ResultDesc": "The service request is processed successfully.",
+    "OriginatorConversationID": "1236-7134259-1",
+    "ConversationID": "AG_20240126_00004a4b8c4d",
+    "TransactionID": "QKA00000000",
+    "ResultParameters": {
+      "ResultParameter": [
+        {"Key": "DebitPartyName", "Value": "${MSISDN} - JANE WANJIKU"},
+        {"Key": "TransactionStatus", "Value": "Completed"},
+        {"Key": "Amount", "Value": ${AMOUNT}},
+        {"Key": "ReceiptNo", "Value": "${TRANS_ID}"},
+        {"Key": "InitiatedTime", "Value": 20261117143012},
+        {"Key": "ReasonType", "Value": "Pay Bill Online"}
+      ]
+    }
+  }
+}

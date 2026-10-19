@@ -1,0 +1,10 @@
+{
+  "Body": {
+    "stkCallback": {
+      "MerchantRequestID": "29115-34620561-1",
+      "CheckoutRequestID": "${CHECKOUT}",
+      "ResultCode": ${RESULT_CODE},
+      "ResultDesc": "${RESULT_DESC}"
+    }
+  }
+}

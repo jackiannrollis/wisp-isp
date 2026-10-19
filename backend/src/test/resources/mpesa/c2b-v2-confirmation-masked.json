@@ -1,0 +1,13 @@
+{
+  "TransactionType": "Pay Bill",
+  "TransID": "${TRANS_ID}",
+  "TransTime": "20261117143012",
+  "TransAmount": "${AMOUNT}",
+  "BusinessShortCode": "600984",
+  "BillRefNumber": "${REF}",
+  "InvoiceNumber": "",
+  "OrgAccountBalance": "49197.00",
+  "ThirdPartyTransID": "",
+  "MSISDN": "${MSISDN}",
+  "FirstName": "JOHN"
+}

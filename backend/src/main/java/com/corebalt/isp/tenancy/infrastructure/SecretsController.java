@@ -1,5 +1,6 @@
 package com.corebalt.isp.tenancy.infrastructure;
 
+import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.tenancy.api.SecretStore;
 import com.corebalt.isp.tenancy.api.SecretStore.SecretKind;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +40,10 @@ class SecretsController {
     @PutMapping("/{kind}")
     @Operation(summary = "Set or replace a secret; the value can never be read back")
     ResponseEntity<Void> put(@PathVariable final SecretKind kind, @Valid @RequestBody final SecretValue body) {
+        if (kind == SecretKind.MPESA_CALLBACK_TOKEN) {
+            // Issued by the M-Pesa settings together with its route hash; never set by hand.
+            throw InvalidRequestException.of("kind", "set by the platform, not by staff");
+        }
         secrets.put(kind, body.value().strip());
         return ResponseEntity.noContent().build();
     }

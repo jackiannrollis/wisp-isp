@@ -28,6 +28,12 @@ public class Payment {
     @Column(name = "provider_txn_id", nullable = false, updatable = false)
     private String providerTxnId;
 
+    @Column(name = "account_ref", updatable = false)
+    private String accountRef;
+
+    @Column(updatable = false)
+    private String msisdn;
+
     @Column(name = "payer_name", updatable = false)
     private String payerName;
 
@@ -95,6 +101,68 @@ public class Payment {
         payment.createdAt = now;
         payment.updatedAt = now;
         return payment;
+    }
+
+    /**
+     * Money M-Pesa reports (C2B confirmation, STK result, Transaction Status), matched to
+     * {@code customerId} by P3 or {@code null} for the suspense queue. {@code reference} is the
+     * M-Pesa TransID / receipt number (P1).
+     */
+    public static Payment fromProvider(
+            final UUID id,
+            final UUID tenantId,
+            final String channel,
+            final String reference,
+            final String accountRef,
+            final String msisdn,
+            final String payerName,
+            final long amountMinor,
+            final Instant receivedAt,
+            final UUID customerId,
+            final String rawPayload,
+            final Instant now) {
+        final Payment payment = new Payment();
+        payment.id = id;
+        payment.tenantId = tenantId;
+        payment.channel = channel;
+        payment.providerTxnId = reference;
+        payment.accountRef = accountRef;
+        payment.msisdn = msisdn;
+        payment.payerName = payerName;
+        payment.amountMinor = amountMinor;
+        payment.currency = "KES";
+        payment.receivedAt = receivedAt;
+        payment.status = customerId == null ? "UNMATCHED" : "MATCHED";
+        payment.customerId = customerId;
+        payment.matchedAt = customerId == null ? null : now;
+        payment.rawPayload = rawPayload;
+        payment.createdAt = now;
+        payment.updatedAt = now;
+        return payment;
+    }
+
+    /** P3: staff assign a suspense payment to a customer; only an UNMATCHED payment can be assigned. */
+    public void assign(final UUID customerId, final UUID staffId, final Instant now) {
+        if (!"UNMATCHED".equals(status)) {
+            throw new IllegalStateException("P3: only an UNMATCHED payment can be assigned; this one is " + status);
+        }
+        this.status = "MATCHED";
+        this.customerId = customerId;
+        this.matchedBy = staffId;
+        this.matchedAt = now;
+        this.updatedAt = now;
+    }
+
+    public String getAccountRef() {
+        return accountRef;
+    }
+
+    public String getMsisdn() {
+        return msisdn;
+    }
+
+    public String getPayerName() {
+        return payerName;
     }
 
     public UUID getId() {
