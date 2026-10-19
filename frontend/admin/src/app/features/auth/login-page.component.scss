@@ -1,0 +1,58 @@
+.frame {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--mat-sys-surface-container-low);
+}
+
+.card {
+  position: relative;
+  width: min(100%, 26rem);
+  padding: 2rem 1.75rem 1.5rem;
+  border-radius: var(--mat-sys-corner-large);
+  background: var(--mat-sys-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+  overflow: hidden;
+}
+
+.progress {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+.brand {
+  font: var(--mat-sys-title-medium);
+  color: var(--mat-sys-primary);
+}
+
+h1 {
+  font: var(--mat-sys-headline-small);
+  margin: 0.25rem 0 1.25rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.error {
+  color: var(--mat-sys-error);
+  margin: 0 0 0.5rem;
+}
+
+.secret {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  padding: 0.75rem;
+  border-radius: var(--mat-sys-corner-small);
+  background: var(--mat-sys-surface-container-high);
+}
+
+.codes {
+  columns: 2;
+  font-family: ui-monospace, monospace;
+  padding-left: 1.25rem;
+}

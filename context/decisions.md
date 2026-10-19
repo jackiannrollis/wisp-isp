@@ -91,6 +91,7 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-20 | Q11 resolved: optional SMS of a staff temporary password, an explicit M3 exception (user decision) | Staff without a channel to receive the password | domain-rules M3, open-questions |
 | 2026-10-20 | Pay page "Internet restored": the API keeps the last CoA outcome per line; restored = FULL and every pre-payment session changed by an acknowledged CoA or Disconnect; fallback after 90 s in the page (user decision) | Says "restored" only when the router really changed the session | docs/06 Restricted mode, V202610201901 |
 | 2026-10-20 | WebSocket dashboard updates deferred to v2; the admin app polls the dashboard every 30 s. Arrears wait for postpaid billing (user decision) | Polling is enough for v1 | conventions.md |
+| 2026-10-20 | Inter (self-hosted), ECharts behind one wrapper, M3 with compact admin density, tenant brand colour as primary (default #0f766e) with runtime M3 scheme and contrast check, fixed success/warning/error status colours (user decision) | Legible for every tenant; loads inside the walled garden | ADR 0002 amendment |
 
 ## How to add a row
 

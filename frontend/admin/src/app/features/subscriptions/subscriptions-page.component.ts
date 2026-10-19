@@ -6,7 +6,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="page">
-      <h1>Subscriptions</h1>
+      <h1>Lines</h1>
       <p class="muted">Coming in a later step.</p>
     </section>
   `,

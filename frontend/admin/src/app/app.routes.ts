@@ -1,12 +1,20 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
-import { ShellComponent } from './core/layout/shell.component';
+
+const placeholder = () =>
+  import('./shared/components/placeholder-page.component').then((m) => m.PlaceholderPageComponent);
 
 export const routes: Routes = [
   {
+    path: 'login',
+    title: 'Sign in',
+    loadComponent: () =>
+      import('./features/auth/login-page.component').then((m) => m.LoginPageComponent),
+  },
+  {
     path: '',
-    component: ShellComponent,
+    loadComponent: () => import('./core/layout/shell.component').then((m) => m.ShellComponent),
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -33,11 +41,6 @@ export const routes: Routes = [
           import('./features/packages/packages.routes').then((m) => m.PACKAGES_ROUTES),
       },
       {
-        path: 'billing',
-        loadChildren: () =>
-          import('./features/billing/billing.routes').then((m) => m.BILLING_ROUTES),
-      },
-      {
         path: 'payments',
         loadChildren: () =>
           import('./features/payments/payments.routes').then((m) => m.PAYMENTS_ROUTES),
@@ -46,6 +49,19 @@ export const routes: Routes = [
         path: 'network',
         loadChildren: () =>
           import('./features/network/network.routes').then((m) => m.NETWORK_ROUTES),
+      },
+      { path: 'alerts', title: 'Alerts', data: { heading: 'Alerts' }, loadComponent: placeholder },
+      {
+        path: 'staff',
+        title: 'Staff and roles',
+        data: { heading: 'Staff and roles' },
+        loadComponent: placeholder,
+      },
+      {
+        path: 'audit-log',
+        title: 'Audit log',
+        data: { heading: 'Audit log' },
+        loadComponent: placeholder,
       },
       {
         path: 'settings',

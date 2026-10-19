@@ -1,23 +1,84 @@
-<div class="shell">
-  <header class="topbar">
+<mat-toolbar class="topbar">
+  @if (overlay()) {
+    <button mat-icon-button type="button" aria-label="Open navigation" (click)="sidenav.toggle()">
+      <tabler-icon [icon]="icons.menu" [size]="24" />
+    </button>
+  }
+  <a class="brand" routerLink="/dashboard">
     @if (branding().logoUrl; as logoUrl) {
       <img class="logo" [src]="logoUrl" [alt]="branding().name + ' logo'" />
     }
-    <span class="brand">{{ branding().name }}</span>
-    <span class="app-label">{{ appLabel }}</span>
-  </header>
-  <nav class="nav" aria-label="Main">
-    <ul>
-      @for (item of navItems; track item.path) {
-        <li>
-          <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page">{{
-            item.label
-          }}</a>
-        </li>
+    <span class="brand-name">{{ branding().name }}</span>
+  </a>
+  <span class="spacer"></span>
+
+  <button
+    mat-icon-button
+    type="button"
+    [matMenuTriggerFor]="modeMenu"
+    aria-label="Colour mode"
+    matTooltip="Colour mode"
+  >
+    <tabler-icon [icon]="modeIcon()" [size]="20" />
+  </button>
+  <mat-menu #modeMenu="matMenu">
+    @for (option of modes; track option.mode) {
+      <button mat-menu-item type="button" (click)="themeMode.set(option.mode)">
+        <tabler-icon [icon]="option.icon" [size]="18" class="menu-icon" />
+        <span>{{ option.label }}</span>
+        @if (themeMode.mode() === option.mode) {
+          <tabler-icon [icon]="icons.check" [size]="18" class="menu-check" />
+        }
+      </button>
+    }
+  </mat-menu>
+
+  <button mat-button type="button" class="user" [matMenuTriggerFor]="userMenu" aria-label="Account">
+    <tabler-icon [icon]="icons.user" [size]="20" />
+    <span class="user-name">{{ me()?.displayName }}</span>
+  </button>
+  <mat-menu #userMenu="matMenu" xPosition="before">
+    <div class="who">
+      <div class="who-name">{{ me()?.displayName }}</div>
+      <div class="who-detail">{{ me()?.email }}</div>
+      <div class="who-detail">{{ me()?.role }} · {{ me()?.tenantName }}</div>
+    </div>
+    <mat-divider />
+    <button mat-menu-item type="button" (click)="signOut()">
+      <tabler-icon [icon]="icons.logout" [size]="18" class="menu-icon" />
+      <span>Sign out</span>
+    </button>
+  </mat-menu>
+</mat-toolbar>
+
+<mat-sidenav-container class="container">
+  <mat-sidenav #sidenav class="sidenav" [mode]="overlay() ? 'over' : 'side'" [opened]="!overlay()">
+    <nav aria-label="Main">
+      @for (group of groups(); track group.label) {
+        <h2 class="group">{{ group.label }}</h2>
+        <mat-nav-list>
+          @for (item of group.items; track item.path) {
+            <a
+              mat-list-item
+              [routerLink]="item.path"
+              routerLinkActive
+              #active="routerLinkActive"
+              [routerLinkActiveOptions]="{ exact: !!item.exact }"
+              [activated]="active.isActive"
+              ariaCurrentWhenActive="page"
+              (click)="overlay() && sidenav.close()"
+            >
+              <tabler-icon matListItemIcon [icon]="item.icon" [size]="20" />
+              <span matListItemTitle>{{ item.label }}</span>
+            </a>
+          }
+        </mat-nav-list>
       }
-    </ul>
-  </nav>
-  <main class="content">
-    <router-outlet />
-  </main>
-</div>
+    </nav>
+  </mat-sidenav>
+  <mat-sidenav-content>
+    <main class="content">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

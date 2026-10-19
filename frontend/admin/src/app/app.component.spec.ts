@@ -1,5 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -14,12 +14,16 @@ describe('AppComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('redirects to the first feature and renders its lazy placeholder page', async () => {
+  it('sends a visitor without a session to the sign-in page, remembering where they were going', async () => {
     TestBed.configureTestingModule({
       providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
     });
-    const harness = await RouterTestingHarness.create('/');
-    expect(TestBed.inject(Router).url).toBe('/dashboard');
-    expect(harness.routeNativeElement?.textContent).toContain('Coming in a later step');
+    const harness = RouterTestingHarness.create('/customers');
+    const refresh = await vi.waitFor(() =>
+      TestBed.inject(HttpTestingController).expectOne('/api/v1/auth/session/refresh'),
+    );
+    refresh.flush({ detail: 'no session' }, { status: 401, statusText: 'Unauthorized' });
+    await harness;
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/login?next=%2Fcustomers'));
   });
 });

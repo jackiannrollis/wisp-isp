@@ -50,7 +50,7 @@
                 "input": "admin/public"
               }
             ],
-            "styles": ["admin/src/styles.scss"]
+            "styles": ["@fontsource-variable/inter/index.css", "admin/src/styles.scss"]
           },
           "configurations": {
             "production": {
@@ -93,7 +93,10 @@
           }
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "runnerConfig": "vitest-base.config.mts"
+          }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
@@ -147,7 +150,7 @@
                 "input": "portal/public"
               }
             ],
-            "styles": ["portal/src/styles.scss"]
+            "styles": ["@fontsource-variable/inter/index.css", "portal/src/styles.scss"]
           },
           "configurations": {
             "production": {
@@ -190,7 +193,10 @@
           }
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "runnerConfig": "vitest-base.config.mts"
+          }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",

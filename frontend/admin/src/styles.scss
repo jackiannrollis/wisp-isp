@@ -1,31 +1,48 @@
-// Global theme tokens. Tenant branding (--brand-primary, --brand-on-primary) is set at startup
-// by TenantThemeService on <html>; the values below are the defaults used until then.
+// Global theme (ADR 0002 amendments): Material 3 through Angular Material, Inter, compact density.
+// The colour roles below are the defaults (Corebalt teal) until TenantThemeService replaces every
+// --mat-sys-* colour with the scheme generated from the tenant's brand colour. Every role is a
+// light-dark() pair, so the system setting or the manual override (html[data-theme]) picks the mode.
+@use '@angular/material' as mat;
 
-:root {
+html {
   color-scheme: light dark;
 
-  --brand-primary: #0f766e;
-  --brand-on-primary: #ffffff;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$cyan-palette,
+        theme-type: color-scheme,
+      ),
+      typography: (
+        plain-family: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        brand-family: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+      ),
+      density: -1,
+    )
+  );
 
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-text: #0f172a;
-  --color-muted: #64748b;
-  --color-border: #e2e8f0;
-  --color-hover: #f1f5f9;
-
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  // Status colours are fixed for every tenant (never branded): text colour, its on-colour, and the
+  // container tint with its on-colour for chips. Each text colour reaches 4.5:1 on light surfaces.
+  --app-success: light-dark(#167236, #7ddc92);
+  --app-on-success: light-dark(#ffffff, #00391a);
+  --app-success-container: light-dark(#a3f5b3, #005228);
+  --app-on-success-container: light-dark(#00210c, #a3f5b3);
+  --app-warning: light-dark(#a35600, #ffb870);
+  --app-on-warning: light-dark(#ffffff, #4a2800);
+  --app-warning-container: light-dark(#ffdcbe, #6a3c00);
+  --app-on-warning-container: light-dark(#2d1600, #ffdcbe);
+  --app-error: var(--mat-sys-error);
+  --app-on-error: var(--mat-sys-on-error);
+  --app-error-container: var(--mat-sys-error-container);
+  --app-on-error-container: var(--mat-sys-on-error-container);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0b1120;
-    --color-surface: #111827;
-    --color-text: #e5e7eb;
-    --color-muted: #9ca3af;
-    --color-border: #1f2937;
-    --color-hover: #1e293b;
-  }
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 *,
@@ -37,19 +54,26 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
-  font-family: var(--font-family);
-  background: var(--color-bg);
-  color: var(--color-text);
+  font: var(--mat-sys-body-medium);
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  // Money, dates and counters line up in columns.
+  font-variant-numeric: tabular-nums;
 }
 
 a {
-  color: var(--brand-primary);
+  color: var(--mat-sys-primary);
 }
 
 .muted {
-  color: var(--color-muted);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.page h1 {
+  font: var(--mat-sys-headline-small);
+  margin: 0 0 0.75rem;
 }

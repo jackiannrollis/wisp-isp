@@ -39,6 +39,23 @@ describe('authInterceptor', () => {
     req.flush({});
   });
 
+  it('refreshes the token once on a 401 and retries with the new one', async () => {
+    auth.setToken('old.token.x');
+    let body: unknown;
+    http.get('/api/v1/customers').subscribe((b) => (body = b));
+    httpMock
+      .expectOne('/api/v1/customers')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    const refresh = httpMock.expectOne('/api/v1/auth/session/refresh');
+    expect(refresh.request.headers.has('Authorization')).toBe(false);
+    refresh.flush({ status: 'SIGNED_IN', accessToken: 'new.token.y' });
+    (await vi.waitFor(() => httpMock.expectOne('/api/v1/me'))).flush({ displayName: 'Lab admin' });
+    const retried = await vi.waitFor(() => httpMock.expectOne('/api/v1/customers'));
+    expect(retried.request.headers.get('Authorization')).toBe('Bearer new.token.y');
+    retried.flush({ items: [] });
+    expect(body).toEqual({ items: [] });
+  });
+
   it('never sends the token to other origins', () => {
     auth.setToken('abc.def.ghi');
     http.get('https://example.com/data').subscribe();

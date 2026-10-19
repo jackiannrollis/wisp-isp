@@ -1,19 +1,71 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
-import { TokenClaims } from '../../shared/models';
+import { Me, SignInResponse, TokenClaims } from '../../shared/models';
+import { API_BASE } from '../api/api.config';
+
+const AUTH = `${API_BASE}/auth`;
 
 /**
- * STUB: holds the access token in memory and decodes its claims.
- * Real authentication (login, refresh, storage) lands in step 8 of docs/09-roadmap.md.
- * The server is the authority on identity and permissions; nothing here is a security boundary.
+ * Staff session (ADR 0010). The access token lives in memory only; the refresh token is an httpOnly
+ * cookie the browser sends to `/api/v1/auth/session` alone, so a reload restores the session through
+ * {@link restore}. Nothing here is a security boundary: the server checks every request.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly http = inject(HttpClient);
   private readonly tokenSignal = signal<string | null>(null);
+  private readonly meSignal = signal<Me | null>(null);
+  private refreshing: Promise<boolean> | null = null;
 
   readonly token = this.tokenSignal.asReadonly();
+  readonly me = this.meSignal.asReadonly();
   readonly claims = computed<TokenClaims | null>(() => decodeClaims(this.tokenSignal()));
   readonly isAuthenticated = computed(() => this.tokenSignal() !== null);
+
+  login(tenant: string, email: string, password: string): Promise<SignInResponse> {
+    return this.step(`${AUTH}/login`, { tenant, email, password });
+  }
+
+  changePassword(challenge: string, newPassword: string): Promise<SignInResponse> {
+    return this.step(`${AUTH}/password`, { challenge, newPassword });
+  }
+
+  verifyTotp(challenge: string, code: string): Promise<SignInResponse> {
+    return this.step(`${AUTH}/totp`, { challenge, code });
+  }
+
+  enrollTotp(challenge: string, code: string): Promise<SignInResponse> {
+    return this.step(`${AUTH}/totp/enroll`, { challenge, code });
+  }
+
+  /** A new access token from the refresh cookie; false when there is no valid session. Concurrent callers share one call. */
+  restore(): Promise<boolean> {
+    this.refreshing ??= firstValueFrom(
+      this.http.post<SignInResponse>(`${AUTH}/session/refresh`, null),
+    )
+      .then(async (response) => {
+        await this.accept(response);
+        return this.isAuthenticated();
+      })
+      .catch(() => {
+        this.clear();
+        return false;
+      })
+      .finally(() => (this.refreshing = null));
+    return this.refreshing;
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await firstValueFrom(this.http.post(`${AUTH}/session/logout`, null));
+    } catch {
+      // Signed out locally either way; the refresh token expires on its own.
+    } finally {
+      this.clear();
+    }
+  }
 
   setToken(token: string | null): void {
     this.tokenSignal.set(token);
@@ -21,6 +73,20 @@ export class AuthService {
 
   clear(): void {
     this.tokenSignal.set(null);
+    this.meSignal.set(null);
+  }
+
+  private async step(url: string, body: unknown): Promise<SignInResponse> {
+    const response = await firstValueFrom(this.http.post<SignInResponse>(url, body));
+    await this.accept(response);
+    return response;
+  }
+
+  private async accept(response: SignInResponse): Promise<void> {
+    if (response.status === 'SIGNED_IN' && response.accessToken) {
+      this.tokenSignal.set(response.accessToken);
+      this.meSignal.set(await firstValueFrom(this.http.get<Me>(`${API_BASE}/me`)));
+    }
   }
 }
 
