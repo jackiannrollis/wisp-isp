@@ -2,13 +2,9 @@ package com.corebalt.isp.shared.security;
 
 import com.corebalt.isp.shared.web.ProblemResponseWriter;
 import com.corebalt.isp.shared.web.ProblemTypes;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
-import com.nimbusds.jose.proc.JWSVerificationKeySelector;
-import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -16,12 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
@@ -34,6 +24,7 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
  * by {@link TokenVersionFilter}.
  */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication
 @EnableMethodSecurity
 class SecurityConfig {
 
@@ -98,20 +89,5 @@ class SecurityConfig {
                 .addFilterAfter(new TenantContextFilter(problems), AuthorizationFilter.class)
                 .addFilterAfter(new TokenVersionFilter(tokenVersions, problems), TenantContextFilter.class);
         return http.build();
-    }
-
-    /** Verifies with the local key set: RS256 only, the platform's issuer and audience, not expired. */
-    @Bean
-    JwtDecoder jwtDecoder(final JwtKeys keys) {
-        final DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
-        processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, new ImmutableJWKSet<>(keys.publicKeys())));
-        processor.setJWTClaimsSetVerifier((claims, context) -> {});
-        final NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(Tokens.ISSUER),
-                jwt -> jwt.getAudience() != null && jwt.getAudience().contains(Tokens.AUDIENCE)
-                        ? OAuth2TokenValidatorResult.success()
-                        : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "wrong audience", null))));
-        return decoder;
     }
 }
