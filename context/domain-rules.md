@@ -37,7 +37,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **P1** (`tenant_id`, `provider_txn_id`) is unique; a duplicate callback is acknowledged with success and has no side effects.
 - **P2** The raw callback payload is stored before any processing; processing is retried from the stored copy.
 - **P3** Matching order: exact account reference → normalised reference → single phone-number match → `UNMATCHED` (suspense queue). Never a fuzzy name match.
-- **P4** `PaymentReceived` is published in the same transaction as the ledger credit, through the outbox.
+- **P4** `PaymentReceived` is written to the outbox in the same transaction as the payment record. Billing alone credits the ledger from it (one `PAYMENT` entry per payment, enforced by a unique ledger reference) and issues the receipt; a matched payment with no ledger entry after 5 minutes raises an alert. Manual payments take the same road.
 - **P5** A manual payment needs the `payments.record_manual` permission, a reference and an audit row.
 - **P6** An STK request with no callback after 2 minutes is queried; after 5 minutes it is `TIMED_OUT` and never silently retried.
 
@@ -63,7 +63,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **E1** Business change and outbox row commit in one transaction; the relay publishes afterwards.
 - **E2** Consumers are idempotent by event UUID and set the tenant context from the event before touching data.
 - **E3** Events are past tense, `<Aggregate><Verb>`, versioned, and carry IDs rather than entities.
-- **E4** Access to the internet never depends on a scheduled job or the broker; both only speed things up.
+- **E4** Access to the internet never depends on a scheduled job or the broker; both only speed things up. One bounded exception: renewing a prepaid line from credit already in the wallet happens in the hourly job up to `min(24 h, package duration / 4)` before expiry, so only a job outage longer than that window can restrict a customer whose wallet holds the price.
 
 ## Identity and audit (docs/08)
 

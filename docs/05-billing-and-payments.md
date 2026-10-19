@@ -15,10 +15,12 @@ Every customer has a wallet. Payments credit it, renewals debit it, and an appen
 
 ## Prepaid (default)
 
-1. Payment credits the wallet (`PAYMENT`).
-2. If balance ≥ package price and the line is `PENDING`, `ACTIVE` or `RESTRICTED`, a renewal fires automatically: `RENEWAL_CHARGE` for the price, `expires_at` extended by the package duration, `SubscriptionRenewed` published.
-3. Overpayment stays as credit and renews the next cycle automatically when it becomes due.
+1. Payment credits the wallet (`PAYMENT`). The payments module records the payment and writes `PaymentReceived` to the outbox in the same transaction (P4); billing's consumer posts the `PAYMENT` entry, issues the receipt and publishes `WalletCredited`. Billing is the only writer of `PAYMENT` entries, for every channel including manual ones.
+2. On `WalletCredited`, each `PENDING` or `ACTIVE` line of the customer (pending lines first, then earliest expiry) is renewed at most once while the balance covers it: `RENEWAL_CHARGE` for the price, `expires_at` extended by the package duration, `SubscriptionRenewed` published. The charge and the new expiry commit in one transaction under the wallet row lock, so one payment never renews two lines. The reference of the charge is the renewal's own ID.
+3. Overpayment stays as credit and renews the next cycle automatically when it becomes due: the hourly job renews `ACTIVE` lines on prepaid packages whose expiry is less than `min(24 h, package duration / 4)` away, already-expired ones included (the bounded E4 exception). Reminders for a line whose wallet already covers the next cycle say it will renew automatically instead of asking for payment.
 4. Early payment extends from the current expiry; a lapsed line renews from the moment of payment ([04](04-subscription-lifecycle.md)).
+
+Guards: the ledger has a unique (`reference_type`, `reference_id`), so a redelivered event can never credit or charge twice; any `MATCHED` payment older than 5 minutes without its ledger entry raises an alert (a stuck or dead-lettered consumer) and is listed on the reconciliation report.
 
 ## Postpaid
 
@@ -33,13 +35,13 @@ Partial amounts always land in the wallet. The tenant picks one rule:
 | Rule | Behaviour |
 |---|---|
 | `WAIT_FOR_FULL` (default) | The line stays restricted until the balance covers the full price; the SMS states the remaining amount |
-| `PRO_RATA_DAYS` | Days granted = floor(balance ÷ (price ÷ duration_days)); the charge equals the days granted at the daily rate; the remainder stays in the wallet |
+| `PRO_RATA_DAYS` | Days granted = floor(balance ÷ (price ÷ duration_days)); the charge equals the days granted at the daily rate, rounded up to the shilling (one day fewer if that would exceed the balance); the remainder stays in the wallet |
 
 ## Package changes
 
 | Change | Timing | Charge |
 |---|---|---|
-| Upgrade now | Immediate CoA to the new speed | `PRORATION_CHARGE` = (new price − old price) × remaining days ÷ duration days, rounded up to the shilling; expiry unchanged |
+| Upgrade now | Immediate CoA to the new speed | `PRORATION_CHARGE` = (new price − old price) × remaining days ÷ duration days, rounded up to the shilling, the remaining part of the paid cycle measured to the second; expiry unchanged; only before expiry |
 | Upgrade at next cycle | At renewal | Full new price at renewal |
 | Downgrade | Always at next renewal | Full new price at renewal; no refunds mid-cycle |
 
@@ -95,7 +97,7 @@ Each tenant connects its own Paybill or Till through a Daraja app whose credenti
 
 ## Receipts and invoices
 
-- A receipt is issued for every matched payment with a per-tenant sequential number that is never reused; it is available in the portal as a PDF and referenced in the `PAYMENT_RECEIVED` SMS.
+- A receipt is issued by billing for every credited payment with a per-tenant sequential number that is never reused (`CB-R000123`); it is available in the portal as a PDF and referenced in the `PAYMENT_RECEIVED` SMS.
 - Postpaid invoices are issued per billing period; prepaid customers can download a statement of ledger entries for any period.
 - Numbering and content are designed so KRA eTIMS can be added in v3 without renumbering.
 

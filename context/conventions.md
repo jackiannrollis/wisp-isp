@@ -26,7 +26,7 @@ context/            this folder
 ## Backend (Java, Spring Boot)
 
 - **Modules first.** New code goes in exactly one module; cross-module calls go through the module's `api` package (a facade or a published event). The Spring Modulith verification test must stay green.
-- **Ports against cycles.** When module A needs module B but B already depends on A's events, A declares a port interface in its api package and B implements it; never add the reverse dependency. Example: `subscriptions.api.LineCredentialStore`, implemented by the network module.
+- **Ports against cycles.** When module A needs module B but B already depends on A's events, A declares a port interface in its api package and B implements it; never add the reverse dependency. Example: `subscriptions.api.LineCredentialStore`, implemented by the network module. If A already depends on B, A calls B's api directly; the port inversion is only for the reverse case (example: subscriptions charges through billing's `Wallets`).
 - **Entities and IDs.** JPA entities per module; IDs are UUIDv7 generated in the application; every tenant-scoped entity has `tenantId`, set from `TenantContext`, never from request input.
 - **Tenant context.** Resolved once per request or event in a filter or listener; repositories read it from a thread-bound holder; a transaction sets `app.tenant_id` for PostgreSQL RLS. Code that needs all tenants (platform console, schedulers) uses an explicit `TenantIterator`, logged.
 - **Money.** `Money` value object wrapping `long minorUnits` and `Currency`; arithmetic through the value object only; rounding rules live there (proration rounds up to the shilling).
