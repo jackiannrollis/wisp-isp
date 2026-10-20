@@ -57,11 +57,11 @@
       <span class="value" [class.warn]="attention() > 0">{{ attention() }}</span>
       <span class="note">expiring, in grace or restricted</span>
     </a>
-    <div class="cell">
+    <a class="cell link" routerLink="/sessions">
       <span class="label">Active sessions</span>
       <span class="value">{{ d.network?.activeSessions ?? 0 }}</span>
       <span class="note">{{ bytes(d.network?.outputOctets) }} down this period</span>
-    </div>
+    </a>
     <a class="cell link" routerLink="/network">
       <span class="label">Routers online</span>
       <span class="value"

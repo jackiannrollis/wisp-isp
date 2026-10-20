@@ -48,6 +48,12 @@ export const routes: Routes = [
           import('./features/network/network.routes').then((m) => m.NETWORK_ROUTES),
       },
       {
+        path: 'sessions',
+        title: 'Sessions',
+        loadComponent: () =>
+          import('./features/network/sessions-page.component').then((m) => m.SessionsPageComponent),
+      },
+      {
         path: 'alerts',
         loadChildren: () => import('./features/alerts/alerts.routes').then((m) => m.ALERTS_ROUTES),
       },

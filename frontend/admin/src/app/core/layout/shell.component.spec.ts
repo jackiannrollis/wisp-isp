@@ -59,6 +59,7 @@ describe('ShellComponent', () => {
       'Lines',
       'Packages',
       'Routers',
+      'Sessions',
       'Alerts',
     ]);
     expect(links.every((a) => a.querySelector('svg') !== null)).toBe(true);

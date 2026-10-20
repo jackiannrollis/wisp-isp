@@ -1153,6 +1153,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open sessions in radacct; routerId narrows to one router, q matches the username's start. onRouter compares with the router's last /ppp/active poll (ADR 0011) */
+        get: operations["list_7"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/routers/{id}": {
         parameters: {
             query?: never;
@@ -1280,7 +1297,7 @@ export interface paths {
             cookie?: never;
         };
         /** My payments, newest first */
-        get: operations["list_7"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1382,7 +1399,7 @@ export interface paths {
             cookie?: never;
         };
         /** List payments; filter by customer, status, channel and received time [receivedFrom, receivedBefore) */
-        get: operations["list_8"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1586,7 +1603,7 @@ export interface paths {
             cookie?: never;
         };
         /** The tenant's audit log, newest first; action matches by prefix (e.g. identity.) */
-        get: operations["list_9"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2239,6 +2256,33 @@ export interface components {
         PlaceholderView: {
             name?: string;
             sample?: string;
+        };
+        OpenSessionDto: {
+            username?: string;
+            acctSessionId?: string;
+            framedIp?: string;
+            callingStationId?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            lastHeardAt?: string;
+            /** Format: uuid */
+            routerId?: string;
+            routerName?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            /** Format: uuid */
+            customerId?: string;
+            onRouter?: boolean;
+        };
+        PageResponseOpenSessionDto: {
+            items?: components["schemas"]["OpenSessionDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
         PageResponseRouterDto: {
             items?: components["schemas"]["RouterDto"][];
@@ -4508,6 +4552,32 @@ export interface operations {
             };
         };
     };
+    list_7: {
+        parameters: {
+            query?: {
+                routerId?: string;
+                q?: string;
+                page?: number;
+                size?: number;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageResponseOpenSessionDto"];
+                };
+            };
+        };
+    };
     get_4: {
         parameters: {
             query?: never;
@@ -4664,7 +4734,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_8: {
         parameters: {
             query?: {
                 page?: number;
@@ -4796,7 +4866,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_9: {
         parameters: {
             query?: {
                 customerId?: string;
@@ -5071,7 +5141,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_10: {
         parameters: {
             query?: {
                 action?: string;

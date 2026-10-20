@@ -1,11 +1,14 @@
 package com.corebalt.isp.network.application;
 
 import com.corebalt.isp.network.api.NetworkAccessChanged;
+import com.corebalt.isp.network.api.OpenSessionDto;
 import com.corebalt.isp.network.api.RouterSessionsDto;
 import com.corebalt.isp.network.api.SessionReauthorizationFailed;
 import com.corebalt.isp.network.api.SessionReauthorized;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.NotFoundException;
+import com.corebalt.isp.shared.web.PageResponse;
+import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -13,17 +16,22 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.UUID;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Session read models in the API: a router's sessions (radacct beside the worker's /ppp/active snapshot)
- * and, per line, the last CoA or Disconnect outcome with what the portal's pay page needs to say
+ * Session read models in the API: every open session of the tenant, a router's sessions (radacct beside
+ * the worker's /ppp/active snapshot) and, per line, the last CoA or Disconnect outcome with what the portal's pay page needs to say
  * "Internet restored" (docs/06 Restricted mode).
  */
 @Service
@@ -33,12 +41,62 @@ public class SessionViews {
     public record RestoreStatus(String accessProfile, Instant lastCoaAt, String lastCoaAction, String lastCoaResult,
                                 long sessionsFromBefore, boolean restored) {}
 
+    /** API sort keys and the columns they order by; PageRequests refuses any other key. */
+    public static final Map<String, String> SESSION_SORT = Map.of(
+            "username", "a.username", "startedAt", "a.acctstarttime", "lastHeardAt", "last_heard");
+
+    private static final String OPEN_WHERE = """
+             where a.acctstoptime is null
+               and (cast(:routerId as uuid) is null or a.router_id = :routerId)
+               and (cast(:q as text) is null or a.username ilike cast(:q as text) || '%')
+            """;
+
     private final JdbcClient jdbc;
     private final Clock clock;
+    private final SubscriptionDirectory lines;
 
-    SessionViews(final JdbcClient jdbc, final Clock clock) {
+    SessionViews(final JdbcClient jdbc, final Clock clock, final SubscriptionDirectory lines) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.lines = lines;
+    }
+
+    /** Open sessions of the current tenant (RLS), optionally on one router or by username prefix. */
+    @Transactional(readOnly = true)
+    public PageResponse<OpenSessionDto> openSessions(final UUID routerId, final String q, final Pageable page) {
+        final String order = page.getSort().stream()
+                .map(o -> SESSION_SORT.get(o.getProperty()) + (o.getDirection() == Sort.Direction.DESC ? " desc" : " asc"))
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("a.username asc");
+        // A username prefix matches literally: % and _ in it are not wildcards.
+        final String prefix = q == null ? null : q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        final Map<UUID, Optional<UUID>> customers = new HashMap<>();
+        final List<OpenSessionDto> items = jdbc.sql("""
+                        select a.username, a.acctsessionid, host(a.framedipaddress), a.callingstationid, a.acctstarttime,
+                               coalesce(a.acctupdatetime, a.acctstarttime) as last_heard, a.router_id, r.name, a.subscription_id,
+                               case when r.ppp_active_at is null then null else a.username = any(r.ppp_active_users) end
+                        from radacct a left join network_router r on r.id = a.router_id
+                        """ + OPEN_WHERE + " order by " + order + ", a.acctuniqueid limit :limit offset :offset")
+                .param("routerId", routerId)
+                .param("q", prefix)
+                .param("limit", page.getPageSize())
+                .param("offset", page.getOffset())
+                .query((rs, n) -> {
+                    final UUID subscriptionId = rs.getObject(9, UUID.class);
+                    final UUID customerId = subscriptionId == null ? null
+                            : customers.computeIfAbsent(subscriptionId,
+                                    id -> lines.line(id).map(SubscriptionDirectory.LineInfo::customerId)).orElse(null);
+                    return new OpenSessionDto(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                            rs.getTimestamp(5).toInstant(), rs.getTimestamp(6).toInstant(), rs.getObject(7, UUID.class),
+                            rs.getString(8), subscriptionId, customerId, (Boolean) rs.getObject(10));
+                })
+                .list();
+        final long total = jdbc.sql("select count(*) from radacct a" + OPEN_WHERE)
+                .param("routerId", routerId)
+                .param("q", prefix)
+                .query(Long.class)
+                .single();
+        return PageResponse.of(new PageImpl<>(items, page, total), s -> s);
     }
 
     @Transactional(readOnly = true)

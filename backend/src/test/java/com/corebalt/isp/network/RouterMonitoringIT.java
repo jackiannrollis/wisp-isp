@@ -110,6 +110,18 @@ class RouterMonitoringIT extends IntegrationTest {
         assertThat(sessions.get("onlyInRadius")).extracting(JsonNode::asString).containsExactly("ZZ000003");
         assertThat(sessions.get("onlyOnRouter")).extracting(JsonNode::asString).containsExactly("ZZ000002");
         assertThat(api.get("/api/v1/routers/" + UUID.randomUUID() + "/sessions").status()).isEqualTo(404);
+
+        // The tenant-wide list: only this tenant's sessions (RLS), each compared with the router's poll.
+        final JsonNode all = api.get("/api/v1/sessions?sort=startedAt,asc").json();
+        assertThat(all.get("total").asLong()).isEqualTo(2);
+        assertThat(all.get("items")).extracting(s -> s.get("username").asString()).containsExactly("ZZ000001", "ZZ000003");
+        assertThat(all.get("items").get(0).get("onRouter").asBoolean()).isTrue();
+        assertThat(all.get("items").get(1).get("onRouter").asBoolean()).as("missing from /ppp/active").isFalse();
+        assertThat(all.get("items").get(0).get("routerName").asString()).startsWith("Ruiru-");
+        assertThat(api.get("/api/v1/sessions?q=zz000003").json().get("total").asLong()).isOne();
+        assertThat(api.get("/api/v1/sessions?q=ZZ_").json().get("total").asLong()).as("_ is not a wildcard").isZero();
+        assertThat(api.get("/api/v1/sessions?routerId=" + UUID.randomUUID()).json().get("total").asLong()).isZero();
+        assertThat(api.get("/api/v1/sessions?sort=acctinputoctets,desc").status()).isEqualTo(400);
     }
 
     @Test

@@ -6,6 +6,7 @@ import {
   IconLayoutDashboard,
   IconPackage,
   IconPlug,
+  IconPlugConnected,
   IconRouter,
   IconScale,
   IconSettings,
@@ -77,6 +78,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Network',
     items: [
       { path: '/network', label: 'Routers', icon: IconRouter },
+      { path: '/sessions', label: 'Sessions', icon: IconPlugConnected },
       { path: '/alerts', label: 'Alerts', icon: IconAlertTriangle, badge: 'openAlerts' },
     ],
   },
