@@ -40,10 +40,16 @@ export class AuthService {
     return this.step(`${AUTH}/totp/enroll`, { challenge, code });
   }
 
-  /** A new access token from the refresh cookie; false when there is no valid session. Concurrent callers share one call. */
+  /**
+   * A new access token from the refresh cookie; false when there is no valid session. Concurrent
+   * callers in this tab share one call, and tabs take turns through a Web Lock: the server rotates the
+   * refresh token on every use and treats a second use of the old one as theft, signing everyone out
+   * (ADR 0010), so two tabs must never send the same cookie at once. The tab that waits sends the
+   * cookie the first tab's refresh already rotated.
+   */
   restore(): Promise<boolean> {
-    this.refreshing ??= firstValueFrom(
-      this.http.post<SignInResponse>(`${AUTH}/session/refresh`, null),
+    this.refreshing ??= exclusively(() =>
+      firstValueFrom(this.http.post<SignInResponse>(`${AUTH}/session/refresh`, null)),
     )
       .then(async (response) => {
         await this.accept(response);
@@ -88,6 +94,12 @@ export class AuthService {
       this.meSignal.set(await firstValueFrom(this.http.get<Me>(`${API_BASE}/me`)));
     }
   }
+}
+
+/** Runs {@code work} holding the cross-tab refresh lock where the browser has Web Locks. */
+function exclusively<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks ? locks.request('corebalt-staff-session-refresh', work) : work();
 }
 
 /** Decodes the payload of a JWT without verifying it (verification is the server's job). */

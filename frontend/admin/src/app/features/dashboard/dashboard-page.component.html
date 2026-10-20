@@ -1,0 +1,125 @@
+<section class="page">
+  <header class="head">
+    <h1>Dashboard</h1>
+    <div class="period">
+      <button mat-icon-button type="button" aria-label="Previous month" (click)="step(-1)">
+        <tabler-icon [icon]="icons.prev" [size]="20" />
+      </button>
+      <span class="month" aria-live="polite">{{ monthLabel() }}</span>
+      <button
+        mat-icon-button
+        type="button"
+        aria-label="Next month"
+        [disabled]="isCurrentMonth()"
+        (click)="step(1)"
+      >
+        <tabler-icon [icon]="icons.next" [size]="20" />
+      </button>
+      <button
+        mat-icon-button
+        type="button"
+        matTooltip="Reload now (it also refreshes every 30 seconds)"
+        aria-label="Reload"
+        (click)="data.reload()"
+      >
+        <tabler-icon [icon]="icons.refresh" [size]="20" />
+      </button>
+    </div>
+  </header>
+
+  @if (data.isLoading() && !data.value()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (data.error() && !data.value()) {
+    <p class="muted">
+      The dashboard could not be loaded.
+      <button mat-button type="button" (click)="data.reload()">Try again</button>
+    </p>
+  }
+
+  @if (data.value(); as d) {
+    @if (d.revenue; as r) {
+      <div class="figures">
+        <div class="figure">
+          <span class="figure-label">Renewals due</span>
+          <span class="figure-value">{{ money(r.renewalsDue) }}</span>
+          <span class="figure-note">{{ r.renewalsDueLines ?? 0 }} lines expiring this period</span>
+        </div>
+        <div class="figure">
+          <span class="figure-label">Outstanding</span>
+          <span class="figure-value">{{ money(r.outstanding) }}</span>
+          <span class="figure-note">what their wallets still lack</span>
+        </div>
+        <div class="figure">
+          <span class="figure-label">Collected</span>
+          <span class="figure-value">{{ money(r.collected) }}</span>
+          <span class="figure-note">{{ r.payments ?? 0 }} payments received</span>
+        </div>
+        <a class="figure link" routerLink="/payments/suspense">
+          <span class="figure-label">Unmatched</span>
+          <span class="figure-value">{{ money(r.unmatched) }}</span>
+          <span class="figure-note">{{ r.unmatchedPayments ?? 0 }} payments in suspense</span>
+        </a>
+        <div class="figure">
+          <span class="figure-label">Lapsed</span>
+          <span class="figure-value">{{ money(r.lapsed) }}</span>
+          <span class="figure-note">{{ r.lapsedLines ?? 0 }} lines expired before this period</span>
+        </div>
+      </div>
+    }
+
+    <div class="cards">
+      <article class="card">
+        <h2>
+          Lines <span class="count">{{ d.lines?.total ?? 0 }}</span>
+        </h2>
+        <div class="split">
+          <app-chart [option]="linesChart()" [label]="'Lines by status: ' + linesSummary()" />
+          <ul class="legend">
+            @for (row of displayRows(); track row.status) {
+              <li>
+                <a
+                  class="legend-link"
+                  routerLink="/subscriptions"
+                  [queryParams]="{ displayStatus: row.status }"
+                  [attr.aria-label]="'List ' + label(row.status) + ' lines'"
+                >
+                  <app-status-chip [status]="row.status" />
+                </a>
+                <span class="num">{{ row.count }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Network</h2>
+        <div class="split">
+          <app-chart [option]="routersChart()" [label]="'Routers by status: ' + routersSummary()" />
+          <ul class="legend">
+            @for (row of routerRows(); track row.status) {
+              <li>
+                <app-status-chip [status]="row.status" />
+                <span class="num">{{ row.count }}</span>
+              </li>
+            }
+            <li class="plain">
+              <span>Active sessions</span
+              ><span class="num">{{ d.network?.activeSessions ?? 0 }}</span>
+            </li>
+            <li class="plain">
+              <span>Downloaded</span><span class="num">{{ bytes(d.network?.outputOctets) }}</span>
+            </li>
+            <li class="plain">
+              <span>Uploaded</span><span class="num">{{ bytes(d.network?.inputOctets) }}</span>
+            </li>
+          </ul>
+        </div>
+      </article>
+    </div>
+    <p class="muted asof">
+      Days {{ d.from }} to {{ d.to }} ({{ d.zone }}). Lines, routers and sessions are as of now.
+    </p>
+  }
+</section>

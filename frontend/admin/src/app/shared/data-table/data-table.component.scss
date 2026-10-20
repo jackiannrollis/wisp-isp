@@ -1,0 +1,104 @@
+:host {
+  display: block;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.search {
+  width: min(100%, 22rem);
+}
+
+.prefix {
+  margin: 0 0.25rem 0 0.75rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.column-option {
+  padding: 0 0.75rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-label {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.frame {
+  position: relative;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  overflow: hidden;
+  background: var(--mat-sys-surface);
+}
+
+.progress {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+}
+
+.end {
+  text-align: end;
+}
+
+.actions {
+  width: 3rem;
+  text-align: end;
+}
+
+tr.link {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container-low);
+  }
+}
+
+.empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.menu-icon {
+  margin-right: 0.75rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

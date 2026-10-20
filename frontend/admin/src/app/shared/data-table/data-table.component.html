@@ -1,0 +1,186 @@
+<div class="toolbar">
+  @if (searchPlaceholder(); as placeholder) {
+    <mat-form-field appearance="outline" class="search" subscriptSizing="dynamic">
+      <tabler-icon matPrefix [icon]="icons.search" [size]="18" class="prefix" />
+      <input
+        matInput
+        #searchBox
+        type="search"
+        [placeholder]="placeholder"
+        [attr.aria-label]="placeholder"
+        (keydown.enter)="search(searchBox.value)"
+        (search)="search(searchBox.value)"
+      />
+    </mat-form-field>
+  }
+  <span class="spacer"></span>
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Reload"
+    aria-label="Reload"
+    (click)="data.reload()"
+  >
+    <tabler-icon [icon]="icons.refresh" [size]="20" />
+  </button>
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Columns"
+    aria-label="Choose columns"
+    [matMenuTriggerFor]="columnMenu"
+  >
+    <tabler-icon [icon]="icons.columns" [size]="20" />
+  </button>
+  <mat-menu #columnMenu="matMenu">
+    @for (column of columns(); track column.key) {
+      <div
+        class="column-option"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
+        <mat-checkbox [checked]="!hidden().has(column.key)" (change)="toggleColumn(column.key)">
+          {{ column.header }}
+        </mat-checkbox>
+      </div>
+    }
+  </mat-menu>
+  @if (exportName() !== null) {
+    <button
+      mat-icon-button
+      type="button"
+      matTooltip="Export CSV (current filters, visible columns)"
+      aria-label="Export CSV"
+      [disabled]="exporting()"
+      (click)="exportCsv()"
+    >
+      <tabler-icon [icon]="icons.download" [size]="20" />
+    </button>
+  }
+</div>
+
+@if (filters().length || activePresets().length) {
+  <div class="filters">
+    @for (preset of activePresets(); track preset[0]) {
+      <mat-chip-row class="preset" (removed)="removePreset(preset[0])">
+        {{ preset[1].label }}
+        <button matChipRemove [attr.aria-label]="'Remove ' + preset[1].label">
+          <tabler-icon [icon]="icons.clear" [size]="16" />
+        </button>
+      </mat-chip-row>
+    }
+    @for (filter of filters(); track filter.key) {
+      <div class="filter" role="group" [attr.aria-label]="filter.label">
+        <span class="filter-label">{{ filter.label }}</span>
+        <mat-chip-listbox
+          [attr.aria-label]="filter.label"
+          [value]="selected()[filter.key] ?? null"
+          (change)="choose(filter.key, $event.value ?? null)"
+        >
+          @for (option of filter.options; track option.value) {
+            <mat-chip-option [value]="option.value">{{ option.label }}</mat-chip-option>
+          }
+        </mat-chip-listbox>
+      </div>
+    }
+  </div>
+}
+
+<div class="frame">
+  @if (data.isLoading()) {
+    <mat-progress-bar mode="indeterminate" class="progress" />
+  }
+  <div class="scroll">
+    <table
+      mat-table
+      [dataSource]="data.value()?.items ?? []"
+      matSort
+      [matSortActive]="activeSortColumn()"
+      [matSortDirection]="effectiveSort()?.direction ?? ''"
+      (matSortChange)="onSort($event)"
+    >
+      @for (column of visibleColumns(); track column.key) {
+        <ng-container [matColumnDef]="column.key">
+          @if (column.sortKey) {
+            <th
+              mat-header-cell
+              *matHeaderCellDef
+              [mat-sort-header]="sortHeader(column)"
+              [class.end]="column.align === 'end'"
+            >
+              {{ column.header }}
+            </th>
+          } @else {
+            <th mat-header-cell *matHeaderCellDef [class.end]="column.align === 'end'">
+              {{ column.header }}
+            </th>
+          }
+          <td mat-cell *matCellDef="let row" [class.end]="column.align === 'end'">
+            @if (cellTemplates().get(column.key); as template) {
+              <ng-container *ngTemplateOutlet="template; context: { $implicit: row }" />
+            } @else {
+              {{ column.value(row) ?? '—' }}
+            }
+          </td>
+        </ng-container>
+      }
+      <ng-container matColumnDef="__actions">
+        <th mat-header-cell *matHeaderCellDef class="actions">
+          <span class="sr-only">Actions</span>
+        </th>
+        <td mat-cell *matCellDef="let row" class="actions">
+          @if (visibleActions(row); as rowActions) {
+            @if (rowActions.length) {
+              <button
+                mat-icon-button
+                type="button"
+                aria-label="Actions"
+                [matMenuTriggerFor]="rowMenu"
+                (click)="$event.stopPropagation()"
+              >
+                <tabler-icon [icon]="icons.more" [size]="20" />
+              </button>
+              <mat-menu #rowMenu="matMenu" xPosition="before">
+                @for (action of rowActions; track action.label) {
+                  <button mat-menu-item type="button" (click)="action.run(row)">
+                    <tabler-icon [icon]="action.icon" [size]="18" class="menu-icon" />
+                    <span>{{ action.label }}</span>
+                  </button>
+                }
+              </mat-menu>
+            }
+          }
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayed(); sticky: true"></tr>
+      <tr
+        mat-row
+        *matRowDef="let row; columns: displayed()"
+        [class.link]="rowLink() !== null"
+        [attr.tabindex]="rowLink() ? 0 : null"
+        (click)="open(row)"
+        (keydown.enter)="open(row)"
+      ></tr>
+      <tr class="mat-mdc-row" *matNoDataRow>
+        <td class="empty" [attr.colspan]="displayed().length">
+          @if (data.error()) {
+            Could not load this list.
+            <button mat-button type="button" (click)="data.reload()">Try again</button>
+          } @else if (!data.isLoading()) {
+            {{ emptyText() }}
+          }
+        </td>
+      </tr>
+    </table>
+  </div>
+  <mat-paginator
+    [length]="data.value()?.total ?? 0"
+    [pageIndex]="page()"
+    [pageSize]="size()"
+    [pageSizeOptions]="pageSizes"
+    (page)="onPage($event)"
+    aria-label="Pages"
+  />
+</div>
