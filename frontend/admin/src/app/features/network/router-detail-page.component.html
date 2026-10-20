@@ -1,0 +1,180 @@
+@if (router.error()) {
+  <app-page-header title="Router" backLink="/network" backLabel="Routers" />
+  <div class="panel failed">
+    <p>This router could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="router.reload()">Try again</button>
+  </div>
+}
+
+@if (router.value(); as r) {
+  <app-page-header
+    [title]="r.name ?? ''"
+    [subtitle]="r.tunnelIp ?? null"
+    backLink="/network"
+    backLabel="Routers"
+  >
+    <app-status-chip status [status]="r.status" />
+    @if (canWrite()) {
+      <ng-container actions>
+        <button
+          mat-icon-button
+          type="button"
+          class="quiet"
+          aria-label="More actions"
+          [matMenuTriggerFor]="routerMenu"
+        >
+          <tabler-icon [icon]="icons.more" [size]="18" />
+        </button>
+        <mat-menu #routerMenu="matMenu" xPosition="before">
+          <button mat-menu-item type="button" (click)="setLogin(r)">
+            <tabler-icon [icon]="icons.login" [size]="18" class="menu-icon" />
+            <span>{{ r.restUsername ? 'Replace monitoring login' : 'Set monitoring login' }}</span>
+          </button>
+          @if (r.restUsername) {
+            <button mat-menu-item type="button" (click)="stopMonitoring(r)">
+              <tabler-icon [icon]="icons.stop" [size]="18" class="menu-icon" />
+              <span>Stop monitoring</span>
+            </button>
+          }
+          <button mat-menu-item type="button" class="danger" (click)="newSecret(r)">
+            <tabler-icon [icon]="icons.secret" [size]="18" class="menu-icon" />
+            <span>New RADIUS secret</span>
+          </button>
+        </mat-menu>
+        @if (r.restUsername) {
+          <button mat-flat-button type="button" [disabled]="polling()" (click)="pollNow()">
+            <tabler-icon [icon]="icons.refresh" [size]="16" />
+            {{ polling() ? 'Polling…' : 'Poll now' }}
+          </button>
+        } @else {
+          <button mat-flat-button type="button" (click)="setLogin(r)">
+            <tabler-icon [icon]="icons.login" [size]="16" /> Set monitoring login
+          </button>
+        }
+      </ng-container>
+    }
+  </app-page-header>
+
+  @if (r.lastPollError && r.status !== 'ONLINE') {
+    <div class="notice" role="status">
+      <tabler-icon [icon]="icons.alert" [size]="18" />
+      <span>
+        Last poll {{ age(r.lastPolledAt) }}: <strong>{{ r.lastPollError }}</strong>
+        @if (r.offlineSince) {
+          · offline since {{ date(r.offlineSince) }}
+        }
+      </span>
+    </div>
+  }
+
+  <dl class="panel facts">
+    <div>
+      <dt>Last seen</dt>
+      <dd>{{ age(r.lastSeenAt) }}</dd>
+    </div>
+    <div>
+      <dt>Last polled</dt>
+      <dd>{{ age(r.lastPolledAt) }}</dd>
+    </div>
+    <div>
+      <dt>RouterOS</dt>
+      <dd>{{ r.routerosVersion || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Board</dt>
+      <dd>{{ r.boardName || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Uptime</dt>
+      <dd>{{ duration(r.uptimeSeconds) }}</dd>
+    </div>
+    <div>
+      <dt>CPU</dt>
+      <dd>{{ r.cpuLoad === null || r.cpuLoad === undefined ? '—' : r.cpuLoad + '%' }}</dd>
+    </div>
+    <div>
+      <dt>Last accounting</dt>
+      <dd>{{ age(r.lastAccountingAt) }}</dd>
+    </div>
+    <div>
+      <dt>Monitoring login</dt>
+      <dd>{{ r.restUsername || 'Not set' }}</dd>
+    </div>
+  </dl>
+
+  <section aria-labelledby="sessions-title">
+    <header class="block-head">
+      <h2 id="sessions-title" class="section-title">Sessions</h2>
+      @if (sessions.value(); as s) {
+        <p class="summary">
+          RADIUS {{ s.radius?.length ?? 0 }} open
+          <span class="sep">·</span>
+          @if (s.router; as snap) {
+            Router {{ snap.count }} active, read {{ age(snap.fetchedAt) }}
+          } @else {
+            Router list not read yet
+          }
+        </p>
+      }
+    </header>
+
+    @if (sessions.value(); as s) {
+      @if (s.onlyInRadius?.length || s.onlyOnRouter?.length) {
+        <div class="diff">
+          @if (s.onlyInRadius?.length) {
+            <p>
+              <strong>Open in RADIUS only:</strong> {{ s.onlyInRadius.join(', ') }}
+              <span class="muted"
+                >— the router no longer has these; accounting may have missed a stop.</span
+              >
+            </p>
+          }
+          @if (s.onlyOnRouter?.length) {
+            <p>
+              <strong>On the router only:</strong> {{ s.onlyOnRouter.join(', ') }}
+              <span class="muted">— no accounting received for these yet.</span>
+            </p>
+          }
+        </div>
+      }
+      <div class="panel sessions">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Session</th>
+              <th>Address</th>
+              <th>Started</th>
+              <th>Last heard</th>
+              <th>On router</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of s.radius ?? []; track session.acctSessionId) {
+              <tr>
+                <td class="key">{{ session.username }}</td>
+                <td class="mono">{{ session.acctSessionId }}</td>
+                <td class="mono">{{ session.framedIp || '—' }}</td>
+                <td>{{ date(session.startedAt) }}</td>
+                <td>{{ age(session.lastHeardAt) }}</td>
+                <td>
+                  @if (!s.router) {
+                    <span class="muted">Unknown</span>
+                  } @else if (onRouter().has(session.username ?? '')) {
+                    Yes
+                  } @else {
+                    <span class="missing">No</span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">No open sessions in RADIUS.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}
