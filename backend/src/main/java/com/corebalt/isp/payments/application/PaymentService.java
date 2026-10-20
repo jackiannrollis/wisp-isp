@@ -1,6 +1,7 @@
 package com.corebalt.isp.payments.application;
 
 import com.corebalt.isp.customers.api.CustomerFacade;
+import com.corebalt.isp.customers.api.CustomerSummary;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.payments.api.ManualPaymentRequest;
@@ -24,6 +25,7 @@ import com.corebalt.isp.shared.web.PageResponse;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -141,7 +143,8 @@ public class PaymentService implements MatchedPayments, PaymentInstructions {
         if (filter.receivedBefore() != null) {
             where = where.and((root, query, cb) -> cb.lessThan(root.get("receivedAt"), filter.receivedBefore()));
         }
-        return PageResponse.of(payments.findAll(where, page), PaymentService::toDto);
+        final Map<UUID, Optional<CustomerSummary>> customerCache = new HashMap<>();
+        return PageResponse.of(payments.findAll(where, page), p -> toDto(p, customerCache));
     }
 
     /** Staff list filters; null means any. Received times are instants, [from, before). */
@@ -206,7 +209,15 @@ public class PaymentService implements MatchedPayments, PaymentInstructions {
                 .toList();
     }
 
-    private static PaymentDto toDto(final Payment payment) {
+    private PaymentDto toDto(final Payment payment) {
+        return toDto(payment, new HashMap<>());
+    }
+
+    /** With the matched customer's number and name, looked up once per customer for a whole page. */
+    private PaymentDto toDto(final Payment payment, final Map<UUID, Optional<CustomerSummary>> customerCache) {
+        final Optional<CustomerSummary> customer = payment.getCustomerId() == null
+                ? Optional.empty()
+                : customerCache.computeIfAbsent(payment.getCustomerId(), customers::find);
         return new PaymentDto(
                 payment.getId(),
                 payment.getChannel(),
@@ -215,6 +226,8 @@ public class PaymentService implements MatchedPayments, PaymentInstructions {
                 payment.getReceivedAt(),
                 payment.getStatus(),
                 payment.getCustomerId(),
+                customer.map(CustomerSummary::number).orElse(null),
+                customer.map(CustomerSummary::name).orElse(null),
                 payment.getMatchedAt());
     }
 }

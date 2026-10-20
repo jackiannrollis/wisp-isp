@@ -12,4 +12,6 @@ public record PaymentDto(
         Instant receivedAt,
         String status,
         UUID customerId,
+        String customerNumber,
+        String customerName,
         Instant matchedAt) {}

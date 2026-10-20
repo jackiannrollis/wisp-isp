@@ -64,6 +64,10 @@ class ListFiltersIT extends IntegrationTest {
         manual(api, c, "BANK", "R-2", "2026-10-05T08:00:00Z");
 
         assertThat(api.get("/api/v1/payments?channel=BANK").json().get("total").asLong()).isOne();
+        // A matched payment names its customer, so the list can show who paid.
+        final var bank = api.get("/api/v1/payments?channel=BANK").json().get("items").get(0);
+        assertThat(bank.get("customerName").asString()).isEqualTo("Kiprop Rotich");
+        assertThat(bank.get("customerNumber").asString()).isNotBlank();
         assertThat(api.get("/api/v1/payments?status=MATCHED").json().get("total").asLong()).isEqualTo(2);
         assertThat(api.get("/api/v1/payments?receivedFrom=2026-10-02T00:00:00Z").json().get("total").asLong()).isOne();
         assertThat(api.get("/api/v1/payments?receivedBefore=2026-10-05T08:00:00Z").json().get("total").asLong()).isOne();

@@ -89,6 +89,11 @@ export class DataTableComponent<T> {
   readonly defaultSort = input<SortDef | null>(null);
   readonly exportName = input<string | null>(null);
   readonly rowLink = input<((row: T) => string) | null>(null);
+  /** Instead of a link, run this when a row is clicked or Enter is pressed on it. */
+  readonly rowSelect = input<((row: T) => void) | null>(null);
+  protected readonly clickable = computed(
+    () => this.rowLink() !== null || this.rowSelect() !== null,
+  );
   readonly emptyText = input('Nothing to show.');
   /** Singular and plural noun for the count in the toolbar, e.g. ['customer', 'customers']. */
   readonly itemLabel = input<[string, string]>(['result', 'results']);
@@ -232,6 +237,11 @@ export class DataTableComponent<T> {
   }
 
   protected open(row: T): void {
+    const select = this.rowSelect();
+    if (select) {
+      select(row);
+      return;
+    }
     const link = this.rowLink();
     if (link) {
       void this.router.navigateByUrl(link(row));

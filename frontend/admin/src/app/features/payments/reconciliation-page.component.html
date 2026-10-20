@@ -1,0 +1,160 @@
+<app-page-header
+  title="Reconciliation"
+  subtitle="Upload the M-Pesa statement export (CSV) to compare it with the payments recorded here."
+>
+  <ng-container actions>
+    <input
+      #file
+      type="file"
+      accept=".csv,text/csv"
+      class="file"
+      (change)="upload(file)"
+      aria-label="M-Pesa statement CSV"
+    />
+    <button mat-flat-button type="button" [disabled]="uploading()" (click)="file.click()">
+      <tabler-icon [icon]="uploadIcon" [size]="16" />
+      {{ uploading() ? 'Comparing…' : 'Upload statement' }}
+    </button>
+  </ng-container>
+</app-page-header>
+
+<app-data-table
+  tableId="reconciliations"
+  emptyText="No statements uploaded yet."
+  [itemLabel]="['run', 'runs']"
+  [columns]="columns"
+  [fetch]="fetch"
+  [rowSelect]="select"
+  [refresh]="version()"
+>
+  <ng-template appCell="missing" let-row>
+    <span [class.attention]="row.missingCount > 0">{{ row.missingCount }}</span>
+  </ng-template>
+  <ng-template appCell="extra" let-row>
+    <span [class.attention]="row.extraCount > 0">{{ row.extraCount }}</span>
+  </ng-template>
+  <ng-template appCell="uncredited" let-row>
+    <span [class.alert]="row.uncreditedCount > 0">{{ row.uncreditedCount }}</span>
+  </ng-template>
+</app-data-table>
+
+@if (run.value(); as r) {
+  <section class="report" aria-labelledby="report-title">
+    <header class="report-head">
+      <h2 id="report-title" class="section-title">
+        Report · statement of {{ date(r.periodFrom) }} – {{ date(r.periodTo) }}
+      </h2>
+      <span class="muted">{{ r.statementRows }} statement rows</span>
+    </header>
+
+    @if (clean()) {
+      <div class="panel all-clear">
+        Statement and platform agree: nothing missing, nothing extra, everything credited.
+      </div>
+    }
+
+    @if (r.report?.missing?.length) {
+      <h3 class="list-title">
+        On the statement, missing here <span class="count">{{ r.missingCount }}</span>
+      </h3>
+      <p class="help">
+        Money M-Pesa received that never reached the platform, usually a lost callback.
+      </p>
+      <div class="panel list">
+        <table>
+          <thead>
+            <tr>
+              <th>M-Pesa receipt</th>
+              <th>Completed</th>
+              <th>Details</th>
+              <th class="end">Paid in</th>
+              <th class="end"><span class="sr-only">Action</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of r.report.missing; track line.receipt) {
+              <tr>
+                <td class="key">{{ line.receipt }}</td>
+                <td>{{ date(line.completedAt) }}</td>
+                <td class="details">{{ line.details || '—' }}</td>
+                <td class="end">{{ money({ amount: line.paidInMinor, currency: 'KES' }) }}</td>
+                <td class="end">
+                  @if (asked().has(line.receipt ?? '')) {
+                    <span class="muted">Asked</span>
+                  } @else {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      (click)="investigate(line.receipt ?? '')"
+                    >
+                      Ask M-Pesa
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (r.report?.extra?.length) {
+      <h3 class="list-title">
+        Recorded here, not on the statement <span class="count">{{ r.extraCount }}</span>
+      </h3>
+      <p class="help">
+        Check these against the receipt book or bank; a typo in a manual reference shows up here.
+      </p>
+      <div class="panel list">
+        <table>
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Received</th>
+              <th class="end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of r.report.extra; track p.paymentId) {
+              <tr>
+                <td class="key">{{ p.reference }}</td>
+                <td>{{ date(p.receivedAt) }}</td>
+                <td class="end">{{ money({ amount: p.amountMinor, currency: 'KES' }) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (r.report?.uncredited?.length) {
+      <h3 class="list-title alert">
+        Matched but not credited <span class="count">{{ r.uncreditedCount }}</span>
+      </h3>
+      <p class="help">
+        These payments have a customer but no wallet credit after 5 minutes (P4). Staff are alerted
+        too.
+      </p>
+      <div class="panel list">
+        <table>
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Received</th>
+              <th class="end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of r.report.uncredited; track p.paymentId) {
+              <tr>
+                <td class="key">{{ p.reference }}</td>
+                <td>{{ date(p.receivedAt) }}</td>
+                <td class="end">{{ money({ amount: p.amountMinor, currency: 'KES' }) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}

@@ -168,8 +168,8 @@
         <tr
           mat-row
           *matRowDef="let row; columns: displayed()"
-          [class.link]="rowLink() !== null"
-          [attr.tabindex]="rowLink() ? 0 : null"
+          [class.link]="clickable()"
+          [attr.tabindex]="clickable() ? 0 : null"
           (click)="open(row)"
           (keydown.enter)="open(row)"
         ></tr>

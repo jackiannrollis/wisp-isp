@@ -1,27 +1,20 @@
 import { Routes } from '@angular/router';
 
-const placeholder = () =>
-  import('../../shared/components/placeholder-page.component').then(
-    (m) => m.PlaceholderPageComponent,
-  );
-
 export const PAYMENTS_ROUTES: Routes = [
   {
     path: '',
     title: 'Payments',
-    data: { heading: 'Payments' },
-    loadComponent: placeholder,
+    loadComponent: () => import('./payments-page.component').then((m) => m.PaymentsPageComponent),
   },
   {
     path: 'suspense',
     title: 'Suspense',
-    data: { heading: 'Suspense' },
-    loadComponent: placeholder,
+    loadComponent: () => import('./suspense-page.component').then((m) => m.SuspensePageComponent),
   },
   {
     path: 'reconciliation',
     title: 'Reconciliation',
-    data: { heading: 'Reconciliation' },
-    loadComponent: placeholder,
+    loadComponent: () =>
+      import('./reconciliation-page.component').then((m) => m.ReconciliationPageComponent),
   },
 ];

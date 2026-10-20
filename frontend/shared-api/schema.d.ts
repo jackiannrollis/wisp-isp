@@ -1994,6 +1994,8 @@ export interface components {
             status?: string;
             /** Format: uuid */
             customerId?: string;
+            customerNumber?: string;
+            customerName?: string;
             /** Format: date-time */
             matchedAt?: string;
         };
