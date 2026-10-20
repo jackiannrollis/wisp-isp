@@ -2,9 +2,6 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
 
-const placeholder = () =>
-  import('./shared/components/placeholder-page.component').then((m) => m.PlaceholderPageComponent);
-
 export const routes: Routes = [
   {
     path: 'login',
@@ -60,9 +57,7 @@ export const routes: Routes = [
       },
       {
         path: 'audit-log',
-        title: 'Audit log',
-        data: { heading: 'Audit log' },
-        loadComponent: placeholder,
+        loadChildren: () => import('./features/audit/audit.routes').then((m) => m.AUDIT_ROUTES),
       },
       {
         path: 'settings',
