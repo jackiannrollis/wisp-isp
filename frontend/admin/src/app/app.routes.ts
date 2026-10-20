@@ -56,9 +56,7 @@ export const routes: Routes = [
       },
       {
         path: 'staff',
-        title: 'Staff and roles',
-        data: { heading: 'Staff and roles' },
-        loadComponent: placeholder,
+        loadChildren: () => import('./features/staff/staff.routes').then((m) => m.STAFF_ROUTES),
       },
       {
         path: 'audit-log',

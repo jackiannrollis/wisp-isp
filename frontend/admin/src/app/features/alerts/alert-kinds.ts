@@ -24,7 +24,7 @@ export const ALERT_KINDS: Record<string, AlertKind> = {
   COA_FAILED: {
     label: 'Router did not apply a change',
     action:
-      'The session takes the new speed or restriction at its next login, within 24 hours. Disconnect it from the router page to apply it now.',
+      'The session takes the new speed or restriction at its next login, within 24 hours. To apply it now, ask the customer to restart their router.',
     icon: IconPlugConnectedX,
   },
   SMS_CREDIT_EXHAUSTED: {

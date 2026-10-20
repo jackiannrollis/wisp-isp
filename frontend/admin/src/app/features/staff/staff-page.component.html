@@ -1,0 +1,93 @@
+<app-page-header
+  title="Staff and roles"
+  subtitle="Who can sign in and what each role allows. Every change is kept in the audit log."
+/>
+
+<mat-tab-group animationDuration="0ms" mat-stretch-tabs="false" class="tabs">
+  <mat-tab label="Staff">
+    <div class="tab-actions">
+      <button mat-flat-button type="button" (click)="invite()" [disabled]="!roles.value()">
+        <tabler-icon [icon]="icons.invite" [size]="16" />
+        Invite staff
+      </button>
+    </div>
+    <app-data-table
+      tableId="staff"
+      exportName="staff"
+      emptyText="No staff match."
+      searchPlaceholder="Search name or email"
+      [itemLabel]="['person', 'people']"
+      [columns]="columns"
+      [filters]="filters"
+      [fetch]="fetch"
+      [actions]="actions"
+      [refresh]="version()"
+      [defaultSort]="{ key: 'createdAt', direction: 'asc' }"
+    >
+      <ng-template appCell="displayName" let-row>
+        <span class="person">
+          <span class="name">{{ row.displayName }}</span>
+          <span class="email">{{ row.email }}</span>
+        </span>
+      </ng-template>
+      <ng-template appCell="status" let-row><app-status-chip [status]="row.status" /></ng-template>
+      <ng-template appCell="twoFa" let-row>
+        <span class="twofa" [class]="twoFa(row).tone">{{ twoFa(row).text }}</span>
+      </ng-template>
+    </app-data-table>
+  </mat-tab>
+
+  <mat-tab label="Roles">
+    <div class="tab-actions">
+      <button
+        mat-flat-button
+        type="button"
+        (click)="editRole(null)"
+        [disabled]="!permissions.value()"
+      >
+        <tabler-icon [icon]="icons.add" [size]="16" />
+        New role
+      </button>
+    </div>
+    <div class="panel list">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Allows</th>
+            <th class="end">People</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (role of roles.value(); track role.id) {
+            <tr class="link" tabindex="0" (click)="editRole(role)" (keydown.enter)="editRole(role)">
+              <td class="role">
+                <span class="role-name">{{ role.name }}</span>
+                @if (role.requires2fa) {
+                  <span class="needs-2fa"><tabler-icon [icon]="icons.lock" [size]="14" /> 2FA</span>
+                }
+                @if (role.builtIn) {
+                  <span class="built-in">Built in</span>
+                }
+              </td>
+              <td class="allows">
+                @if (role.permissions?.length === permissions.value()?.length) {
+                  Everything
+                } @else {
+                  @for (code of role.permissions; track code; let last = $last) {
+                    {{ permissionLabel(code) }}{{ last ? '' : ', ' }}
+                  }
+                }
+              </td>
+              <td class="end">{{ role.members }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="help">
+      Any staff member can see customers, lines, routers and alerts. A role holding a permission
+      marked 2FA requires two-factor sign-in (A2).
+    </p>
+  </mat-tab>
+</mat-tab-group>

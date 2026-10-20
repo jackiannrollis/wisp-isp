@@ -24,6 +24,7 @@ const TONES: Record<string, StatusTone> = {
   THROTTLED: 'warning',
   UNMATCHED: 'warning',
   UNKNOWN: 'warning',
+  INVITED: 'warning',
   RESTRICTED: 'error',
   OFFLINE: 'error',
   SUSPENDED: 'error',
@@ -34,6 +35,7 @@ const TONES: Record<string, StatusTone> = {
   TERMINATED: 'neutral',
   ARCHIVED: 'neutral',
   NOT_MONITORED: 'neutral',
+  DISABLED: 'neutral',
 };
 
 export function statusTone(status: string | null | undefined): StatusTone {
