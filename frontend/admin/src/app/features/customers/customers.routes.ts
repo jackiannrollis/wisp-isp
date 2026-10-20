@@ -6,4 +6,10 @@ export const CUSTOMERS_ROUTES: Routes = [
     title: 'Customers',
     loadComponent: () => import('./customers-page.component').then((m) => m.CustomersPageComponent),
   },
+  {
+    path: ':id',
+    title: 'Customer',
+    loadComponent: () =>
+      import('./customer-detail-page.component').then((m) => m.CustomerDetailPageComponent),
+  },
 ];

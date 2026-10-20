@@ -77,3 +77,8 @@ a {
   font: var(--mat-sys-headline-small);
   margin: 0 0 0.75rem;
 }
+
+// Tables inside tabs size to the tab; the table's own wrapper scrolls sideways when it must.
+.mat-mdc-tab-group .mat-mdc-tab-body-content {
+  overflow-x: hidden;
+}

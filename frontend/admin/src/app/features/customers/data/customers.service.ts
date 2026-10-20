@@ -8,6 +8,7 @@ import { Page, TableQuery } from '../../../shared/data-table/data-table.types';
 import { components } from '../../../shared/models';
 
 export type Customer = components['schemas']['CustomerDto'];
+export type CustomerRequest = components['schemas']['CustomerRequest'];
 
 /** `/api/v1/customers`. */
 @Injectable({ providedIn: 'root' })
@@ -20,5 +21,20 @@ export class CustomersService {
 
   get(id: string): Observable<Customer> {
     return this.http.get<Customer>(`${API_BASE}/customers/${encodeURIComponent(id)}`);
+  }
+
+  create(request: CustomerRequest): Observable<Customer> {
+    return this.http.post<Customer>(`${API_BASE}/customers`, request);
+  }
+
+  update(id: string, request: CustomerRequest): Observable<Customer> {
+    return this.http.put<Customer>(`${API_BASE}/customers/${encodeURIComponent(id)}`, request);
+  }
+
+  archive(id: string): Observable<Customer> {
+    return this.http.post<Customer>(
+      `${API_BASE}/customers/${encodeURIComponent(id)}/archive`,
+      null,
+    );
   }
 }

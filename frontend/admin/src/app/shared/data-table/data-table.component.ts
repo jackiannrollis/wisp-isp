@@ -92,6 +92,8 @@ export class DataTableComponent<T> {
   readonly exportName = input<string | null>(null);
   readonly rowLink = input<((row: T) => string) | null>(null);
   readonly emptyText = input('Nothing to show.');
+  /** Change it to make the table read its current page again (after the page changed the data). */
+  readonly refresh = input(0);
 
   private readonly cells = contentChildren(CellDirective);
   protected readonly cellTemplates = computed(
@@ -140,7 +142,7 @@ export class DataTableComponent<T> {
   });
 
   protected readonly data = rxResource({
-    params: () => ({ query: this.query(), fetch: this.fetch() }),
+    params: () => ({ query: this.query(), fetch: this.fetch(), refresh: this.refresh() }),
     stream: ({ params }) => params.fetch(params.query),
   });
 

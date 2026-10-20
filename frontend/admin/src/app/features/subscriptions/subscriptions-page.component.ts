@@ -43,6 +43,7 @@ const DISPLAY_STATUSES = [
         [presetFilters]="presets()"
         [initialFilters]="initial()"
         [fetch]="fetch"
+        [rowLink]="link"
         [defaultSort]="{ key: 'pppoeUsername', direction: 'asc' }"
       >
         <ng-template appCell="displayStatus" let-row>
@@ -89,6 +90,8 @@ export class SubscriptionsPageComponent {
   private readonly routerNames = computed(() => new Map(this.routers().map((r) => [r.id, r.name])));
 
   protected readonly fetch: TableFetch<Line> = (query) => this.lines.list(query);
+  /** A line opens its customer, where its actions are. */
+  protected readonly link = (l: Line) => `/customers/${l.customerId}`;
 
   protected readonly presets = computed(() => {
     const presets: Record<string, { value: string; label: string }> = {};

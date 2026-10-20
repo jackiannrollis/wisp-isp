@@ -81,7 +81,18 @@ INSERT INTO lab_line VALUES
     (10, 'ZZ', 'ZZ000002', 'ACTIVE',    '-1 hour',  3, NULL, NULL, NULL),
     -- PAUSED, pause ended an hour ago and no job has recorded the resume: the view resumes it with
     -- the 10 paused days added back, so it is FULL, not RESTRICTED (S7, E4)
-    (11, 'ZZ', 'ZZ000003', 'PAUSED',    '-2 days',  0, NULL, '10 days', '-1 hour');
+    (11, 'ZZ', 'ZZ000003', 'PAUSED',    '-2 days',  0, NULL, '10 days', '-1 hour'),
+    -- More of every status for the admin screens (numbers from 20 up, clear of customers created by
+    -- hand on a developer's stack). TERMINATED: rejected for good; its customer stays ACTIVE.
+    (12, 'CB', 'CB000020', 'TERMINATED', '-5 days', 0, NULL, NULL, NULL),
+    -- TERMINATED line of a customer who is ARCHIVED (set below)
+    (13, 'CB', 'CB000021', 'TERMINATED', '-40 days', 0, NULL, NULL, NULL),
+    -- EXPIRING: two days left, then two days of (throttled) grace
+    (14, 'CB', 'CB000022', 'ACTIVE',    '2 days',   2, NULL, NULL, NULL),
+    -- GRACE: expired yesterday, three days of grace (THROTTLED in tenant CB)
+    (15, 'CB', 'CB000023', 'ACTIVE',    '-1 day',   3, NULL, NULL, NULL),
+    -- ACTIVE, mid-cycle
+    (16, 'CB', 'CB000024', 'ACTIVE',    '15 days',  0, NULL, NULL, NULL);
 
 INSERT INTO customers_customer (id, tenant_id, number, name, phone)
 SELECT ('01900000-0000-7000-8000-0000000c' || lpad(to_hex(l.n), 4, '0'))::uuid, t.id, l.number,
@@ -98,7 +109,7 @@ ON CONFLICT (tenant_id) DO UPDATE
 
 INSERT INTO subscriptions_subscription (id, tenant_id, customer_id, package_id, router_id,
                                         pppoe_username, state, expires_at, grace_days, static_ip,
-                                        paused_at, pause_until)
+                                        paused_at, pause_until, terminated_at)
 SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, t.id,
        ('01900000-0000-7000-8000-0000000c' || lpad(to_hex(l.n), 4, '0'))::uuid,
        CASE l.code WHEN 'CB' THEN '01900000-0000-7000-8000-0000000000e1'::uuid
@@ -106,12 +117,18 @@ SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, 
        CASE l.code WHEN 'CB' THEN '01900000-0000-7000-8000-0000000000a2'::uuid
                    ELSE '01900000-0000-7000-8000-0000000000a3'::uuid END,
        l.number, l.state, now() + l.expires_in, l.grace_days, l.static_ip,
-       now() - l.paused_ago, now() + l.pause_left
+       now() - l.paused_ago, now() + l.pause_left,
+       CASE WHEN l.state = 'TERMINATED' THEN now() + l.expires_in + interval '1 day' END
 FROM lab_line l JOIN tenancy_tenant t ON t.code = l.code
 ON CONFLICT (id) DO UPDATE
     SET state = EXCLUDED.state, expires_at = EXCLUDED.expires_at, grace_days = EXCLUDED.grace_days,
         static_ip = EXCLUDED.static_ip, paused_at = EXCLUDED.paused_at,
-        pause_until = EXCLUDED.pause_until, terminated_at = NULL, updated_at = now();
+        pause_until = EXCLUDED.pause_until, terminated_at = EXCLUDED.terminated_at, updated_at = now();
+
+-- Customer statuses: CB000021 left and is ARCHIVED; everyone else is ACTIVE (re-runs restore that).
+UPDATE customers_customer
+SET status = CASE number WHEN 'CB000021' THEN 'ARCHIVED' ELSE 'ACTIVE' END, updated_at = now()
+WHERE id IN (SELECT ('01900000-0000-7000-8000-0000000c' || lpad(to_hex(n), 4, '0'))::uuid FROM lab_line);
 
 INSERT INTO network_radius_credential (id, tenant_id, subscription_id, secret)
 SELECT ('01900000-0000-7000-8000-0000000d' || lpad(to_hex(l.n), 4, '0'))::uuid, t.id,
