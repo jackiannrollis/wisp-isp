@@ -132,6 +132,10 @@ class RouterMonitoringIT extends IntegrationTest {
         assertThat(events("RouterOffline")).as("published once per outage").isOne();
 
         relayAndAwaitAlert(true);
+        final JsonNode open = api.get("/api/v1/notifications/alerts").json().get("items").get(0);
+        assertThat(open.get("kind").asString()).isEqualTo("ROUTER_OFFLINE");
+        assertThat(open.get("subjectId").asString()).isEqualTo(routerId);
+        assertThat(open.get("subjectLabel").asString()).as("staff see the router's name").startsWith("Ruiru-");
 
         ROUTER_OS.up(tunnelIp);
         poll();
@@ -139,6 +143,11 @@ class RouterMonitoringIT extends IntegrationTest {
         assertThat(router().get("offlineSince").isNull()).isTrue();
         assertThat(events("RouterOnline")).isOne();
         relayAndAwaitAlert(false);
+        assertThat(api.get("/api/v1/notifications/alerts").json().get("total").asLong()).isZero();
+        final JsonNode cleared = api.get("/api/v1/notifications/alerts?state=CLEARED").json().get("items").get(0);
+        assertThat(cleared.get("subjectId").asString()).isEqualTo(routerId);
+        assertThat(cleared.get("clearedAt").isNull()).isFalse();
+        assertThat(api.get("/api/v1/notifications/alerts?state=SOMETIMES").status()).isEqualTo(400);
     }
 
     @Test

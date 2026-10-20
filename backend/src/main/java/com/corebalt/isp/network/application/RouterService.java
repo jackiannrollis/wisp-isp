@@ -1,6 +1,7 @@
 package com.corebalt.isp.network.application;
 
 import com.corebalt.isp.network.api.RouterDto;
+import com.corebalt.isp.network.api.RouterNames;
 import com.corebalt.isp.network.api.RouterPollRequested;
 import com.corebalt.isp.network.api.RouterRequest;
 import com.corebalt.isp.network.api.RouterSecretDto;
@@ -24,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Clock;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.data.domain.Pageable;
@@ -36,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  * takes effect after FreeRADIUS reloads; onboarding scripts and monitoring come later.
  */
 @Service
-public class RouterService implements RouterDirectory {
+public class RouterService implements RouterDirectory, RouterNames {
 
     private final RouterRepository routers;
     private final RadiusCredentials credentials;
@@ -96,6 +98,12 @@ public class RouterService implements RouterDirectory {
     @Transactional(readOnly = true)
     public boolean exists(final UUID routerId) {
         return routers.existsById(routerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> name(final UUID routerId) {
+        return routers.findById(routerId).map(Router::getName);
     }
 
     /**

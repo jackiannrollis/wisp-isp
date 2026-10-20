@@ -1,0 +1,82 @@
+<app-page-header
+  title="Alerts"
+  subtitle="Problems that need staff. Each alert clears by itself once the problem is gone."
+>
+  <ng-container actions>
+    <mat-button-toggle-group
+      hideSingleSelectionIndicator
+      aria-label="Which alerts"
+      [value]="state()"
+      (change)="state.set($event.value)"
+    >
+      <mat-button-toggle value="OPEN">Open</mat-button-toggle>
+      <mat-button-toggle value="CLEARED">Cleared</mat-button-toggle>
+    </mat-button-toggle-group>
+  </ng-container>
+</app-page-header>
+
+<app-data-table
+  [tableId]="open() ? 'alerts-open' : 'alerts-cleared'"
+  exportName="alerts"
+  [emptyText]="
+    open() ? 'No open alerts. Routers, CoA and SMS are all working.' : 'No cleared alerts yet.'
+  "
+  [itemLabel]="['alert', 'alerts']"
+  [columns]="columns()"
+  [fetch]="fetch()"
+  [rowLink]="link"
+>
+  <ng-template appCell="kind" let-row>
+    <span class="kind" [class.live]="open()">
+      <tabler-icon [icon]="kind(row.kind).icon" [size]="16" />
+      {{ kind(row.kind).label }}
+    </span>
+  </ng-template>
+  <ng-template appCell="subject" let-row>
+    <span class="subject">{{ row.subjectLabel || '—' }}</span>
+  </ng-template>
+  <ng-template appCell="action" let-row>
+    <span class="action">{{ kind(row.kind).action }}</span>
+  </ng-template>
+</app-data-table>
+
+@if (flags.value()?.length) {
+  <section class="flags" aria-labelledby="flags-title">
+    <h2 id="flags-title" class="section-title">Numbers the SMS provider refused</h2>
+    <p class="help">
+      No message is sent to these numbers. Correct the customer's phone number, then clear the flag.
+    </p>
+    <div class="panel list">
+      <table>
+        <thead>
+          <tr>
+            <th>Number</th>
+            <th>Reason</th>
+            <th>Provider said</th>
+            <th>Since</th>
+            @if (canClearFlags()) {
+              <th class="end"><span class="sr-only">Action</span></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (flag of flags.value(); track flag.phone) {
+            <tr>
+              <td class="key">{{ flag.phone }}</td>
+              <td>{{ flagStatus(flag) }}</td>
+              <td class="muted">{{ flag.reason || '—' }}</td>
+              <td>{{ date(flag.flaggedAt) }}</td>
+              @if (canClearFlags()) {
+                <td class="end">
+                  <button mat-stroked-button type="button" (click)="clearFlag(flag)">
+                    Clear flag
+                  </button>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

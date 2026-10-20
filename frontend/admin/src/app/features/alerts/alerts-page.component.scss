@@ -1,0 +1,89 @@
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  font-weight: 600;
+  color: var(--app-neutral);
+
+  &.live {
+    color: var(--app-error);
+  }
+}
+
+.subject {
+  font-weight: 600;
+}
+
+.action {
+  display: block;
+  min-width: 18rem;
+  white-space: normal;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.flags {
+  margin-top: var(--app-space-6);
+}
+
+.help {
+  margin: 0 0 var(--app-space-2);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.list {
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    height: 2.5rem;
+    padding: 0 var(--app-space-4);
+    text-align: start;
+    font: var(--mat-sys-label-medium);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface-variant);
+    background: var(--mat-sys-surface-container-low);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  td {
+    height: 2.75rem;
+    padding: 0 var(--app-space-4);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .end {
+    text-align: end;
+  }
+
+  .key {
+    font-weight: 600;
+  }
+
+  button {
+    height: 2rem;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

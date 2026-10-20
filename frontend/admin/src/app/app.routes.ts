@@ -50,7 +50,10 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/network/network.routes').then((m) => m.NETWORK_ROUTES),
       },
-      { path: 'alerts', title: 'Alerts', data: { heading: 'Alerts' }, loadComponent: placeholder },
+      {
+        path: 'alerts',
+        loadChildren: () => import('./features/alerts/alerts.routes').then((m) => m.ALERTS_ROUTES),
+      },
       {
         path: 'staff',
         title: 'Staff and roles',

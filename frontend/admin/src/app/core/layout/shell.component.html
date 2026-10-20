@@ -76,6 +76,9 @@
               >
                 <tabler-icon [icon]="item.icon" [size]="18" />
                 <span>{{ item.label }}</span>
+                @if (item.badge && badges()[item.badge]; as count) {
+                  <span class="badge" [attr.aria-label]="count + ' open'">{{ count }}</span>
+                }
               </a>
             </li>
           }

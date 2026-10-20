@@ -1,8 +1,14 @@
 package com.corebalt.isp.notifications.application;
 
+import com.corebalt.isp.network.api.RouterNames;
+import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.PageResponse;
+import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -10,7 +16,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** What staff see: messages and their status, open SMS alerts, numbers the provider refused. */
+/** What staff see: messages and their status, staff alerts, numbers the provider refused. */
 @Service
 public class NotificationQueries {
 
@@ -18,14 +24,27 @@ public class NotificationQueries {
                               Instant scheduledFor, int attempts, String providerStatus, String failureReason,
                               Instant sentAt, Instant deliveredAt, Instant createdAt) {}
 
-    public record AlertView(String kind, UUID subjectId, String detail, Instant raisedAt) {}
+    /**
+     * A staff alert. {@code subjectLabel} names what it is about (the router's name for ROUTER_OFFLINE, the
+     * PPPoE username for COA_FAILED) and {@code customerId} is the line's customer, so the screen can link
+     * to it; both are null for tenant-wide SMS alerts or a subject that no longer exists.
+     */
+    public record AlertView(UUID id, String kind, UUID subjectId, String subjectLabel, UUID customerId, String detail,
+                            Instant raisedAt, Instant clearedAt) {}
 
     public record PhoneFlagView(String phone, String status, String reason, Instant flaggedAt) {}
 
-    private final JdbcClient jdbc;
+    /** Alert filter: still open, or cleared (history). */
+    public static final Set<String> ALERT_STATES = Set.of("OPEN", "CLEARED");
 
-    NotificationQueries(final JdbcClient jdbc) {
+    private final JdbcClient jdbc;
+    private final RouterNames routers;
+    private final SubscriptionDirectory lines;
+
+    NotificationQueries(final JdbcClient jdbc, final RouterNames routers, final SubscriptionDirectory lines) {
         this.jdbc = jdbc;
+        this.routers = routers;
+        this.lines = lines;
     }
 
     @Transactional(readOnly = true)
@@ -50,12 +69,46 @@ public class NotificationQueries {
         return PageResponse.of(new PageImpl<>(items, page, total), m -> m);
     }
 
+    /** Open alerts oldest problem first; cleared ones most recently cleared first. */
     @Transactional(readOnly = true)
-    public List<AlertView> openAlerts() {
-        return jdbc.sql("select kind, subject_id, detail, raised_at from notifications_alert where cleared_at is null order by raised_at")
-                .query((rs, n) -> new AlertView(rs.getString(1), rs.getObject(2, UUID.class), rs.getString(3),
-                        rs.getTimestamp(4).toInstant()))
+    public PageResponse<AlertView> alerts(final String state, final Pageable page) {
+        if (!ALERT_STATES.contains(state)) {
+            throw InvalidRequestException.of("state", "must be OPEN or CLEARED");
+        }
+        final boolean open = state.equals("OPEN");
+        final String where = open ? " where cleared_at is null" : " where cleared_at is not null";
+        final String order = open ? " order by raised_at, id" : " order by cleared_at desc, id desc";
+        final Map<String, Subject> subjects = new HashMap<>();
+        final List<AlertView> items = jdbc.sql("select id, kind, subject_id, detail, raised_at, cleared_at from notifications_alert"
+                        + where + order + " limit :limit offset :offset")
+                .param("limit", page.getPageSize())
+                .param("offset", page.getOffset())
+                .query((rs, n) -> {
+                    final String kind = rs.getString(2);
+                    final UUID subjectId = rs.getObject(3, UUID.class);
+                    final Subject subject = subjectId == null
+                            ? Subject.NONE
+                            : subjects.computeIfAbsent(kind + subjectId, k -> subject(kind, subjectId));
+                    return new AlertView(rs.getObject(1, UUID.class), kind, subjectId, subject.label(), subject.customerId(),
+                            rs.getString(4), rs.getTimestamp(5).toInstant(), instant(rs.getTimestamp(6)));
+                })
                 .list();
+        final long total = jdbc.sql("select count(*) from notifications_alert" + where).query(Long.class).single();
+        return PageResponse.of(new PageImpl<>(items, page, total), a -> a);
+    }
+
+    private Subject subject(final String kind, final UUID subjectId) {
+        return switch (kind) {
+            case "ROUTER_OFFLINE" -> routers.name(subjectId).map(name -> new Subject(name, null)).orElse(Subject.NONE);
+            case "COA_FAILED" -> lines.line(subjectId)
+                    .map(line -> new Subject(line.pppoeUsername(), line.customerId()))
+                    .orElse(Subject.NONE);
+            default -> Subject.NONE;
+        };
+    }
+
+    private record Subject(String label, UUID customerId) {
+        static final Subject NONE = new Subject(null, null);
     }
 
     @Transactional(readOnly = true)

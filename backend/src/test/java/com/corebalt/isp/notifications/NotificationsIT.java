@@ -187,13 +187,14 @@ class NotificationsIT extends IntegrationTest {
         final Map<String, Object> waiting = latest();
         assertThat(waiting).containsEntry("status", "QUEUED_RETRY");
         assertThat(((java.sql.Timestamp) waiting.get("next_attempt_at")).toInstant()).isAfter(Instant.now().plus(Duration.ofMinutes(55)));
-        assertThat(api.get("/api/v1/notifications/alerts").json().get(0).get("kind").asString()).isEqualTo("SMS_CREDIT_EXHAUSTED");
+        assertThat(api.get("/api/v1/notifications/alerts").json().get("items").get(0).get("kind").asString()).isEqualTo("SMS_CREDIT_EXHAUSTED");
 
         AT.reset(phone);
         OwnerSql.client().sql("update notifications_notification set next_attempt_at = now() where tenant_id = :t").param("t", tenant.id()).update();
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
         assertThat(latest()).containsEntry("status", "SENT");
-        assertThat(api.get("/api/v1/notifications/alerts").json()).isEmpty();
+        assertThat(api.get("/api/v1/notifications/alerts").json().get("items")).isEmpty();
+        assertThat(api.get("/api/v1/notifications/alerts?state=CLEARED").json().get("items").get(0).get("clearedAt")).isNotNull();
     }
 
     @Test

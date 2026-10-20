@@ -22,6 +22,8 @@ export interface NavItem {
   anyOf?: readonly string[];
   /** Active only on this exact path, for an item whose path prefixes another item's. */
   exact?: boolean;
+  /** A count the shell shows beside the label while it is above zero. */
+  badge?: 'openAlerts';
 }
 
 export interface NavGroup {
@@ -75,7 +77,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Network',
     items: [
       { path: '/network', label: 'Routers', icon: IconRouter },
-      { path: '/alerts', label: 'Alerts', icon: IconAlertTriangle },
+      { path: '/alerts', label: 'Alerts', icon: IconAlertTriangle, badge: 'openAlerts' },
     ],
   },
   {

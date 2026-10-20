@@ -194,6 +194,12 @@ class CoaWorkerIT extends IntegrationTest {
             relayAll();
             assertThat(openAlerts()).containsExactly(lineId);
         });
+        final JsonNode alert = api.get("/api/v1/notifications/alerts").json().get("items").get(0);
+        assertThat(alert.get("kind").asString()).isEqualTo("COA_FAILED");
+        assertThat(alert.get("subjectLabel").asString()).as("staff see the PPPoE username").isEqualTo(username);
+        assertThat(alert.get("customerId").asString()).isEqualTo(OwnerSql.client()
+                .sql("select customer_id::text from subscriptions_subscription where id = :id").param("id", lineId)
+                .query(String.class).single());
 
         nas.mode(FakeNas.Mode.ACK);
         assertThat(api.postWithKey("/api/v1/subscriptions/" + lineId + "/resume", UUID.randomUUID().toString(), null).status())

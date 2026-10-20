@@ -96,9 +96,13 @@ class NotificationController {
     }
 
     @GetMapping("/api/v1/notifications/alerts")
-    @Operation(summary = "Open SMS problems staff must fix (credit exhausted, sender ID refused, API key refused, dead letters)")
-    List<NotificationQueries.AlertView> alerts() {
-        return queries.openAlerts();
+    @Operation(summary = "Staff alerts: SMS problems (credit exhausted, sender ID or API key refused, dead letters), routers"
+            + " offline and CoA or Disconnect failures (N5); state OPEN (default) or CLEARED")
+    PageResponse<NotificationQueries.AlertView> alerts(
+            @RequestParam(defaultValue = "OPEN") final String state,
+            @RequestParam(defaultValue = "0") final int page,
+            @RequestParam(defaultValue = "50") final int size) {
+        return queries.alerts(state, PageRequests.of(page, size, null, Set.of(), Sort.unsorted()));
     }
 
     @GetMapping("/api/v1/notifications/phone-flags")

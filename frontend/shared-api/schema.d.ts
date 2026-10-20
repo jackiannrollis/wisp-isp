@@ -1466,7 +1466,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Open SMS problems staff must fix (credit exhausted, sender ID refused, API key refused, dead letters) */
+        /** Staff alerts: SMS problems (credit exhausted, sender ID or API key refused, dead letters), routers offline and CoA or Disconnect failures (N5); state OPEN (default) or CLEARED */
         get: operations["alerts"];
         put?: never;
         post?: never;
@@ -2408,12 +2408,28 @@ export interface components {
             flaggedAt?: string;
         };
         AlertView: {
+            /** Format: uuid */
+            id?: string;
             kind?: string;
             /** Format: uuid */
             subjectId?: string;
+            subjectLabel?: string;
+            /** Format: uuid */
+            customerId?: string;
             detail?: string;
             /** Format: date-time */
             raisedAt?: string;
+            /** Format: date-time */
+            clearedAt?: string;
+        };
+        PageResponseAlertView: {
+            items?: components["schemas"]["AlertView"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
         Me: {
             /** Format: uuid */
@@ -4860,7 +4876,11 @@ export interface operations {
     };
     alerts: {
         parameters: {
-            query?: never;
+            query?: {
+                state?: string;
+                page?: number;
+                size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4873,7 +4893,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["AlertView"][];
+                    "*/*": components["schemas"]["PageResponseAlertView"];
                 };
             };
         };

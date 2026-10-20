@@ -17,13 +17,17 @@ import {
   IconSun,
   TablerIconComponent,
 } from '@tabler/icons-angular';
-import { map } from 'rxjs';
+import { catchError, map, of, switchMap, timer } from 'rxjs';
 
+import { AlertsService } from '../../features/alerts/data/alerts.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../permissions/permission.service';
 import { ThemeMode, ThemeModeService } from '../theme/theme-mode.service';
 import { TenantThemeService } from '../theme/tenant-theme.service';
 import { visibleNav } from './nav-items';
+
+/** How often the open-alert badge is refreshed (the dashboard's 30 s poll is for its own counters). */
+const ALERT_POLL_MS = 60_000;
 
 /** Narrower than this, the navigation becomes an overlay opened from the menu button. */
 const OVERLAY_NAV = '(max-width: 1023.98px)';
@@ -51,11 +55,20 @@ export class ShellComponent {
   private readonly router = inject(Router);
   private readonly tenantTheme = inject(TenantThemeService);
   private readonly permissions = inject(PermissionService);
+  private readonly alerts = inject(AlertsService);
   protected readonly themeMode = inject(ThemeModeService);
 
   protected readonly branding = this.tenantTheme.branding;
   protected readonly me = this.auth.me;
   protected readonly groups = computed(() => visibleNav(this.permissions.permissions()));
+  /** Open alerts for the navigation badge; a failed poll just hides the badge until the next one. */
+  protected readonly badges = toSignal(
+    timer(0, ALERT_POLL_MS).pipe(
+      switchMap(() => this.alerts.openCount().pipe(catchError(() => of(0)))),
+      map((openAlerts) => ({ openAlerts })),
+    ),
+    { initialValue: { openAlerts: 0 } },
+  );
   protected readonly overlay = toSignal(
     inject(BreakpointObserver)
       .observe(OVERLAY_NAV)
