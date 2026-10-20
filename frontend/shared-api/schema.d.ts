@@ -1136,6 +1136,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/notifications/placeholders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The placeholders a template may use, with the sample value each previews with (M3) */
+        get: operations["placeholders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/routers/{id}": {
         parameters: {
             query?: never;
@@ -1675,7 +1692,7 @@ export interface components {
         SecretValue: {
             value: string;
         };
-        SettingsRequest: {
+        SmsSettingsRequest: {
             atUsername: string;
             senderId: string;
             sandbox: boolean;
@@ -1684,7 +1701,7 @@ export interface components {
             windowEnd?: string;
             apiKey?: string;
         };
-        SettingsView: {
+        SmsSettingsView: {
             atUsername?: string;
             senderId?: string;
             sandbox?: boolean;
@@ -1707,6 +1724,28 @@ export interface components {
             length?: number;
             /** Format: int32 */
             segments?: number;
+        };
+        MpesaSettingsRequest: {
+            shortcode: string;
+            shortcodeType: string;
+            sandbox: boolean;
+            consumerKey?: string;
+            consumerSecret?: string;
+            passkey?: string;
+            initiatorName?: string;
+            securityCredential?: string;
+            validationEnabled?: boolean;
+        };
+        MpesaSettingsView: {
+            shortcode?: string;
+            shortcodeType?: string;
+            sandbox?: boolean;
+            validationEnabled?: boolean;
+            /** Format: date-time */
+            urlsRegisteredAt?: string;
+            callbackUrls?: {
+                [key: string]: string;
+            };
         };
         RestCredential: {
             username: string;
@@ -2197,6 +2236,10 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
+        PlaceholderView: {
+            name?: string;
+            sample?: string;
+        };
         PageResponseRouterDto: {
             items?: components["schemas"]["RouterDto"][];
             /** Format: int32 */
@@ -2611,7 +2654,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SettingsView"];
+                    "*/*": components["schemas"]["SmsSettingsView"];
                 };
             };
         };
@@ -2625,7 +2668,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SettingsRequest"];
+                "application/json": components["schemas"]["SmsSettingsRequest"];
             };
         };
         responses: {
@@ -2635,7 +2678,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SettingsView"];
+                    "*/*": components["schemas"]["SmsSettingsView"];
                 };
             };
         };
@@ -2703,7 +2746,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SettingsView"];
+                    "*/*": components["schemas"]["MpesaSettingsView"];
                 };
             };
         };
@@ -2717,7 +2760,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SettingsRequest"];
+                "application/json": components["schemas"]["MpesaSettingsRequest"];
             };
         };
         responses: {
@@ -2727,7 +2770,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SettingsView"];
+                    "*/*": components["schemas"]["MpesaSettingsView"];
                 };
             };
         };
@@ -3306,7 +3349,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SettingsView"];
+                    "*/*": components["schemas"]["MpesaSettingsView"];
                 };
             };
         };
@@ -4441,6 +4484,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TemplateView"][];
+                };
+            };
+        };
+    };
+    placeholders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PlaceholderView"][];
                 };
             };
         };

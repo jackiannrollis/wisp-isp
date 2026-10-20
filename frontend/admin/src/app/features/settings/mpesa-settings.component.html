@@ -1,0 +1,102 @@
+@if (current.isLoading() && !current.value()) {
+  <p class="muted">Loading…</p>
+} @else {
+  <div class="layout">
+    <form class="panel form" [formGroup]="form" (ngSubmit)="save()">
+      <h2 class="section-title">
+        {{ current.value() ? 'Paybill or Till' : 'Connect your Paybill or Till' }}
+      </h2>
+      @if (!current.value()) {
+        <p class="help">
+          Payments reach customers' wallets only once this is set up. Until then, record payments by
+          hand.
+        </p>
+      }
+      <div class="row">
+        <mat-button-toggle-group formControlName="shortcodeType" aria-label="Shortcode type">
+          <mat-button-toggle value="PAYBILL">Paybill</mat-button-toggle>
+          <mat-button-toggle value="TILL">Till</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label>Shortcode</mat-label>
+        <input matInput formControlName="shortcode" inputmode="numeric" maxlength="7" />
+        <mat-hint>5 to 7 digits</mat-hint>
+      </mat-form-field>
+      <mat-slide-toggle formControlName="sandbox">Daraja sandbox (test only)</mat-slide-toggle>
+      <mat-slide-toggle formControlName="validationEnabled">
+        Ask before accepting a payment (C2B validation)
+      </mat-slide-toggle>
+
+      <h3 class="sub-title">Daraja credentials</h3>
+      <p class="help">
+        Stored encrypted and never shown again. Leave a field blank to keep what is saved.
+      </p>
+      @for (c of credentials; track c.control) {
+        <mat-form-field appearance="outline">
+          <mat-label>{{ c.label }}</mat-label>
+          <input
+            matInput
+            type="password"
+            autocomplete="off"
+            [formControlName]="c.control"
+            [placeholder]="setAt().has(c.kind) ? 'Saved; type to replace' : 'Not set'"
+          />
+          <mat-hint>
+            @if (setAt().get(c.kind); as at) {
+              Set {{ date(at) }} ·
+            }
+            {{ c.hint }}
+          </mat-hint>
+        </mat-form-field>
+      }
+
+      @if (error(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+      <div class="actions">
+        <button mat-flat-button type="submit" [disabled]="form.invalid || busy() || form.pristine">
+          {{ current.value() ? 'Save' : 'Connect' }}
+        </button>
+      </div>
+    </form>
+
+    @if (current.value(); as c) {
+      <section class="panel side" aria-labelledby="urls-title">
+        <h2 id="urls-title" class="section-title">Callback URLs</h2>
+        <p class="help">
+          Safaricom sends payments to these addresses. They contain a private token: share them only
+          with Safaricom.
+        </p>
+        <dl class="urls">
+          @for (u of urls(); track u.label) {
+            <div>
+              <dt>{{ u.label }}</dt>
+              <dd>
+                <code>{{ u.url }}</code>
+                <app-copy-button [value]="u.url" [label]="u.label + ' URL'" />
+              </dd>
+            </div>
+          }
+        </dl>
+        <div class="register">
+          <span class="muted">
+            @if (c.urlsRegisteredAt) {
+              Registered with Safaricom {{ date(c.urlsRegisteredAt) }}
+            } @else {
+              Not registered with Safaricom yet
+            }
+          </span>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="registering()"
+            (click)="registerUrls()"
+          >
+            {{ c.urlsRegisteredAt ? 'Register again' : 'Register URLs' }}
+          </button>
+        </div>
+      </section>
+    }
+  </div>
+}

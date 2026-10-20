@@ -7,6 +7,7 @@ import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.SecretStore;
 import com.corebalt.isp.tenancy.api.SecretStore.SecretKind;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -40,6 +41,7 @@ public class MpesaSettings {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /** Write-only fields are optional on update: a blank one keeps the stored secret. */
+    @Schema(name = "MpesaSettingsRequest")
     public record SettingsRequest(
             @NotBlank @Pattern(regexp = "[0-9]{5,7}") String shortcode,
             @NotNull @Pattern(regexp = "PAYBILL|TILL") String shortcodeType,
@@ -52,6 +54,7 @@ public class MpesaSettings {
             Boolean validationEnabled) {}
 
     /** {@code callbackUrls} contain the tenant's path token; they are what Safaricom calls. */
+    @Schema(name = "MpesaSettingsView")
     public record SettingsView(
             String shortcode, String shortcodeType, boolean sandbox, boolean validationEnabled,
             Instant urlsRegisteredAt, Map<String, String> callbackUrls) {}

@@ -1,0 +1,102 @@
+@if (current.isLoading() && !current.value()) {
+  <p class="muted">Loading…</p>
+} @else {
+  <div class="layout">
+    <form class="panel form" [formGroup]="form" (ngSubmit)="save()">
+      <h2 class="section-title">
+        {{ current.value() ? "Africa's Talking account" : "Connect Africa's Talking" }}
+      </h2>
+      @if (!current.value()) {
+        <p class="help">
+          Messages go out through your own Africa's Talking account. Until it is connected, no SMS
+          is sent.
+        </p>
+      }
+      @if (!canEdit()) {
+        <p class="help">Changing the account needs the Account keys permission.</p>
+      }
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput formControlName="atUsername" autocomplete="off" />
+        <mat-hint>Your Africa's Talking app username</mat-hint>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Sender ID</mat-label>
+        <input matInput formControlName="senderId" maxlength="11" />
+        <mat-hint>Up to 11 letters or digits, approved by Africa's Talking</mat-hint>
+      </mat-form-field>
+      @if (canEdit()) {
+        <mat-form-field appearance="outline">
+          <mat-label>API key</mat-label>
+          <input
+            matInput
+            type="password"
+            formControlName="apiKey"
+            autocomplete="off"
+            [placeholder]="apiKeySetAt() ? 'Saved; type to replace' : 'Not set'"
+          />
+          <mat-hint>
+            @if (apiKeySetAt(); as at) {
+              Set {{ date(at) }} ·
+            }
+            Stored encrypted and never shown again
+          </mat-hint>
+        </mat-form-field>
+      }
+      <mat-slide-toggle formControlName="enabled">Send messages</mat-slide-toggle>
+      <mat-slide-toggle formControlName="sandbox">
+        Africa's Talking sandbox (test only)
+      </mat-slide-toggle>
+
+      <h3 class="sub-title">Sending window</h3>
+      <p class="help">
+        Reminders wait for this window, in your time zone. Payment messages always go out at once
+        (M2).
+      </p>
+      <div class="two">
+        <mat-form-field appearance="outline">
+          <mat-label>From</mat-label>
+          <input matInput type="time" formControlName="windowStart" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Until</mat-label>
+          <input matInput type="time" formControlName="windowEnd" />
+        </mat-form-field>
+      </div>
+
+      @if (error(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+      @if (canEdit()) {
+        <div class="actions">
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="form.invalid || busy() || form.pristine"
+          >
+            {{ current.value() ? 'Save' : 'Connect' }}
+          </button>
+        </div>
+      }
+    </form>
+
+    @if (current.value(); as c) {
+      <section class="panel side" aria-labelledby="dlr-title">
+        <h2 id="dlr-title" class="section-title">Delivery reports</h2>
+        <p class="help">
+          Paste this into the delivery report callback of your Africa's Talking app, so each
+          message's status reaches the platform. It contains a private token.
+        </p>
+        <dl class="urls">
+          <div>
+            <dt>Delivery report URL</dt>
+            <dd>
+              <code>{{ c.deliveryReportUrl }}</code>
+              <app-copy-button [value]="c.deliveryReportUrl ?? ''" label="delivery report URL" />
+            </dd>
+          </div>
+        </dl>
+      </section>
+    }
+  </div>
+}

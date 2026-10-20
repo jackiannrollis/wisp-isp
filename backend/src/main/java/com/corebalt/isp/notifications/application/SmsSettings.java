@@ -7,6 +7,7 @@ import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.SecretStore;
 import com.corebalt.isp.tenancy.api.SecretStore.SecretKind;
 import com.corebalt.isp.tenancy.api.TenantProfile;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -39,6 +40,7 @@ public class SmsSettings {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    @Schema(name = "SmsSettingsRequest")
     public record SettingsRequest(
             @NotBlank @Size(max = 100) String atUsername,
             @NotBlank @Size(max = 11) @Pattern(regexp = "[A-Za-z0-9 _-]+") String senderId,
@@ -48,6 +50,7 @@ public class SmsSettings {
             @Pattern(regexp = "([01][0-9]|2[0-3]):[0-5][0-9]") String windowEnd,
             @Size(max = 200) String apiKey) {}
 
+    @Schema(name = "SmsSettingsView")
     public record SettingsView(
             String atUsername, String senderId, boolean sandbox, boolean enabled, String windowStart, String windowEnd,
             String deliveryReportUrl) {}

@@ -51,6 +51,10 @@ class ApiSecurityIT extends IntegrationTest {
         final HttpResponse<String> response = get("/api/docs", null);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("/api/v1/branding").contains("/api/v1/auth/login");
+        // Records of the same simple name in two modules must not collapse into one schema: the
+        // generated frontend types would describe M-Pesa settings with the SMS shape.
+        assertThat(response.body()).contains("\"MpesaSettingsView\"").contains("\"SmsSettingsView\"")
+                .contains("\"MpesaSettingsRequest\"").contains("\"SmsSettingsRequest\"");
     }
 
     @Test

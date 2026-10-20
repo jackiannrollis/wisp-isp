@@ -86,11 +86,7 @@ public class NotificationQueue {
     /** Saves a tenant's wording; rejects placeholders outside the allowed list (M3). */
     @Transactional
     public TemplateView saveTemplate(final Template template, final String body) {
-        final Set<String> unknown = Template.unknownPlaceholders(body);
-        if (!unknown.isEmpty()) {
-            throw InvalidRequestException.of("body", "unknown placeholders " + unknown + "; allowed: "
-                    + Template.PLACEHOLDERS.stream().sorted().toList());
-        }
+        requireKnownPlaceholders(body);
         jdbc.sql("""
                         insert into notifications_template (tenant_id, template_key, body, updated_at)
                         values (:tenantId, :key, :body, :now)
@@ -113,7 +109,18 @@ public class NotificationQueue {
 
     /** What a body costs, rendered with sample values (the editor shows it on every keystroke). */
     public TemplateView preview(final Template template, final String body) {
+        // The editor shows this error before saving, rather than a sample with the placeholder dropped.
+        requireKnownPlaceholders(body);
         return view(template, body, true);
+    }
+
+    /** M3: only the fixed placeholders, which carry no secret, PIN or ID. */
+    private static void requireKnownPlaceholders(final String body) {
+        final Set<String> unknown = Template.unknownPlaceholders(body);
+        if (!unknown.isEmpty()) {
+            throw InvalidRequestException.of("body", "unknown placeholders " + unknown + "; allowed: "
+                    + Template.PLACEHOLDERS.stream().sorted().toList());
+        }
     }
 
     String bodyOf(final Template template) {

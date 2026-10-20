@@ -248,6 +248,10 @@ class NotificationsIT extends IntegrationTest {
         final Api.Response refused = api.put("/api/v1/settings/notifications/templates/RESTRICTED", "{\"body\":\"Your PIN {pin}\"}");
         assertThat(refused.status()).isEqualTo(400);
         assertThat(refused.body()).contains("pin");
+        final Api.Response refusedPreview = api.post("/api/v1/settings/notifications/templates/RESTRICTED/preview",
+                "{\"body\":\"Your PIN {pin}\"}");
+        assertThat(refusedPreview.status()).as("the preview refuses what saving refuses").isEqualTo(400);
+        assertThat(refusedPreview.body()).contains("pin");
         final JsonNode preview = api.post("/api/v1/settings/notifications/templates/RESTRICTED/preview",
                 "{\"body\":\"" + "Habari {name}, ".repeat(12) + "\"}").json();
         assertThat(preview.get("segments").asInt()).isEqualTo(2);
@@ -259,6 +263,10 @@ class NotificationsIT extends IntegrationTest {
         final JsonNode templates = api.get("/api/v1/settings/notifications/templates").json();
         assertThat(templates.toString()).contains("\"key\":\"PACKAGE_CHANGED_NEXT\"").contains("\"custom\":true");
         assertThat(new Api(port, tenant.id(), "billing.adjust").get("/api/v1/settings/notifications/templates").status()).isEqualTo(403);
+
+        final JsonNode placeholders = api.get("/api/v1/settings/notifications/placeholders").json();
+        assertThat(placeholders).hasSize(14);
+        assertThat(placeholders.toString()).contains("{\"name\":\"name\",\"sample\":\"Wanjiku\"}").doesNotContain("pin");
     }
 
     @Test

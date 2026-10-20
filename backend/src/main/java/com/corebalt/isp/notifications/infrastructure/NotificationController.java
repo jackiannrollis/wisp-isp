@@ -64,6 +64,17 @@ class NotificationController {
 
     record TemplateBody(@NotBlank @Size(max = 918) String body) {}
 
+    @GetMapping("/api/v1/settings/notifications/placeholders")
+    @PreAuthorize("hasAuthority('settings.notifications')")
+    @Operation(summary = "The placeholders a template may use, with the sample value each previews with (M3)")
+    List<PlaceholderView> placeholders() {
+        return Template.PLACEHOLDERS.stream().sorted()
+                .map(name -> new PlaceholderView(name, Template.SAMPLE.get(name)))
+                .toList();
+    }
+
+    record PlaceholderView(String name, String sample) {}
+
     @PutMapping("/api/v1/settings/notifications/templates/{key}")
     @PreAuthorize("hasAuthority('settings.notifications')")
     @Operation(summary = "Use the tenant's own wording; only listed placeholders are allowed (M3)")

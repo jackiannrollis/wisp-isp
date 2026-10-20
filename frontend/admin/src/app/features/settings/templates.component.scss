@@ -1,0 +1,91 @@
+.intro {
+  margin: var(--app-space-4) 0 var(--app-space-3);
+  max-width: 48rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.list {
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    height: 2.5rem;
+    padding: 0 var(--app-space-4);
+    text-align: start;
+    font: var(--mat-sys-label-medium);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface-variant);
+    background: var(--mat-sys-surface-container-low);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: var(--app-space-3) var(--app-space-4);
+    border-bottom: var(--app-border);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr.link {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--mat-sys-surface-container-low);
+    }
+
+    &:focus-visible {
+      outline: var(--app-focus);
+      outline-offset: -2px;
+    }
+  }
+
+  .end {
+    text-align: end;
+  }
+}
+
+.name {
+  min-width: 13rem;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+}
+
+.when {
+  display: block;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.body {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.custom {
+  margin-left: var(--app-space-2);
+  font: var(--mat-sys-label-small);
+  font-weight: 600;
+  color: var(--mat-sys-primary);
+  white-space: nowrap;
+}
+
+.sent {
+  white-space: nowrap;
+}
+
+.warn {
+  color: var(--app-warning);
+  font-weight: 600;
+}
