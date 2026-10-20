@@ -116,6 +116,7 @@
                 mat-header-cell
                 *matHeaderCellDef
                 [mat-sort-header]="sortHeader(column)"
+                [arrowPosition]="column.align === 'end' ? 'before' : 'after'"
                 [class.end]="column.align === 'end'"
               >
                 {{ column.header }}

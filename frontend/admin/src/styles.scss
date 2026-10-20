@@ -142,3 +142,10 @@ a:focus-visible,
 .mat-mdc-tab-group .mat-mdc-tab-body-content {
   overflow-x: hidden;
 }
+
+// A sortable header over a right-aligned column (amounts) lines up with its values. The sort header
+// is a flex container, so text-align on the cell does not reach it, and with the arrow placed before
+// the label Material reverses the row: flex-start is the right edge.
+th.mat-mdc-header-cell.end .mat-sort-header-container.mat-sort-header-position-before {
+  justify-content: flex-start;
+}
