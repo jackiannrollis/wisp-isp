@@ -93,6 +93,7 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-20 | WebSocket dashboard updates deferred to v2; the admin app polls the dashboard every 30 s. Arrears wait for postpaid billing (user decision) | Polling is enough for v1 | conventions.md |
 | 2026-10-20 | Inter (self-hosted), ECharts behind one wrapper, M3 with compact admin density, tenant brand colour as primary (default #0f766e) with runtime M3 scheme and contrast check, fixed success/warning/error status colours (user decision) | Legible for every tenant; loads inside the walled garden | ADR 0002 amendment |
 | 2026-10-20 | Admin visual refinement: fixed neutral surfaces with the tenant colour as accent only; one page header, panel and table style; status as coloured text with an icon (user choice among four options) | A restrained, information-dense enterprise look across tenants | ADR 0002 amendment |
+| 2026-10-20 | Fair-use throttling moves from v2 into v1, built after the admin screens (docs/09 step 8b); decided in the RADIUS view and AccessPolicy together (S3) so a reconnect keeps the throttle (user decision) | Package fields and daily usage already exist; pilot ISPs sell fair-use plans | docs/09, docs/06, Q12 to Q15 |
 
 ## How to add a row
 

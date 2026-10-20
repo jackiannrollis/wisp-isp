@@ -14,6 +14,10 @@ Decisions still pending. Do not invent an answer in code; pick the stated defaul
 | Q8 | Public marketing site: Angular SSR or a static generator? | Static generator; separate repository | Corebalt | After Gate 1 |
 | Q9 | Retention of `radacct` detail beyond 13 months for lawful requests | 13 months of detail, roll-ups kept 7 years | Legal | Before ODPC registration |
 | Q10 | Is C2B validation (reject unknown references before charge) available on the pilot's shortcode? | Assume not; rely on the suspense queue | Pilot ISP | Daraja go-live |
+| Q12 | Fair use: which period does the allowance count? | The line's current cycle: from its last renewal to `expires_at` | Product | docs/09 step 8b |
+| Q13 | Fair use: what resets the allowance? | Only a renewal (a new cycle); a top-up that does not renew, a pause or a package change does not | Product | docs/09 step 8b |
+| Q14 | Hard data cap (`data_cap_bytes`): what happens when it is reached? | RESTRICTED (walled garden with the pay page) until the next renewal; never rejected (N3) | Product | docs/09 step 8b |
+| Q15 | Fair-use messages: when does the customer hear? | One SMS when the allowance is passed (dedupe per line and cycle, M1); no warning before it | Product | docs/09 step 8b |
 
 ## Resolved
 
