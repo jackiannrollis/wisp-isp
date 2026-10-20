@@ -1,62 +1,150 @@
+@use '@angular/material' as mat;
+
 :host {
   display: block;
+
+  // Information-dense rows; a header that reads as a header, not as another row.
+  @include mat.table-overrides(
+    (
+      header-container-height: 40px,
+      row-item-container-height: 44px,
+      header-headline-font: var(--mat-sys-label-medium-font),
+      header-headline-size: 12px,
+      header-headline-weight: 600,
+      header-headline-color: var(--mat-sys-on-surface-variant),
+      row-item-label-text-size: 14px,
+      row-item-outline-color: var(--mat-sys-outline-variant),
+      background-color: var(--mat-sys-surface),
+    )
+  );
+  @include mat.paginator-overrides(
+    (
+      container-size: 48px,
+      container-text-size: 12px,
+      container-text-color: var(--mat-sys-on-surface-variant),
+    )
+  );
+  @include mat.chips-overrides(
+    (
+      container-height: 28px,
+      label-text-size: 13px,
+      outline-color: var(--mat-sys-outline-variant),
+      elevated-selected-container-color: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent),
+      selected-label-text-color: var(--mat-sys-primary),
+      with-icon-selected-icon-color: var(--mat-sys-primary),
+    )
+  );
 }
+
+.frame {
+  overflow: hidden;
+}
+
+// --- toolbar: search, count, tools; part of the panel
 
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+  gap: var(--app-space-2);
+  min-height: 3.25rem;
+  padding: var(--app-space-2) var(--app-space-2) var(--app-space-2) var(--app-space-3);
+  border-bottom: var(--app-border);
 }
 
 .search {
-  width: min(100%, 22rem);
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(100%, 20rem);
+
+  input {
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 var(--app-space-3) 0 2rem;
+    border: var(--app-border);
+    border-radius: var(--app-radius-s);
+    background: var(--mat-sys-surface);
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+
+    &::placeholder {
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    &:hover {
+      border-color: var(--mat-sys-outline);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--mat-sys-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-sys-primary) 18%, transparent);
+    }
+  }
 }
 
-.prefix {
-  margin: 0 0.25rem 0 0.75rem;
+.search-icon {
+  position: absolute;
+  left: 0.625rem;
   color: var(--mat-sys-on-surface-variant);
+  pointer-events: none;
+}
+
+.count {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
 }
 
 .spacer {
   flex: 1;
 }
 
-.column-option {
-  padding: 0 0.75rem;
+.tool {
+  color: var(--mat-sys-on-surface-variant);
 }
+
+.column-option {
+  padding: 0 var(--app-space-3);
+}
+
+// --- filters: label and chips, one quiet row
 
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  gap: var(--app-space-2) var(--app-space-5);
   align-items: center;
-  margin-bottom: 0.75rem;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: var(--app-border);
+  background: var(--mat-sys-surface-container-low);
 }
 
 .filter {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--app-space-2);
 }
 
 .filter-label {
-  font: var(--mat-sys-label-medium);
+  font: var(--mat-sys-label-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--mat-sys-on-surface-variant);
 }
 
-.frame {
+// --- table
+
+.body {
   position: relative;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: var(--mat-sys-corner-medium);
-  overflow: hidden;
-  background: var(--mat-sys-surface);
 }
 
 .progress {
   position: absolute;
   inset: 0 0 auto;
-  z-index: 2;
+  z-index: 3;
+  height: 2px;
 }
 
 .scroll {
@@ -65,6 +153,20 @@
 
 table {
   width: 100%;
+  transition: opacity 120ms ease;
+
+  &.stale {
+    opacity: 0.55;
+  }
+}
+
+th.mat-mdc-header-cell {
+  background: var(--mat-sys-surface-container-low);
+  white-space: nowrap;
+}
+
+td.mat-mdc-cell {
+  white-space: nowrap;
 }
 
 .end {
@@ -74,25 +176,112 @@ table {
 .actions {
   width: 3rem;
   text-align: end;
+
+  // Quiet until the row is hovered or the button focused, so a column of menus reads as one.
+  button {
+    --mat-icon-button-state-layer-size: 32px;
+    padding: 7px;
+    opacity: 0.45;
+    transition: opacity 120ms ease;
+  }
+}
+
+tr:hover .actions button,
+.actions button:focus-visible,
+.actions button[aria-expanded='true'] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .actions button {
+    opacity: 1;
+  }
 }
 
 tr.link {
   cursor: pointer;
 
-  &:hover,
+  &:hover {
+    background: var(--mat-sys-surface-container-low);
+  }
+
   &:focus-visible {
+    outline: none;
+    box-shadow: inset 3px 0 0 var(--mat-sys-primary);
     background: var(--mat-sys-surface-container-low);
   }
 }
 
-.empty {
-  padding: 2rem 1rem;
+tr.mat-mdc-row:last-child td {
+  border-bottom-color: transparent;
+}
+
+// --- states
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-6) var(--app-space-4);
   text-align: center;
+}
+
+.state-icon {
   color: var(--mat-sys-on-surface-variant);
 }
 
+.state-title {
+  margin: 0;
+  font: var(--mat-sys-title-small);
+}
+
+.state-hint {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  padding: var(--app-space-4) var(--app-space-2);
+}
+
+.bar {
+  height: 0.75rem;
+  border-radius: var(--app-radius-s);
+  background: linear-gradient(
+    90deg,
+    var(--mat-sys-surface-container) 0%,
+    var(--mat-sys-surface-container-high) 50%,
+    var(--mat-sys-surface-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+}
+
+mat-paginator {
+  border-top: var(--app-border);
+}
+
 .menu-icon {
-  margin-right: 0.75rem;
+  margin-right: var(--app-space-3);
 }
 
 .sr-only {

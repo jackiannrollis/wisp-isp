@@ -9,7 +9,8 @@ export const PAYMENTS_ROUTES: Routes = [
   {
     path: '',
     title: 'Payments',
-    loadComponent: () => import('./payments-page.component').then((m) => m.PaymentsPageComponent),
+    data: { heading: 'Payments' },
+    loadComponent: placeholder,
   },
   {
     path: 'suspense',

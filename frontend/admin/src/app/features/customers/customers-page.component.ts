@@ -15,6 +15,7 @@ import {
   TableFetch,
 } from '../../shared/data-table/data-table.types';
 import { formatDateTime } from '../../shared/ui/format';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.component';
 import { Customer, CustomersService } from './data/customers.service';
 import { CustomerFormDialogComponent } from './dialogs/customer-dialogs';
@@ -28,46 +29,44 @@ import { CustomerFormDialogComponent } from './dialogs/customer-dialogs';
     StatusChipComponent,
     MatButtonModule,
     TablerIconComponent,
+    PageHeaderComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="page">
-      <div class="head">
-        <h1>Customers</h1>
-        @if (canCreate()) {
-          <button mat-flat-button type="button" (click)="create()">
-            <tabler-icon [icon]="addIcon" [size]="18" /> New customer
-          </button>
-        }
-      </div>
-      <app-data-table
-        tableId="customers"
-        exportName="customers"
-        searchPlaceholder="Search number, name or phone"
-        emptyText="No customers match."
-        [columns]="columns"
-        [filters]="filters"
-        [fetch]="fetch"
-        [actions]="actions"
-        [rowLink]="link"
-        [defaultSort]="{ key: 'number', direction: 'asc' }"
+    <app-page-header
+      title="Customers"
+      subtitle="Everyone you sell a line to, with their contact details."
+    >
+      @if (canCreate()) {
+        <button actions mat-flat-button type="button" (click)="create()">
+          <tabler-icon [icon]="addIcon" [size]="18" /> New customer
+        </button>
+      }
+    </app-page-header>
+    <app-data-table
+      tableId="customers"
+      exportName="customers"
+      searchPlaceholder="Search number, name or phone"
+      emptyText="No customers match."
+      [itemLabel]="['customer', 'customers']"
+      [columns]="columns"
+      [filters]="filters"
+      [fetch]="fetch"
+      [actions]="actions"
+      [rowLink]="link"
+      [defaultSort]="{ key: 'number', direction: 'asc' }"
+    >
+      <ng-template appCell="number" let-row
+        ><span class="key">{{ row.number }}</span></ng-template
       >
-        <ng-template appCell="status" let-row>
-          <app-status-chip [status]="row.status" />
-        </ng-template>
-      </app-data-table>
-    </section>
+      <ng-template appCell="status" let-row>
+        <app-status-chip [status]="row.status" />
+      </ng-template>
+    </app-data-table>
   `,
   styles: `
-    .head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
-    }
-    .head h1 {
-      margin: 0;
+    .key {
+      font-weight: 600;
     }
   `,
 })

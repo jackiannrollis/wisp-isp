@@ -6,6 +6,7 @@ import { CellDirective } from '../../shared/data-table/cell.directive';
 import { DataTableComponent } from '../../shared/data-table/data-table.component';
 import { ColumnDef, FilterDef, TableFetch } from '../../shared/data-table/data-table.types';
 import { formatDateTime } from '../../shared/ui/format';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.component';
 import { RoutersService } from '../network/data/routers.service';
 import { PackagesService } from '../packages/data/packages.service';
@@ -29,34 +30,41 @@ const DISPLAY_STATUSES = [
  */
 @Component({
   selector: 'app-subscriptions-page',
-  imports: [DataTableComponent, CellDirective, StatusChipComponent],
+  imports: [DataTableComponent, CellDirective, StatusChipComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: `
+    .key {
+      font-weight: 600;
+    }
+  `,
   template: `
-    <section class="page">
-      <h1>Lines</h1>
-      <app-data-table
-        tableId="lines"
-        exportName="lines"
-        emptyText="No lines match."
-        [columns]="columns()"
-        [filters]="filters()"
-        [presetFilters]="presets()"
-        [initialFilters]="initial()"
-        [fetch]="fetch"
-        [rowLink]="link"
-        [defaultSort]="{ key: 'pppoeUsername', direction: 'asc' }"
+    <app-page-header
+      title="Lines"
+      subtitle="PPPoE lines with the status and access the network gives them right now."
+    />
+    <app-data-table
+      tableId="lines"
+      exportName="lines"
+      emptyText="No lines match."
+      [itemLabel]="['line', 'lines']"
+      [columns]="columns()"
+      [filters]="filters()"
+      [presetFilters]="presets()"
+      [initialFilters]="initial()"
+      [fetch]="fetch"
+      [rowLink]="link"
+      [defaultSort]="{ key: 'pppoeUsername', direction: 'asc' }"
+    >
+      <ng-template appCell="displayStatus" let-row>
+        <app-status-chip [status]="row.displayStatus" />
+      </ng-template>
+      <ng-template appCell="state" let-row>
+        <app-status-chip [status]="row.state" />
+      </ng-template>
+      <ng-template appCell="username" let-row
+        ><span class="key">{{ row.pppoeUsername }}</span></ng-template
       >
-        <ng-template appCell="displayStatus" let-row>
-          <app-status-chip [status]="row.displayStatus" />
-        </ng-template>
-        <ng-template appCell="accessProfile" let-row>
-          <app-status-chip [status]="row.accessProfile" />
-        </ng-template>
-        <ng-template appCell="state" let-row>
-          <app-status-chip [status]="row.state" />
-        </ng-template>
-      </app-data-table>
-    </section>
+    </app-data-table>
   `,
 })
 export class SubscriptionsPageComponent {

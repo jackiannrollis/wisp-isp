@@ -1,41 +1,61 @@
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-  text-decoration: none;
-  font: var(--mat-sys-label-large);
+.quiet {
+  color: var(--mat-sys-on-surface-variant);
 }
 
-.head {
+.loading {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  padding: var(--app-space-5);
 
-  h1 {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
+  .bar {
+    height: 0.875rem;
+    width: 30%;
+    border-radius: var(--app-radius-s);
+    background: var(--mat-sys-surface-container);
+
+    &.wide {
+      width: 50%;
+    }
+  }
+}
+
+.failed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--app-space-4) var(--app-space-5);
+
+  p {
     margin: 0;
   }
 }
 
-.sub {
-  margin: 0.25rem 0 0;
-  color: var(--mat-sys-on-surface-variant);
+// --- key facts: one row of label/value pairs
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--app-space-3) var(--app-space-5);
+  margin: 0 0 var(--app-space-5);
+  padding: var(--app-space-4) var(--app-space-5);
+
+  dt {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin-bottom: 0.125rem;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
+// --- sections
 
 .block {
-  margin-bottom: 2rem;
+  margin-bottom: var(--app-space-6);
 }
 
 .block-head {
@@ -43,63 +63,110 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-3);
+}
 
-  h2 {
-    font: var(--mat-sys-title-large);
-    margin: 0;
-  }
+.count {
+  margin-left: var(--app-space-1);
+  color: var(--mat-sys-on-surface-variant);
+  font-weight: 500;
+}
+
+.wallet {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-3);
 }
 
 .balance {
-  margin-left: 0.5rem;
-  color: var(--mat-sys-primary);
+  font: var(--mat-sys-title-large);
+  font-weight: 600;
 }
+
+.actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+// --- lines table, styled like the shared data table
 
 .lines {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
-  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    height: 2.5rem;
+    padding: 0 var(--app-space-4);
+    text-align: start;
+    font: var(--mat-sys-label-medium);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface-variant);
+    background: var(--mat-sys-surface-container-low);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  td {
+    height: 2.75rem;
+    padding: 0 var(--app-space-4);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background: var(--mat-sys-surface-container-low);
+  }
+
+  .actions {
+    width: 3rem;
+    padding-right: var(--app-space-2);
+    text-align: end;
+
+    button {
+      --mat-icon-button-state-layer-size: 32px;
+      padding: 7px;
+    }
+  }
+
+  .key {
+    font-weight: 600;
+  }
+
+  .empty {
+    height: 4rem;
+    text-align: center;
+    color: var(--mat-sys-on-surface-variant);
+  }
 }
 
-.line {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 1rem;
-  border-radius: var(--mat-sys-corner-medium);
-  border: 1px solid var(--mat-sys-outline-variant);
-  background: var(--mat-sys-surface);
-}
-
-.line-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.username {
-  font: var(--mat-sys-title-medium);
-}
-
-dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.375rem 1rem;
-  margin: 0;
-}
-
-dt {
-  font: var(--mat-sys-label-small);
-  color: var(--mat-sys-on-surface-variant);
-}
-
-dd {
-  margin: 0;
+.tabs {
+  --mat-tab-header-divider-height: 0;
 }
 
 .menu-icon {
-  margin-right: 0.75rem;
+  margin-right: var(--app-space-3);
+}
+
+.danger {
+  color: var(--app-error);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }

@@ -1,12 +1,14 @@
-<mat-toolbar class="topbar">
+<header class="topbar">
   @if (overlay()) {
     <button mat-icon-button type="button" aria-label="Open navigation" (click)="sidenav.toggle()">
-      <tabler-icon [icon]="icons.menu" [size]="24" />
+      <tabler-icon [icon]="icons.menu" [size]="22" />
     </button>
   }
-  <a class="brand" routerLink="/dashboard">
+  <a class="brand" routerLink="/dashboard" [attr.aria-label]="branding().name + ', dashboard'">
     @if (branding().logoUrl; as logoUrl) {
-      <img class="logo" [src]="logoUrl" [alt]="branding().name + ' logo'" />
+      <img class="logo" [src]="logoUrl" alt="" />
+    } @else {
+      <span class="monogram" aria-hidden="true">{{ monogram() }}</span>
     }
     <span class="brand-name">{{ branding().name }}</span>
   </a>
@@ -15,6 +17,7 @@
   <button
     mat-icon-button
     type="button"
+    class="quiet"
     [matMenuTriggerFor]="modeMenu"
     aria-label="Colour mode"
     matTooltip="Colour mode"
@@ -33,9 +36,13 @@
     }
   </mat-menu>
 
-  <button mat-button type="button" class="user" [matMenuTriggerFor]="userMenu" aria-label="Account">
-    <tabler-icon [icon]="icons.user" [size]="20" />
-    <span class="user-name">{{ me()?.displayName }}</span>
+  <button type="button" class="account" [matMenuTriggerFor]="userMenu" aria-label="Account">
+    <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+    <span class="account-text">
+      <span class="account-name">{{ me()?.displayName }}</span>
+      <span class="account-role">{{ me()?.role }}</span>
+    </span>
+    <tabler-icon [icon]="icons.chevron" [size]="16" class="account-chevron" />
   </button>
   <mat-menu #userMenu="matMenu" xPosition="before">
     <div class="who">
@@ -49,34 +56,34 @@
       <span>Sign out</span>
     </button>
   </mat-menu>
-</mat-toolbar>
+</header>
 
 <mat-sidenav-container class="container">
   <mat-sidenav #sidenav class="sidenav" [mode]="overlay() ? 'over' : 'side'" [opened]="!overlay()">
     <nav aria-label="Main">
       @for (group of groups(); track group.label) {
         <h2 class="group">{{ group.label }}</h2>
-        <mat-nav-list>
+        <ul>
           @for (item of group.items; track item.path) {
-            <a
-              mat-list-item
-              [routerLink]="item.path"
-              routerLinkActive
-              #active="routerLinkActive"
-              [routerLinkActiveOptions]="{ exact: !!item.exact }"
-              [activated]="active.isActive"
-              ariaCurrentWhenActive="page"
-              (click)="overlay() && sidenav.close()"
-            >
-              <tabler-icon matListItemIcon [icon]="item.icon" [size]="20" />
-              <span matListItemTitle>{{ item.label }}</span>
-            </a>
+            <li>
+              <a
+                class="nav-link"
+                [routerLink]="item.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: !!item.exact }"
+                ariaCurrentWhenActive="page"
+                (click)="overlay() && sidenav.close()"
+              >
+                <tabler-icon [icon]="item.icon" [size]="18" />
+                <span>{{ item.label }}</span>
+              </a>
+            </li>
           }
-        </mat-nav-list>
+        </ul>
       }
     </nav>
   </mat-sidenav>
-  <mat-sidenav-content>
+  <mat-sidenav-content class="canvas">
     <main class="content">
       <router-outlet />
     </main>

@@ -13,8 +13,6 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -23,9 +21,11 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import {
+  IconAlertTriangle,
   IconColumns3,
   IconDotsVertical,
   IconDownload,
+  IconInbox,
   IconRefresh,
   IconSearch,
   IconX,
@@ -66,8 +66,6 @@ const EXPORT_PAGE = 200;
     MatCheckboxModule,
     MatButtonModule,
     MatTooltipModule,
-    MatFormFieldModule,
-    MatInputModule,
     TablerIconComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,6 +90,8 @@ export class DataTableComponent<T> {
   readonly exportName = input<string | null>(null);
   readonly rowLink = input<((row: T) => string) | null>(null);
   readonly emptyText = input('Nothing to show.');
+  /** Singular and plural noun for the count in the toolbar, e.g. ['customer', 'customers']. */
+  readonly itemLabel = input<[string, string]>(['result', 'results']);
   /** Change it to make the table read its current page again (after the page changed the data). */
   readonly refresh = input(0);
 
@@ -100,7 +100,11 @@ export class DataTableComponent<T> {
     () => new Map(this.cells().map((cell) => [cell.appCell(), cell.template])),
   );
 
+  protected readonly skeletonRows = [92, 78, 86, 64, 80];
+
   protected readonly icons = {
+    alert: IconAlertTriangle,
+    empty: IconInbox,
     columns: IconColumns3,
     download: IconDownload,
     refresh: IconRefresh,
@@ -121,6 +125,9 @@ export class DataTableComponent<T> {
   protected readonly exporting = signal(false);
   private readonly hiddenOverride = signal<Set<string> | null>(null);
 
+  protected readonly hasFilters = computed(
+    () => Object.keys(this.query().filters).length > 0 || !!this.query().q,
+  );
   protected readonly effectiveSort = computed(() => this.sort() ?? this.defaultSort());
   protected readonly activePresets = computed(() =>
     Object.entries(this.presetFilters()).filter(([key]) => !this.removedPresets().has(key)),

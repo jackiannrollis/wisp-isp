@@ -1,125 +1,165 @@
-<section class="page">
-  <header class="head">
-    <h1>Dashboard</h1>
-    <div class="period">
-      <button mat-icon-button type="button" aria-label="Previous month" (click)="step(-1)">
-        <tabler-icon [icon]="icons.prev" [size]="20" />
-      </button>
-      <span class="month" aria-live="polite">{{ monthLabel() }}</span>
-      <button
-        mat-icon-button
-        type="button"
-        aria-label="Next month"
-        [disabled]="isCurrentMonth()"
-        (click)="step(1)"
-      >
-        <tabler-icon [icon]="icons.next" [size]="20" />
-      </button>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Reload now (it also refreshes every 30 seconds)"
-        aria-label="Reload"
-        (click)="data.reload()"
-      >
-        <tabler-icon [icon]="icons.refresh" [size]="20" />
-      </button>
-    </div>
-  </header>
+<app-page-header title="Dashboard" [subtitle]="subtitle()">
+  <div actions class="period" role="group" aria-label="Period">
+    <button mat-icon-button type="button" aria-label="Previous month" (click)="step(-1)">
+      <tabler-icon [icon]="icons.prev" [size]="18" />
+    </button>
+    <span class="month" aria-live="polite">{{ monthLabel() }}</span>
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Next month"
+      [disabled]="isCurrentMonth()"
+      (click)="step(1)"
+    >
+      <tabler-icon [icon]="icons.next" [size]="18" />
+    </button>
+  </div>
+  <button
+    actions
+    mat-icon-button
+    type="button"
+    class="quiet"
+    matTooltip="Reload now (it also refreshes every 30 seconds)"
+    aria-label="Reload"
+    (click)="data.reload()"
+  >
+    <tabler-icon [icon]="icons.refresh" [size]="18" />
+  </button>
+</app-page-header>
 
-  @if (data.isLoading() && !data.value()) {
-    <mat-progress-bar mode="indeterminate" />
-  }
-  @if (data.error() && !data.value()) {
-    <p class="muted">
-      The dashboard could not be loaded.
-      <button mat-button type="button" (click)="data.reload()">Try again</button>
-    </p>
-  }
-
-  @if (data.value(); as d) {
-    @if (d.revenue; as r) {
-      <div class="figures">
-        <div class="figure">
-          <span class="figure-label">Renewals due</span>
-          <span class="figure-value">{{ money(r.renewalsDue) }}</span>
-          <span class="figure-note">{{ r.renewalsDueLines ?? 0 }} lines expiring this period</span>
-        </div>
-        <div class="figure">
-          <span class="figure-label">Outstanding</span>
-          <span class="figure-value">{{ money(r.outstanding) }}</span>
-          <span class="figure-note">what their wallets still lack</span>
-        </div>
-        <div class="figure">
-          <span class="figure-label">Collected</span>
-          <span class="figure-value">{{ money(r.collected) }}</span>
-          <span class="figure-note">{{ r.payments ?? 0 }} payments received</span>
-        </div>
-        <a class="figure link" routerLink="/payments/suspense">
-          <span class="figure-label">Unmatched</span>
-          <span class="figure-value">{{ money(r.unmatched) }}</span>
-          <span class="figure-note">{{ r.unmatchedPayments ?? 0 }} payments in suspense</span>
-        </a>
-        <div class="figure">
-          <span class="figure-label">Lapsed</span>
-          <span class="figure-value">{{ money(r.lapsed) }}</span>
-          <span class="figure-note">{{ r.lapsedLines ?? 0 }} lines expired before this period</span>
-        </div>
-      </div>
+@if (data.isLoading() && !data.value()) {
+  <div class="panel strip loading" aria-label="Loading">
+    @for (cell of [1, 2, 3, 4]; track cell) {
+      <div class="cell"><span class="bar short"></span><span class="bar"></span></div>
     }
+  </div>
+}
+@if (data.error() && !data.value()) {
+  <div class="panel failed">
+    <p>The dashboard could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="data.reload()">Try again</button>
+  </div>
+}
 
-    <div class="cards">
-      <article class="card">
-        <h2>
-          Lines <span class="count">{{ d.lines?.total ?? 0 }}</span>
-        </h2>
-        <div class="split">
-          <app-chart [option]="linesChart()" [label]="'Lines by status: ' + linesSummary()" />
-          <ul class="legend">
-            @for (row of displayRows(); track row.status) {
-              <li>
-                <a
-                  class="legend-link"
-                  routerLink="/subscriptions"
-                  [queryParams]="{ displayStatus: row.status }"
-                  [attr.aria-label]="'List ' + label(row.status) + ' lines'"
-                >
-                  <app-status-chip [status]="row.status" />
-                </a>
-                <span class="num">{{ row.count }}</span>
-              </li>
-            }
-          </ul>
-        </div>
-      </article>
+@if (data.value(); as d) {
+  <div class="panel strip" [class.stale]="data.isLoading()">
+    <a class="cell link" routerLink="/subscriptions">
+      <span class="label">Lines</span>
+      <span class="value">{{ d.lines?.total ?? 0 }}</span>
+      <span class="note">{{ activeLines() }} active</span>
+    </a>
+    <a
+      class="cell link"
+      routerLink="/subscriptions"
+      [queryParams]="{ displayStatus: 'RESTRICTED' }"
+    >
+      <span class="label">Need attention</span>
+      <span class="value" [class.warn]="attention() > 0">{{ attention() }}</span>
+      <span class="note">expiring, in grace or restricted</span>
+    </a>
+    <div class="cell">
+      <span class="label">Active sessions</span>
+      <span class="value">{{ d.network?.activeSessions ?? 0 }}</span>
+      <span class="note">{{ bytes(d.network?.outputOctets) }} down this period</span>
+    </div>
+    <a class="cell link" routerLink="/network">
+      <span class="label">Routers online</span>
+      <span class="value"
+        >{{ routersOnline() }}<span class="of"> / {{ routersTotal() }}</span></span
+      >
+      <span class="note" [class.alert]="routersOffline() > 0">{{ routersOffline() }} offline</span>
+    </a>
+  </div>
 
-      <article class="card">
-        <h2>Network</h2>
-        <div class="split">
-          <app-chart [option]="routersChart()" [label]="'Routers by status: ' + routersSummary()" />
-          <ul class="legend">
-            @for (row of routerRows(); track row.status) {
-              <li>
+  @if (d.revenue; as r) {
+    <h2 class="section-title heading">Revenue · {{ monthLabel() }}</h2>
+    <div class="panel strip money" [class.stale]="data.isLoading()">
+      <div class="cell">
+        <span class="label">Renewals due</span>
+        <span class="value">{{ money(r.renewalsDue) }}</span>
+        <span class="note">{{ r.renewalsDueLines ?? 0 }} lines expiring</span>
+      </div>
+      <div class="cell">
+        <span class="label">Outstanding</span>
+        <span class="value">{{ money(r.outstanding) }}</span>
+        <span class="note">still to be paid on those lines</span>
+      </div>
+      <div class="cell">
+        <span class="label">Collected</span>
+        <span class="value">{{ money(r.collected) }}</span>
+        <span class="note">{{ r.payments ?? 0 }} payments</span>
+      </div>
+      <a class="cell link" routerLink="/payments/suspense">
+        <span class="label">Unmatched</span>
+        <span class="value">{{ money(r.unmatched) }}</span>
+        <span class="note">{{ r.unmatchedPayments ?? 0 }} in suspense</span>
+      </a>
+      <div class="cell">
+        <span class="label">Lapsed</span>
+        <span class="value">{{ money(r.lapsed) }}</span>
+        <span class="note">{{ r.lapsedLines ?? 0 }} lines expired earlier</span>
+      </div>
+    </div>
+  }
+
+  <div class="panels">
+    <section class="panel chart-panel" aria-labelledby="lines-heading">
+      <header class="panel-head">
+        <h2 id="lines-heading" class="section-title">Lines by status</h2>
+      </header>
+      <div class="split">
+        <app-chart [option]="linesChart()" [label]="'Lines by status: ' + linesSummary()" />
+        <ul class="legend">
+          @for (row of displayRows(); track row.status) {
+            <li>
+              <a
+                class="legend-row"
+                routerLink="/subscriptions"
+                [queryParams]="{ displayStatus: row.status }"
+                [attr.aria-label]="row.count + ' ' + label(row.status) + ' lines, list them'"
+              >
                 <app-status-chip [status]="row.status" />
                 <span class="num">{{ row.count }}</span>
-              </li>
-            }
-            <li class="plain">
-              <span>Active sessions</span
-              ><span class="num">{{ d.network?.activeSessions ?? 0 }}</span>
+              </a>
             </li>
-            <li class="plain">
-              <span>Downloaded</span><span class="num">{{ bytes(d.network?.outputOctets) }}</span>
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel chart-panel" aria-labelledby="network-heading">
+      <header class="panel-head">
+        <h2 id="network-heading" class="section-title">Network</h2>
+      </header>
+      <div class="split">
+        <app-chart [option]="routersChart()" [label]="'Routers by status: ' + routersSummary()" />
+        <ul class="legend">
+          @for (row of routerRows(); track row.status) {
+            <li>
+              <span class="legend-row static">
+                <app-status-chip [status]="row.status" />
+                <span class="num">{{ row.count }}</span>
+              </span>
             </li>
-            <li class="plain">
-              <span>Uploaded</span><span class="num">{{ bytes(d.network?.inputOctets) }}</span>
-            </li>
-          </ul>
-        </div>
-      </article>
-    </div>
-    <p class="muted asof">
-      Days {{ d.from }} to {{ d.to }} ({{ d.zone }}). Lines, routers and sessions are as of now.
-    </p>
-  }
-</section>
+          }
+          <li class="rule"></li>
+          <li>
+            <span class="legend-row static">
+              <span class="muted">Downloaded</span>
+              <span class="num">{{ bytes(d.network?.outputOctets) }}</span>
+            </span>
+          </li>
+          <li>
+            <span class="legend-row static">
+              <span class="muted">Uploaded</span>
+              <span class="num">{{ bytes(d.network?.inputOctets) }}</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </div>
+  <p class="asof">
+    Days {{ d.from }} to {{ d.to }} ({{ d.zone }}). Lines, routers and sessions are as of now.
+  </p>
+}

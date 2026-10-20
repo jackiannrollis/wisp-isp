@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   DEFAULT_BRANDING,
   MIN_CONTRAST,
+  NEUTRAL,
   TenantThemeService,
   contrastRatio,
   themeScheme,
@@ -90,6 +91,26 @@ describe('TenantThemeService', () => {
       expect(contrastRatio(scheme.onSurface[mode], scheme.surface[mode])).toBeGreaterThanOrEqual(
         MIN_CONTRAST,
       );
+    }
+  });
+
+  it('keeps text readable on every fixed neutral surface, light and dark', () => {
+    const surfaces = [
+      'surface',
+      'surfaceContainerLow',
+      'surfaceContainer',
+      'surfaceContainerHigh',
+    ] as const;
+    for (const mode of ['light', 'dark'] as const) {
+      for (const surface of surfaces) {
+        const background = NEUTRAL[surface]![mode];
+        expect(contrastRatio(NEUTRAL.onSurface![mode], background)).toBeGreaterThanOrEqual(
+          MIN_CONTRAST,
+        );
+        expect(contrastRatio(NEUTRAL.onSurfaceVariant![mode], background)).toBeGreaterThanOrEqual(
+          MIN_CONTRAST,
+        );
+      }
     }
   });
 

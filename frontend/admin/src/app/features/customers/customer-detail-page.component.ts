@@ -3,12 +3,9 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
-import { RouterLink } from '@angular/router';
 import {
   IconArchive,
-  IconArrowLeft,
   IconCash,
   IconDeviceMobileMessage,
   IconDotsVertical,
@@ -40,6 +37,7 @@ import {
   SecretDialogData,
 } from '../../shared/dialogs/secret-dialog.component';
 import { formatDateTime, formatMoney } from '../../shared/ui/format';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.component';
 import { LedgerEntry, Receipt, WalletsService } from '../billing/data/wallets.service';
 import { PackagesService } from '../packages/data/packages.service';
@@ -78,10 +76,9 @@ interface LineAction {
 @Component({
   selector: 'app-customer-detail-page',
   imports: [
-    RouterLink,
     MatButtonModule,
     MatMenuModule,
-    MatProgressBarModule,
+    PageHeaderComponent,
     MatTabsModule,
     TablerIconComponent,
     StatusChipComponent,
@@ -104,7 +101,6 @@ export class CustomerDetailPageComponent {
   private readonly permissions = inject(PermissionService);
 
   protected readonly icons = {
-    back: IconArrowLeft,
     edit: IconPencil,
     archive: IconArchive,
     add: IconPlus,

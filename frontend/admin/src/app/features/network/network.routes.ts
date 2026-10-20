@@ -4,6 +4,10 @@ export const NETWORK_ROUTES: Routes = [
   {
     path: '',
     title: 'Routers',
-    loadComponent: () => import('./network-page.component').then((m) => m.NetworkPageComponent),
+    data: { heading: 'Routers' },
+    loadComponent: () =>
+      import('../../shared/components/placeholder-page.component').then(
+        (m) => m.PlaceholderPageComponent,
+      ),
   },
 ];

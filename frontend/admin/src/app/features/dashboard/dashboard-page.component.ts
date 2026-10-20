@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import {
@@ -14,7 +13,8 @@ import { EChartsCoreOption } from 'echarts/core';
 import { switchMap, timer } from 'rxjs';
 
 import { ChartComponent } from '../../shared/chart/chart.component';
-import { formatBytes, formatMoney } from '../../shared/ui/format';
+import { formatBytes, formatDateTime, formatMoney } from '../../shared/ui/format';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import {
   StatusChipComponent,
   statusLabel,
@@ -36,11 +36,14 @@ const DISPLAY_ORDER = [
 ];
 const ROUTER_ORDER = ['ONLINE', 'OFFLINE', 'UNKNOWN', 'NOT_MONITORED'];
 
+const MUTED = 'var(--mat-sys-on-surface-variant)';
+const CHART_TEXT = { fontFamily: "'Inter Variable', system-ui, sans-serif" };
+
 const TONE_COLOUR = {
   success: 'var(--app-success)',
   warning: 'var(--app-warning)',
   error: 'var(--app-error)',
-  neutral: 'var(--mat-sys-outline)',
+  neutral: 'var(--app-neutral)',
 } as const;
 
 /**
@@ -52,7 +55,7 @@ const TONE_COLOUR = {
   imports: [
     RouterLink,
     MatButtonModule,
-    MatProgressBarModule,
+    PageHeaderComponent,
     MatTooltipModule,
     TablerIconComponent,
     ChartComponent,
@@ -96,6 +99,28 @@ export class DashboardPageComponent {
     return DISPLAY_ORDER.map((status) => ({ status, count: counts[status] ?? 0 }));
   });
 
+  protected readonly subtitle = computed(() => {
+    const d = this.data.value();
+    return d ? `Updated ${formatDateTime(d.asOf)} · ${d.zone}` : null;
+  });
+  protected readonly activeLines = computed(
+    () => this.data.value()?.lines?.byState?.['ACTIVE'] ?? 0,
+  );
+  /** Lines someone may need to act on: about to expire, in grace, or restricted. */
+  protected readonly attention = computed(() => {
+    const counts = this.data.value()?.lines?.byDisplayStatus ?? {};
+    return (counts['EXPIRING'] ?? 0) + (counts['GRACE'] ?? 0) + (counts['RESTRICTED'] ?? 0);
+  });
+  protected readonly routersOnline = computed(
+    () => this.data.value()?.network?.routersByStatus?.['ONLINE'] ?? 0,
+  );
+  protected readonly routersOffline = computed(
+    () => this.data.value()?.network?.routersByStatus?.['OFFLINE'] ?? 0,
+  );
+  protected readonly routersTotal = computed(() =>
+    Object.values(this.data.value()?.network?.routersByStatus ?? {}).reduce((a, b) => a + b, 0),
+  );
+
   protected readonly routerRows = computed(() => {
     const counts = this.data.value()?.network?.routersByStatus ?? {};
     return ROUTER_ORDER.map((status) => ({ status, count: counts[status] ?? 0 }));
@@ -104,26 +129,30 @@ export class DashboardPageComponent {
   protected readonly linesChart = computed<EChartsCoreOption>(() => {
     const rows = this.displayRows();
     return {
-      grid: { left: 8, right: 16, top: 8, bottom: 8, containLabel: true },
+      textStyle: CHART_TEXT,
+      grid: { left: 4, right: 12, top: 4, bottom: 4, containLabel: true },
       tooltip: { trigger: 'item' },
       xAxis: {
         type: 'value',
         minInterval: 1,
-        axisLabel: { color: 'var(--mat-sys-on-surface-variant)' },
+        axisLabel: { color: MUTED, fontSize: 11 },
+        splitLine: { lineStyle: { color: 'var(--mat-sys-outline-variant)', type: 'dashed' } },
       },
       yAxis: {
         type: 'category',
         inverse: true,
         data: rows.map((r) => statusLabel(r.status)),
-        axisLabel: { color: 'var(--mat-sys-on-surface-variant)' },
+        axisLabel: { color: MUTED, fontSize: 12 },
+        axisLine: { show: false },
+        axisTick: { show: false },
       },
       series: [
         {
           type: 'bar',
-          barMaxWidth: 18,
+          barMaxWidth: 14,
           data: rows.map((r) => ({
             value: r.count,
-            itemStyle: { color: TONE_COLOUR[statusTone(r.status)], borderRadius: [0, 4, 4, 0] },
+            itemStyle: { color: TONE_COLOUR[statusTone(r.status)], borderRadius: [0, 3, 3, 0] },
           })),
         },
       ],
@@ -131,11 +160,14 @@ export class DashboardPageComponent {
   });
 
   protected readonly routersChart = computed<EChartsCoreOption>(() => ({
+    textStyle: CHART_TEXT,
     tooltip: { trigger: 'item' },
     series: [
       {
         type: 'pie',
-        radius: ['55%', '80%'],
+        radius: ['64%', '84%'],
+        padAngle: 2,
+        itemStyle: { borderRadius: 3 },
         label: { show: false },
         data: this.routerRows()
           .filter((r) => r.count > 0)

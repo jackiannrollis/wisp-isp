@@ -4,6 +4,10 @@ export const SETTINGS_ROUTES: Routes = [
   {
     path: '',
     title: 'Settings',
-    loadComponent: () => import('./settings-page.component').then((m) => m.SettingsPageComponent),
+    data: { heading: 'Settings' },
+    loadComponent: () =>
+      import('../../shared/components/placeholder-page.component').then(
+        (m) => m.PlaceholderPageComponent,
+      ),
   },
 ];

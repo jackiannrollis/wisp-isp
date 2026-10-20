@@ -3,20 +3,18 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
   IconCheck,
+  IconChevronDown,
   IconDeviceDesktop,
   IconLogout,
   IconMenu2,
   IconMoon,
   IconSun,
-  IconUserCircle,
   TablerIconComponent,
 } from '@tabler/icons-angular';
 import { map } from 'rxjs';
@@ -38,8 +36,6 @@ const OVERLAY_NAV = '(max-width: 1023.98px)';
     RouterLink,
     RouterLinkActive,
     MatSidenavModule,
-    MatToolbarModule,
-    MatListModule,
     MatButtonModule,
     MatMenuModule,
     MatDividerModule,
@@ -77,10 +73,23 @@ export class ShellComponent {
   );
   protected readonly icons = {
     menu: IconMenu2,
-    user: IconUserCircle,
     logout: IconLogout,
     check: IconCheck,
+    chevron: IconChevronDown,
   };
+
+  /** The tenant's first letter when it has no logo. */
+  protected readonly monogram = computed(() =>
+    (this.branding().name || 'C').trim().charAt(0).toUpperCase(),
+  );
+  protected readonly initials = computed(() =>
+    (this.me()?.displayName ?? '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word.charAt(0).toUpperCase())
+      .join(''),
+  );
 
   protected async signOut(): Promise<void> {
     await this.auth.logout();

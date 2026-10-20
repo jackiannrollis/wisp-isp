@@ -4,6 +4,10 @@ export const PACKAGES_ROUTES: Routes = [
   {
     path: '',
     title: 'Packages',
-    loadComponent: () => import('./packages-page.component').then((m) => m.PackagesPageComponent),
+    data: { heading: 'Packages' },
+    loadComponent: () =>
+      import('../../shared/components/placeholder-page.component').then(
+        (m) => m.PlaceholderPageComponent,
+      ),
   },
 ];

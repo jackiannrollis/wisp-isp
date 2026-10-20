@@ -140,19 +140,49 @@ export class TenantThemeService {
 }
 
 /**
- * The M3 scheme for a brand colour. Fidelity keeps the brand's own chroma for the primary roles; when
+ * The M3 scheme for a brand colour, on the fixed neutral surfaces. Fidelity keeps the brand's own chroma for the primary roles; when
  * that would put text on primary (or primary text on the surface) below 4.5:1, in light or dark, the
  * standard tonal-spot scheme of the same hue is used instead, whose tones guarantee the contrast.
  */
 export function themeScheme(brandHex: string): ThemeScheme {
   const source = Hct.fromInt(argbFromHex(normalise(brandHex)));
-  const fidelity = schemeOf(
-    new SchemeFidelity(source, false, 0),
-    new SchemeFidelity(source, true, 0),
+  const fidelity = withNeutralSurfaces(
+    schemeOf(new SchemeFidelity(source, false, 0), new SchemeFidelity(source, true, 0)),
   );
   return legible(fidelity)
     ? fidelity
-    : schemeOf(new SchemeTonalSpot(source, false, 0), new SchemeTonalSpot(source, true, 0));
+    : withNeutralSurfaces(
+        schemeOf(new SchemeTonalSpot(source, false, 0), new SchemeTonalSpot(source, true, 0)),
+      );
+}
+
+/**
+ * The fixed neutral ramp (ADR 0002 amendment, refined): surfaces, text and borders are the same for
+ * every tenant, a cool grey with no brand tint, so a tenant's colour reads as an accent only. Text on
+ * every surface reaches 4.5:1 (tested in tenant-theme.service.spec).
+ */
+export const NEUTRAL: Partial<ThemeScheme> = {
+  background: { light: '#f6f7f9', dark: '#0e1014' },
+  surface: { light: '#ffffff', dark: '#15181d' },
+  surfaceDim: { light: '#e3e6ea', dark: '#0e1014' },
+  surfaceBright: { light: '#ffffff', dark: '#2a2f37' },
+  surfaceContainerLowest: { light: '#ffffff', dark: '#0e1014' },
+  surfaceContainerLow: { light: '#f6f7f9', dark: '#111318' },
+  surfaceContainer: { light: '#f0f2f5', dark: '#1b1f25' },
+  surfaceContainerHigh: { light: '#e9ecf0', dark: '#21262d' },
+  surfaceContainerHighest: { light: '#e2e6eb', dark: '#282e36' },
+  surfaceVariant: { light: '#e9ecf0', dark: '#21262d' },
+  onBackground: { light: '#161a1f', dark: '#e6e8eb' },
+  onSurface: { light: '#161a1f', dark: '#e6e8eb' },
+  onSurfaceVariant: { light: '#545d69', dark: '#a6aeb8' },
+  outline: { light: '#8a929d', dark: '#6c747f' },
+  outlineVariant: { light: '#dfe3e8', dark: '#2c323a' },
+  inverseSurface: { light: '#2a2f36', dark: '#e6e8eb' },
+  inverseOnSurface: { light: '#f0f2f5', dark: '#2a2f36' },
+};
+
+export function withNeutralSurfaces(scheme: ThemeScheme): ThemeScheme {
+  return { ...scheme, ...NEUTRAL } as ThemeScheme;
 }
 
 function legible(scheme: ThemeScheme): boolean {

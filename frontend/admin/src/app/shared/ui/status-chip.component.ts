@@ -10,8 +10,9 @@ import {
 export type StatusTone = 'success' | 'warning' | 'error' | 'neutral';
 
 /**
- * Status always shows text and an icon, never colour alone (ADR 0002 amendment). The colours are the
- * fixed status tokens of styles.scss, the same for every tenant.
+ * Status as coloured text with an icon, no container (ADR 0002 amendment, user choice): never colour
+ * alone, since the label and the icon shape carry the meaning too. The colours are the fixed status
+ * tokens of styles.scss, the same for every tenant.
  */
 const TONES: Record<string, StatusTone> = {
   ACTIVE: 'success',
@@ -52,38 +53,29 @@ export function statusLabel(status: string | null | undefined): string {
   selector: 'app-status-chip',
   imports: [TablerIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <span class="chip" [class]="tone()">
-      <tabler-icon [icon]="icon()" [size]="16" aria-hidden="true" />
-      {{ label() }}
-    </span>
-  `,
+  template: `<span class="status" [class]="tone()"
+    ><tabler-icon [icon]="icon()" [size]="15" aria-hidden="true" />{{ label() }}</span
+  >`,
   styles: `
-    .chip {
+    .status {
       display: inline-flex;
       align-items: center;
-      gap: 0.25rem;
-      padding: 0.125rem 0.625rem 0.125rem 0.375rem;
-      border-radius: var(--mat-sys-corner-full);
-      font: var(--mat-sys-label-medium);
+      gap: 0.3125rem;
+      font: var(--mat-sys-label-large);
+      font-weight: 600;
       white-space: nowrap;
     }
     .success {
-      background: var(--app-success-container);
-      color: var(--app-on-success-container);
+      color: var(--app-success);
     }
     .warning {
-      background: var(--app-warning-container);
-      color: var(--app-on-warning-container);
+      color: var(--app-warning);
     }
     .error {
-      background: var(--app-error-container);
-      color: var(--app-on-error-container);
+      color: var(--app-error);
     }
     .neutral {
-      background: transparent;
-      color: var(--mat-sys-on-surface-variant);
-      box-shadow: inset 0 0 0 1px var(--mat-sys-outline);
+      color: var(--app-neutral);
     }
   `,
 })

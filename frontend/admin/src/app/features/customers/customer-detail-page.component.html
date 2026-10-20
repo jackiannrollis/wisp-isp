@@ -1,177 +1,217 @@
-<section class="page">
-  <a class="back" routerLink="/customers">
-    <tabler-icon [icon]="icons.back" [size]="18" /> Customers
-  </a>
+@if (customer.isLoading() && !customer.value()) {
+  <div class="panel loading" aria-label="Loading">
+    <span class="bar wide"></span><span class="bar"></span>
+  </div>
+}
+@if (customer.error()) {
+  <app-page-header title="Customer" backLink="/customers" backLabel="Customers" />
+  <div class="panel failed">
+    <p>This customer could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="customer.reload()">Try again</button>
+  </div>
+}
 
-  @if (customer.isLoading() && !customer.value()) {
-    <mat-progress-bar mode="indeterminate" />
-  }
-  @if (customer.error()) {
-    <p class="muted">This customer could not be loaded.</p>
-  }
+@if (customer.value(); as c) {
+  <app-page-header
+    [title]="c.name ?? ''"
+    [subtitle]="c.number ?? null"
+    backLink="/customers"
+    backLabel="Customers"
+  >
+    <app-status-chip status [status]="c.status" />
+    @if (can().editCustomer && c.status !== 'ARCHIVED') {
+      <ng-container actions>
+        <button
+          mat-icon-button
+          type="button"
+          class="quiet"
+          aria-label="More actions"
+          [matMenuTriggerFor]="customerMenu"
+        >
+          <tabler-icon [icon]="icons.more" [size]="18" />
+        </button>
+        <mat-menu #customerMenu="matMenu" xPosition="before">
+          <button mat-menu-item type="button" (click)="archive(c)">
+            <tabler-icon [icon]="icons.archive" [size]="18" class="menu-icon" />
+            <span>Archive customer</span>
+          </button>
+        </mat-menu>
+        <button mat-stroked-button type="button" (click)="edit(c)">
+          <tabler-icon [icon]="icons.edit" [size]="16" /> Edit
+        </button>
+      </ng-container>
+    }
+  </app-page-header>
 
-  @if (customer.value(); as c) {
-    <header class="head">
-      <div>
-        <h1>{{ c.name }} <app-status-chip [status]="c.status" /></h1>
-        <p class="sub">
-          {{ c.number }} · {{ c.phone }}
-          @if (c.email) {
-            · {{ c.email }}
-          }
-        </p>
-        @if (c.address || c.installationLocation) {
-          <p class="sub">
-            {{ c.address }}
-            @if (c.address && c.installationLocation) {
-              ·
-            }
-            {{ c.installationLocation }}
-          </p>
-        }
-      </div>
-      @if (can().editCustomer && c.status !== 'ARCHIVED') {
-        <div class="actions">
-          <button mat-stroked-button type="button" (click)="edit(c)">
-            <tabler-icon [icon]="icons.edit" [size]="18" /> Edit
-          </button>
-          <button mat-button type="button" (click)="archive(c)">
-            <tabler-icon [icon]="icons.archive" [size]="18" /> Archive
-          </button>
-        </div>
+  <dl class="panel facts">
+    <div>
+      <dt>Phone</dt>
+      <dd>{{ c.phone }}</dd>
+    </div>
+    <div>
+      <dt>Email</dt>
+      <dd>{{ c.email || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Address</dt>
+      <dd>{{ c.address || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Installation</dt>
+      <dd>{{ c.installationLocation || '—' }}</dd>
+    </div>
+    <div>
+      <dt>Customer since</dt>
+      <dd>{{ date(c.createdAt) }}</dd>
+    </div>
+  </dl>
+
+  <section class="block" aria-labelledby="lines-title">
+    <header class="block-head">
+      <h2 id="lines-title" class="section-title">
+        Lines <span class="count">{{ lineList.value()?.length ?? '' }}</span>
+      </h2>
+      @if (can().manageLines && c.status !== 'ARCHIVED') {
+        <button mat-stroked-button type="button" (click)="addLine()">
+          <tabler-icon [icon]="icons.add" [size]="16" /> Add line
+        </button>
       }
     </header>
-
-    <section class="block" aria-labelledby="lines-title">
-      <div class="block-head">
-        <h2 id="lines-title">Lines</h2>
-        @if (can().manageLines && c.status !== 'ARCHIVED') {
-          <button mat-stroked-button type="button" (click)="addLine()">
-            <tabler-icon [icon]="icons.add" [size]="18" /> Add line
-          </button>
-        }
-      </div>
-      @if (lineList.value(); as lines) {
-        @if (lines.length === 0) {
-          <p class="muted">No lines yet.</p>
-        }
-        <div class="lines">
-          @for (line of lines; track line.id) {
-            <article class="line">
-              <div class="line-main">
-                <div class="line-title">
-                  <span class="username">{{ line.pppoeUsername }}</span>
-                  <app-status-chip [status]="line.displayStatus" />
-                </div>
-                <dl>
-                  <div>
-                    <dt>Package</dt>
-                    <dd>{{ packageNames().get(line.packageId ?? '') || '—' }}</dd>
-                  </div>
-                  <div>
-                    <dt>Access</dt>
-                    <dd>{{ label(line.accessProfile) }}</dd>
-                  </div>
-                  <div>
-                    <dt>Expires</dt>
-                    <dd>{{ date(line.expiresAt) }}</dd>
-                  </div>
-                  @if (line.pauseUntil) {
-                    <div>
-                      <dt>Paused until</dt>
-                      <dd>{{ date(line.pauseUntil) }}</dd>
-                    </div>
-                  }
-                </dl>
-              </div>
-              @if (lineActions(line); as actions) {
-                @if (actions.length) {
-                  <button
-                    mat-icon-button
-                    type="button"
-                    [matMenuTriggerFor]="lineMenu"
-                    [attr.aria-label]="'Actions for ' + line.pppoeUsername"
-                  >
-                    <tabler-icon [icon]="icons.more" [size]="20" />
-                  </button>
-                  <mat-menu #lineMenu="matMenu" xPosition="before">
-                    @for (action of actions; track action.label) {
-                      <button mat-menu-item type="button" (click)="action.run()">
-                        <tabler-icon [icon]="action.icon" [size]="18" class="menu-icon" />
-                        <span>{{ action.label }}</span>
-                      </button>
-                    }
-                  </mat-menu>
+    <div class="panel lines">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Status</th>
+            <th>Package</th>
+            <th>Access</th>
+            <th>Expires</th>
+            <th class="actions"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of lineList.value() ?? []; track line.id) {
+            <tr>
+              <td class="key">{{ line.pppoeUsername }}</td>
+              <td><app-status-chip [status]="line.displayStatus" /></td>
+              <td>{{ packageNames().get(line.packageId ?? '') || '—' }}</td>
+              <td>{{ label(line.accessProfile) }}</td>
+              <td>
+                {{ date(line.expiresAt) }}
+                @if (line.pauseUntil) {
+                  <span class="muted"> · paused until {{ date(line.pauseUntil) }}</span>
                 }
-              }
-            </article>
+              </td>
+              <td class="actions">
+                @if (lineActions(line); as actions) {
+                  @if (actions.length) {
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="quiet"
+                      [matMenuTriggerFor]="lineMenu"
+                      [attr.aria-label]="'Actions for ' + line.pppoeUsername"
+                    >
+                      <tabler-icon [icon]="icons.more" [size]="18" />
+                    </button>
+                    <mat-menu #lineMenu="matMenu" xPosition="before">
+                      @for (action of actions; track action.label) {
+                        <button
+                          mat-menu-item
+                          type="button"
+                          [class.danger]="action.label === 'Terminate'"
+                          (click)="action.run()"
+                        >
+                          <tabler-icon [icon]="action.icon" [size]="18" class="menu-icon" />
+                          <span>{{ action.label }}</span>
+                        </button>
+                      }
+                    </mat-menu>
+                  }
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="empty">
+                @if (lineList.isLoading()) {
+                  Loading lines…
+                } @else {
+                  No lines yet.
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (can().seeMoney) {
+    <section class="block" aria-labelledby="money-title">
+      <header class="block-head">
+        <div class="wallet">
+          <h2 id="money-title" class="section-title">Wallet</h2>
+          <span class="balance">{{ money(wallet.value()?.balance) }}</span>
+        </div>
+        <div class="actions-row">
+          @if (can().adjust) {
+            <button mat-button type="button" (click)="adjust()">
+              <tabler-icon [icon]="icons.adjust" [size]="16" /> Adjust
+            </button>
+          }
+          @if (can().stk) {
+            <button mat-stroked-button type="button" (click)="stkPush()">
+              <tabler-icon [icon]="icons.stk" [size]="16" /> M-Pesa request
+            </button>
+          }
+          @if (can().recordPayment) {
+            <button mat-flat-button type="button" (click)="recordPayment()">
+              <tabler-icon [icon]="icons.cash" [size]="16" /> Record payment
+            </button>
           }
         </div>
-      }
+      </header>
+      <mat-tab-group animationDuration="0ms" mat-stretch-tabs="false" class="tabs">
+        <mat-tab label="Statement">
+          <app-data-table
+            [tableId]="'customer-statement'"
+            exportName="statement"
+            emptyText="No ledger entries yet."
+            [itemLabel]="['entry', 'entries']"
+            [columns]="entryColumns"
+            [fetch]="entries"
+            [refresh]="moneyVersion()"
+          />
+        </mat-tab>
+        <mat-tab label="Payments">
+          <app-data-table
+            [tableId]="'customer-payments'"
+            exportName="payments"
+            emptyText="No payments yet."
+            [itemLabel]="['payment', 'payments']"
+            [columns]="paymentColumns"
+            [fetch]="paymentList"
+            [refresh]="moneyVersion()"
+            [defaultSort]="{ key: 'receivedAt', direction: 'desc' }"
+          >
+            <ng-template appCell="status" let-row>
+              <app-status-chip [status]="row.status" />
+            </ng-template>
+          </app-data-table>
+        </mat-tab>
+        <mat-tab label="Receipts">
+          <app-data-table
+            [tableId]="'customer-receipts'"
+            exportName="receipts"
+            emptyText="No receipts yet."
+            [itemLabel]="['receipt', 'receipts']"
+            [columns]="receiptColumns"
+            [fetch]="receipts"
+            [refresh]="moneyVersion()"
+          />
+        </mat-tab>
+      </mat-tab-group>
     </section>
-
-    @if (can().seeMoney) {
-      <section class="block" aria-labelledby="money-title">
-        <div class="block-head">
-          <h2 id="money-title">
-            Wallet <span class="balance">{{ money(wallet.value()?.balance) }}</span>
-          </h2>
-          <div class="actions">
-            @if (can().stk) {
-              <button mat-stroked-button type="button" (click)="stkPush()">
-                <tabler-icon [icon]="icons.stk" [size]="18" /> M-Pesa request
-              </button>
-            }
-            @if (can().recordPayment) {
-              <button mat-stroked-button type="button" (click)="recordPayment()">
-                <tabler-icon [icon]="icons.cash" [size]="18" /> Record payment
-              </button>
-            }
-            @if (can().adjust) {
-              <button mat-button type="button" (click)="adjust()">
-                <tabler-icon [icon]="icons.adjust" [size]="18" /> Adjust
-              </button>
-            }
-          </div>
-        </div>
-        <mat-tab-group animationDuration="0ms" mat-stretch-tabs="false">
-          <mat-tab label="Statement">
-            <app-data-table
-              [tableId]="'customer-statement'"
-              exportName="statement"
-              emptyText="No ledger entries yet."
-              [columns]="entryColumns"
-              [fetch]="entries"
-              [refresh]="moneyVersion()"
-            />
-          </mat-tab>
-          <mat-tab label="Payments">
-            <app-data-table
-              [tableId]="'customer-payments'"
-              exportName="payments"
-              emptyText="No payments yet."
-              [columns]="paymentColumns"
-              [fetch]="paymentList"
-              [refresh]="moneyVersion()"
-              [defaultSort]="{ key: 'receivedAt', direction: 'desc' }"
-            >
-              <ng-template appCell="status" let-row>
-                <app-status-chip [status]="row.status" />
-              </ng-template>
-            </app-data-table>
-          </mat-tab>
-          <mat-tab label="Receipts">
-            <app-data-table
-              [tableId]="'customer-receipts'"
-              exportName="receipts"
-              emptyText="No receipts yet."
-              [columns]="receiptColumns"
-              [fetch]="receipts"
-              [refresh]="moneyVersion()"
-            />
-          </mat-tab>
-        </mat-tab-group>
-      </section>
-    }
   }
-</section>
+}
