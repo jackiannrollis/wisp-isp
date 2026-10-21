@@ -1,7 +1,7 @@
 package com.corebalt.isp.network.domain;
 
 /**
- * Mikrotik-Rate-Limit as {@code v_radius_auth_v5} writes it (N4): upload/download (router rx/tx) in
+ * Mikrotik-Rate-Limit as {@code v_radius_auth_v6} writes it (N4): upload/download (router rx/tx) in
  * kbit/s, written as M when divisible by 1000 (5000/10000 becomes 5M/10M), otherwise k. A CoA must
  * set exactly what the next login would get; AccessChangesIT compares the two.
  */

@@ -8,7 +8,10 @@ import java.util.UUID;
  * A line was renewed and charged (docs/04 Renewal rules). {@code renewalId} is the ledger
  * reference of the charge; {@code previousExpiresAt} is null for a first activation;
  * {@code proRataDays} is set when the tenant's PRO_RATA_DAYS rule bought fewer days than a full
- * cycle. Amount in minor units (B2). Carries IDs only (E3).
+ * cycle. Amount in minor units (B2). Carries IDs only (E3). {@code previousAccessProfile} is the
+ * profile the line had just before the renewal, judged in the renewal's transaction with the usage of
+ * the cycle that just ended (fair use, data cap), so a consumer need not reconstruct it after the
+ * cycle has moved on; null in events written before it existed.
  */
 public record SubscriptionRenewed(
         UUID eventId,
@@ -22,5 +25,6 @@ public record SubscriptionRenewed(
         Instant expiresAt,
         long amountMinor,
         String currency,
-        Integer proRataDays)
+        Integer proRataDays,
+        String previousAccessProfile)
         implements DomainEvent {}

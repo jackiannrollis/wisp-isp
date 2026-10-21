@@ -57,6 +57,8 @@
 | Hub | A platform-side WireGuard endpoint; hub A at Hetzner, hub B in Nairobi |
 | SNMP | Simple Network Management Protocol, used to poll router health |
 | FUP | Fair-use policy: a usage threshold after which speed is throttled |
+| Cycle | A line's paid period from its last renewal (`cycle_started_at`); fair-use and data-cap usage count within it and reset only when the line renews (N9) |
+| Data cap | A hard usage limit per cycle (`data_cap_bytes`); past it the line is restricted to the pay page until it renews |
 | Carrier NAT (CGNAT) | Mobile and some fixed networks hiding routers behind shared public IPs; the reason for WireGuard |
 
 ## Payments and Kenya terms

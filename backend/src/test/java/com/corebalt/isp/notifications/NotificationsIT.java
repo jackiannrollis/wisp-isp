@@ -265,7 +265,7 @@ class NotificationsIT extends IntegrationTest {
         assertThat(new Api(port, tenant.id(), "billing.adjust").get("/api/v1/settings/notifications/templates").status()).isEqualTo(403);
 
         final JsonNode placeholders = api.get("/api/v1/settings/notifications/placeholders").json();
-        assertThat(placeholders).hasSize(14);
+        assertThat(placeholders).hasSize(15);
         assertThat(placeholders.toString()).contains("{\"name\":\"name\",\"sample\":\"Wanjiku\"}").doesNotContain("pin");
     }
 

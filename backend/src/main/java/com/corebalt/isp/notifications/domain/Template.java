@@ -30,12 +30,16 @@ public enum Template {
     PAYMENT_RECEIVED_POSTPAID(true, "KES {amount} received ({receipt}). Balance due: KES {due}, account {number}. Thank you, {name}."),
     PAYMENT_UNMATCHED(true, "We received KES {amount} with account {reference}, which we did not recognise. Next time use your customer number, which starts with {code}."),
     PACKAGE_CHANGED_NOW(true, "Hi {name}, your internet is now {package}. Enjoy the new speed."),
-    PACKAGE_CHANGED_NEXT(true, "Hi {name}, your internet changes to {package} at your next renewal on {expires_on}.");
+    PACKAGE_CHANGED_NEXT(true, "Hi {name}, your internet changes to {package} at your next renewal on {expires_on}."),
+    /** The line passed its fair-use allowance and is throttled until it renews (docs/09 step 8b, Q15 default). */
+    FAIR_USE_REACHED(true, "Hi {name}, you have used your {allowance} fair-use data on {package}, so speed is reduced. Pay KES {price} to Paybill {paybill}, acc {number} to renew now."),
+    /** The line used its data cap and is restricted until it renews (Q14 default). */
+    DATA_CAP_REACHED(true, "Hi {name}, you have used all {allowance} of data on {package}. Pay KES {price} to Paybill {paybill}, account {number} to renew and reconnect.");
 
     /** Every placeholder a template may use; none can carry a secret (M3). */
     public static final Set<String> PLACEHOLDERS = Set.of(
             "name", "number", "package", "price", "amount", "receipt", "expires_on", "balance", "due", "paybill",
-            "lines", "reference", "code", "grace_days");
+            "lines", "reference", "code", "grace_days", "allowance");
 
     /** Long but realistic values: the defaults must fit one part with these (a test checks). */
     public static final Map<String, String> SAMPLE = Map.ofEntries(
@@ -52,7 +56,8 @@ public enum Template {
             Map.entry("lines", "CB001238 to 17 Nov, CB001238-2 to 20 Nov"),
             Map.entry("reference", "HOUSE 4"),
             Map.entry("code", "CB"),
-            Map.entry("grace_days", "2"));
+            Map.entry("grace_days", "2"),
+            Map.entry("allowance", "100 GB"));
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([a-z_]+)}");
 

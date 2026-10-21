@@ -40,6 +40,7 @@ class AccountingIT extends IntegrationTest {
     @Autowired TransactionTemplate tx;
     @Autowired Accounting accounting;
     @Autowired TenantProfile tenantProfile;
+    @Autowired CycleUsage cycleUsage;
 
     TestTenants.Created tenant;
     String tunnelIp;
@@ -83,7 +84,7 @@ class AccountingIT extends IntegrationTest {
         session(Instant.now().minusSeconds(600), Instant.now().minusSeconds(60), 2_000, 3_000);
         // 22:30 UTC is 01:30 the next day in Nairobi (UTC+3), the tenant's zone.
         final Instant late = LocalDate.now(ZoneOffset.UTC).atTime(22, 30).toInstant(ZoneOffset.UTC);
-        final Accounting at = new Accounting(jdbc, tenantProfile, Clock.fixed(late, ZoneOffset.UTC));
+        final Accounting at = new Accounting(jdbc, tenantProfile, cycleUsage, Clock.fixed(late, ZoneOffset.UTC));
         TenantContext.runAsTenant(tenant.id(), () -> tx.executeWithoutResult(s -> at.rollUpUsage()));
         final LocalDate expected = LocalDate.ofInstant(late, TenantContext.callAsTenant(tenant.id(),
                 () -> tx.execute(s -> tenantProfile.currentPolicy().zone())));

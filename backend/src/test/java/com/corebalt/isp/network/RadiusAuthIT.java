@@ -25,7 +25,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.MountableFile;
 
 /**
- * The real FreeRADIUS image (radius/) reading {@code radius_client_v3} and {@code v_radius_auth_v5}
+ * The real FreeRADIUS image (radius/) reading {@code radius_client_v3} and {@code v_radius_auth_v6}
  * as {@code isp_radius}, over the real subscription, package, tenant, router and credential tables,
  * loaded with the same fixtures as the developer lab (infra/lab/seed.sql). Logins are sent with radclient inside the
  * container, from 127.0.0.1 (tenant CB's NAS) or 127.0.0.2 (tenant ZZ's NAS).
@@ -264,7 +264,7 @@ class RadiusAuthIT extends IntegrationTest {
     void N2_radiusRoleReadsOnlyTheViews() throws SQLException {
         try (Connection radius =
                 DriverManager.getConnection(POSTGRES.getJdbcUrl(), "isp_radius", RADIUS_PASSWORD)) {
-            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v5")) {
+            try (var rs = radius.createStatement().executeQuery("select count(*) from v_radius_auth_v6")) {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getLong(1)).isPositive();
             }

@@ -109,7 +109,7 @@ ON CONFLICT (tenant_id) DO UPDATE
 
 INSERT INTO subscriptions_subscription (id, tenant_id, customer_id, package_id, router_id,
                                         pppoe_username, state, expires_at, grace_days, static_ip,
-                                        paused_at, pause_until, terminated_at)
+                                        paused_at, pause_until, terminated_at, cycle_started_at)
 SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, t.id,
        ('01900000-0000-7000-8000-0000000c' || lpad(to_hex(l.n), 4, '0'))::uuid,
        CASE l.code WHEN 'CB' THEN '01900000-0000-7000-8000-0000000000e1'::uuid
@@ -118,12 +118,15 @@ SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, 
                    ELSE '01900000-0000-7000-8000-0000000000a3'::uuid END,
        l.number, l.state, now() + l.expires_in, l.grace_days, l.static_ip,
        now() - l.paused_ago, now() + l.pause_left,
-       CASE WHEN l.state = 'TERMINATED' THEN now() + l.expires_in + interval '1 day' END
+       CASE WHEN l.state = 'TERMINATED' THEN now() + l.expires_in + interval '1 day' END,
+       -- Fair use counts from the last renewal (N9): lines that have been renewed get a cycle start.
+       CASE WHEN l.state IN ('ACTIVE', 'PAUSED') THEN now() - interval '2 days' END
 FROM lab_line l JOIN tenancy_tenant t ON t.code = l.code
 ON CONFLICT (id) DO UPDATE
     SET state = EXCLUDED.state, expires_at = EXCLUDED.expires_at, grace_days = EXCLUDED.grace_days,
         static_ip = EXCLUDED.static_ip, paused_at = EXCLUDED.paused_at,
-        pause_until = EXCLUDED.pause_until, terminated_at = EXCLUDED.terminated_at, updated_at = now();
+        pause_until = EXCLUDED.pause_until, terminated_at = EXCLUDED.terminated_at,
+        cycle_started_at = EXCLUDED.cycle_started_at, updated_at = now();
 
 -- Customer statuses: CB000021 left and is ARCHIVED; everyone else is ACTIVE (re-runs restore that).
 UPDATE customers_customer

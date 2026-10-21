@@ -11,9 +11,9 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 ## Subscriptions (docs/04)
 
-- **S1** Only `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` are stored. `EXPIRING`, `GRACE`, `RESTRICTED` and the access profile are derived from dates at read time, never persisted.
-- **S2** Access profile logic, in this order: `PENDING`/`SUSPENDED`/`TERMINATED` → `REJECT`; `PAUSED` → `RESTRICTED`; `now < expires_at` → `FULL`; `now < expires_at + grace_days` → `FULL` or `THROTTLED` by tenant `grace_mode`; otherwise `RESTRICTED`.
-- **S3** The same logic exists in the SQL function `subscription_access()` (used by the `v_radius_auth` view and the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus`; a test proves they agree for the same inputs, profile, next change and display status. Change both or neither.
+- **S1** Only `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` are stored. `EXPIRING`, `GRACE`, `RESTRICTED` and the access profile are derived from dates and cycle usage at read time, never persisted.
+- **S2** Access profile logic, in this order: `PENDING`/`SUSPENDED`/`TERMINATED` → `REJECT`; `PAUSED` → `RESTRICTED`; before the end of grace, cycle usage at or past the package's `data_cap_bytes` → `RESTRICTED`, at or past its `fup_bytes` → `THROTTLED` (N9); `now < expires_at` → `FULL`; `now < expires_at + grace_days` → `FULL` or `THROTTLED` by tenant `grace_mode`; otherwise `RESTRICTED`.
+- **S3** The same logic exists in the SQL function `subscription_access_v2()` (used by the `v_radius_auth` view, and through `subscription_line_access()` by the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus`; a test proves they agree for the same inputs, cycle usage included, on profile, next change and display status. Change both or neither.
 - **S4** Every accepted login carries `Session-Timeout` = seconds until the next profile change, capped at 86400.
 - **S5** A renewal extends from the current `expires_at` when the line is not yet past grace, and from the moment of payment when it is. The clock time of `expires_at` is preserved.
 - **S6** `grace_days` is copied onto the subscription at each renewal; a policy change never shortens a cycle already paid for.
@@ -51,11 +51,12 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **N6** All router management (RADIUS, CoA, REST, SNMP) travels only over WireGuard; no router port is exposed publicly.
 - **N7** `radacct` is partitioned monthly, kept 13 months; `network_usage_daily` is the only usage source for screens and reports.
 - **N8** Device limits are enforced only on hotspot (`shared_users`); PPPoE cannot see devices behind the customer's router.
+- **N9** Fair use and data caps count download plus upload in the line's current cycle, from its last renewal (`cycle_started_at`, Q12 default), from the usage roll-up only (N7); only a renewal starts a new cycle (Q13 default). Past `fup_bytes` the line is `THROTTLED`, past `data_cap_bytes` `RESTRICTED` (Q14 default), until it renews; a line whose cycle start is unknown is not metered. A crossing is announced once per line, cycle and kind (`UsageThresholdReached`): Disconnect, then one SMS (Q15 default).
 
 ## Notifications (docs/04)
 
-- **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment).
-- **M2** Reminders respect the tenant sending window (default 07:00 to 21:00, tenant time zone); the payment message (including its restored variant), the unrecognised-reference reply and package-change messages go out immediately.
+- **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment); the fair-use and data-cap messages use kind, subscription and `cycle_started_at` (one per cycle).
+- **M2** Reminders respect the tenant sending window (default 07:00 to 21:00, tenant time zone); the payment message (including its restored variant), the unrecognised-reference reply, package-change messages and the fair-use and data-cap messages (the service changed now) go out immediately.
 - **M3** Messages never include secrets, PINs or full national IDs: templates, including a tenant's own wording, may use only a fixed list of placeholders that carry none of them. Two fixed, non-editable messages are the exceptions: the portal sign-in code, and a staff member's temporary password when staff choose "send by SMS" (Q11). Both are sent at once to the person's own phone, never retried, and logged with the secret masked.
 
 ## Events and jobs (docs/02)

@@ -75,6 +75,10 @@ public class Subscription {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    /** When the current cycle began: the last renewal (Q12 default); null until the first renewal after V202610211000. */
+    @Column(name = "cycle_started_at")
+    private Instant cycleStartedAt;
+
     @Column(name = "terminated_at")
     private Instant terminatedAt;
 
@@ -121,7 +125,8 @@ public class Subscription {
      * grace (or a first activation) starts from {@code now}. The clock time of the base is kept
      * because the period is a whole number of minutes added to an instant (Q6 default: exact
      * timestamps). {@code graceDays} is copied for the new cycle, and the package the cycle was sold
-     * for becomes the line's package, clearing a pending change (S10).
+     * for becomes the line's package, clearing a pending change (S10). Every renewal starts a new
+     * cycle for fair use and data caps at {@code now}, so its allowance resets (Q12, Q13 defaults).
      */
     public Renewal renew(final Duration period, final int graceDays, final UUID packageId, final Instant now) {
         requireRenewable();
@@ -140,6 +145,7 @@ public class Subscription {
         this.graceDays = graceDays;
         this.packageId = packageId;
         pendingPackageId = null;
+        cycleStartedAt = now;
         updatedAt = now;
         return new Renewal(from, previousExpiresAt, expiresAt);
     }
@@ -327,6 +333,10 @@ public class Subscription {
 
     public Instant getActivatedAt() {
         return activatedAt;
+    }
+
+    public Instant getCycleStartedAt() {
+        return cycleStartedAt;
     }
 
     public Instant getTerminatedAt() {

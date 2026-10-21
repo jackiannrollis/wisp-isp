@@ -8,6 +8,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +33,13 @@ public class Accounting {
 
     private final JdbcClient jdbc;
     private final TenantProfile tenant;
+    private final CycleUsage cycleUsage;
     private final Clock clock;
 
-    Accounting(final JdbcClient jdbc, final TenantProfile tenant, final Clock clock) {
+    Accounting(final JdbcClient jdbc, final TenantProfile tenant, final CycleUsage cycleUsage, final Clock clock) {
         this.jdbc = jdbc;
         this.tenant = tenant;
+        this.cycleUsage = cycleUsage;
         this.clock = clock;
     }
 
@@ -98,7 +103,7 @@ public class Accounting {
         }
         final Instant now = clock.instant();
         final LocalDate day = LocalDate.ofInstant(now, tenant.currentPolicy().zone());
-        final int lines = jdbc.sql("""
+        final Map<UUID, Long> growth = jdbc.sql("""
                         with current_sessions as (
                             select a.acctuniqueid, a.acctstarttime, a.subscription_id, a.acctinputoctets, a.acctoutputoctets
                             from radacct a
@@ -119,25 +124,35 @@ public class Accounting {
                             set input_octets = greatest(network_usage_session.input_octets, excluded.input_octets),
                                 output_octets = greatest(network_usage_session.output_octets, excluded.output_octets),
                                 last_seen_at = excluded.last_seen_at
+                        ), per_line as (
+                            select subscription_id, sum(input_delta) as input_delta, sum(output_delta) as output_delta
+                            from growth
+                            where input_delta > 0 or output_delta > 0
+                            group by subscription_id
+                        ), daily as (
+                            insert into network_usage_daily (tenant_id, subscription_id, day, input_octets, output_octets, updated_at)
+                            select :tenantId, subscription_id, :day, input_delta, output_delta, :now
+                            from per_line
+                            on conflict (tenant_id, subscription_id, day) do update
+                            set input_octets = network_usage_daily.input_octets + excluded.input_octets,
+                                output_octets = network_usage_daily.output_octets + excluded.output_octets,
+                                updated_at = excluded.updated_at
                         )
-                        insert into network_usage_daily (tenant_id, subscription_id, day, input_octets, output_octets, updated_at)
-                        select :tenantId, subscription_id, :day, sum(input_delta), sum(output_delta), :now
-                        from growth
-                        where input_delta > 0 or output_delta > 0
-                        group by subscription_id
-                        on conflict (tenant_id, subscription_id, day) do update
-                        set input_octets = network_usage_daily.input_octets + excluded.input_octets,
-                            output_octets = network_usage_daily.output_octets + excluded.output_octets,
-                            updated_at = excluded.updated_at
+                        select subscription_id, input_delta + output_delta from per_line
                         """)
                 .param("tail", Timestamp.from(now.minus(ROLL_UP_TAIL)))
                 .param("tenantId", TenantContext.requireTenantId())
                 .param("now", Timestamp.from(now))
                 .param("day", Date.valueOf(day))
-                .update();
+                .query((rs, n) -> Map.entry(rs.getObject(1, UUID.class), rs.getLong(2)))
+                .list()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        // The same growth, added to each line's cycle total for fair use and data caps (docs/09 step 8b).
+        cycleUsage.add(growth);
         jdbc.sql("delete from network_usage_session where last_seen_at < :expired")
                 .param("expired", Timestamp.from(now.minus(ROLL_UP_TAIL.plusDays(1))))
                 .update();
-        return lines;
+        return growth.size();
     }
 }

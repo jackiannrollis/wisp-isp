@@ -4,6 +4,7 @@ import com.corebalt.isp.network.api.RouterOffline;
 import com.corebalt.isp.network.api.RouterOnline;
 import com.corebalt.isp.network.api.SessionReauthorizationFailed;
 import com.corebalt.isp.network.api.SessionReauthorized;
+import com.corebalt.isp.network.api.UsageThresholdReached;
 import com.corebalt.isp.notifications.application.CoaAlerts;
 import com.corebalt.isp.notifications.application.MessageComposer;
 import com.corebalt.isp.notifications.application.RouterAlerts;
@@ -33,6 +34,7 @@ class NotificationListeners {
     static final String ROUTERS_ONLINE = "notifications.routers-online";
     static final String COA_FAILED = "notifications.coa-failed";
     static final String COA_DONE = "notifications.coa-done";
+    static final String USAGE = "notifications.usage-thresholds";
 
     private final IdempotentConsumer consumer;
     private final MessageComposer composer;
@@ -97,8 +99,19 @@ class NotificationListeners {
         consumer.handleOnce(PACKAGES, message, () -> composer.packageChanged(event));
     }
 
+    @RabbitListener(queues = USAGE)
+    void usageThresholdReached(final Message message) {
+        final UsageThresholdReached event = EventQueues.read(json, message, UsageThresholdReached.class);
+        consumer.handleOnce(USAGE, message, () -> composer.usageThresholdReached(event));
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class Queues {
+
+        @Bean
+        Declarables notificationsUsageThresholdsQueue() {
+            return EventQueues.declare(USAGE, EventQueues.routingKey(UsageThresholdReached.class, 1));
+        }
 
         @Bean
         Declarables notificationsRemindersQueue() {

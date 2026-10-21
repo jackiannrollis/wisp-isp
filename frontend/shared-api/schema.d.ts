@@ -1904,6 +1904,18 @@ export interface components {
             /** Format: uuid */
             routerId: string;
         };
+        CycleUsage: {
+            /** Format: date-time */
+            cycleStartedAt?: string;
+            /** Format: int64 */
+            usedBytes?: number;
+            /** Format: int64 */
+            fairUseBytes?: number;
+            /** Format: int64 */
+            dataCapBytes?: number;
+            fairUseExceeded?: boolean;
+            dataCapReached?: boolean;
+        };
         LineOpenedDto: {
             subscription?: components["schemas"]["SubscriptionDto"];
             pppoePassword?: string;
@@ -1937,6 +1949,7 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            usage?: components["schemas"]["CycleUsage"];
         };
         ReasonRequest: {
             reason: string;
@@ -2746,7 +2759,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
             };
             cookie?: never;
         };
@@ -2772,7 +2785,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
             };
             cookie?: never;
         };
@@ -3371,7 +3384,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
             };
             cookie?: never;
         };

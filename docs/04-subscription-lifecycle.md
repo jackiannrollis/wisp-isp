@@ -43,19 +43,28 @@ The access profile is computed from the current time, not stored:
 ```
 if state in (PENDING, SUSPENDED, TERMINATED):      REJECT
 elif state == PAUSED:                               RESTRICTED
+elif now < expires_at + grace_days and cycle usage >= data_cap_bytes:   RESTRICTED
+elif now < expires_at + grace_days and cycle usage >= fup_bytes:        THROTTLED
 elif now <  expires_at:                             FULL
 elif now <  expires_at + grace_days:                FULL or THROTTLED (tenant grace_mode)
 else:                                               RESTRICTED
 ```
 
-The same logic lives in two places that must agree: the SQL function `subscription_access()`, which the `v_radius_auth` view that FreeRADIUS reads and the staff list view `v_subscription_status` both use, and the `AccessPolicy` and `DisplayStatus` classes in the `subscriptions` module. A test asserts they return the same profile, next change and display status for the same inputs.
+The same logic lives in two places that must agree: the SQL function `subscription_access_v2()`, which the `v_radius_auth_v6` view that FreeRADIUS reads and the staff screens (through `subscription_line_access()` and `v_subscription_status`) use, and the `AccessPolicy` and `DisplayStatus` classes in the `subscriptions` module. A test asserts they return the same profile, next change and display status for the same inputs, usage included.
+
+### Fair use and data caps
+
+- A package may set `fup_bytes` (fair-use allowance) and `data_cap_bytes`; null means unlimited. Usage is download plus upload in the line's **current cycle**, which starts at its last renewal (`cycle_started_at`, written in the renewal transaction; Q12 default). Only a renewal starts a new cycle (Q13 default): a top-up too small to renew, a pause or a package change does not. An upgrade NOW keeps the cycle's usage and applies the new package's limits.
+- Past `fup_bytes` the line is `THROTTLED` (the package's throttle speeds, or its normal speed when it has none) until the next renewal; past `data_cap_bytes` it is `RESTRICTED` (walled garden with the pay page, never rejected; Q14 default). Both hold only while the dates still give access; a renewal lifts them the moment it commits, and paying the price renews at once (S5).
+- Usage comes from the usage roll-up (every 15 minutes, N7) into a per-line cycle total (`network_line_usage`), so a crossing is applied up to about 20 minutes late. A line whose cycle start is unknown (renewed before this rule existed) is not metered until its next renewal.
+- When the roll-up sees a line pass a limit it publishes `UsageThresholdReached` once per line, cycle and kind: the API disconnects the live session so it redials into the new profile (the address list changes, so not a CoA), and the customer gets one SMS (`FAIR_USE_REACHED` or `DATA_CAP_REACHED`; Q15 default, no warning before).
 
 ## Enforcement
 
 1. **At login.** FreeRADIUS runs the profile logic inside its SQL query and returns the matching reply attributes (speed, pool, address list).
-2. **Session-Timeout.** Every accepted login carries `Session-Timeout` = seconds until the next profile change (expiry if grace is throttled, otherwise grace end), capped at 24 hours. Sessions end on time and log back in under the new profile with no job involved; the cap means a missed CoA self-heals within a day.
+2. **Session-Timeout.** Every accepted login carries `Session-Timeout` = seconds until the next profile change by the clock (expiry if grace is throttled, otherwise grace end; a fair-use throttle or data cap lasts until a renewal, which disconnects the session), capped at 24 hours. Sessions end on time and log back in under the new profile with no job involved; the cap means a missed CoA self-heals within a day.
 3. **CoA for mid-session changes.** Payment, package change, pause, suspension and termination send a CoA or Disconnect to the router immediately. The router re-authenticates the customer and gets the new profile within seconds.
-4. **The scheduler** runs reminders, dashboard counts, postpaid charges and fair-use checks. Access never depends on it.
+4. **The scheduler** runs reminders, dashboard counts, postpaid charges and the usage roll-up that notices fair-use and data-cap crossings. Access never depends on it: a roll-up outage only delays a throttle, it never cuts anyone off.
 
 ## Renewal rules
 

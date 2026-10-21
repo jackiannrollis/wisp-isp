@@ -102,6 +102,12 @@ public class PackageService implements PackageCatalog {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<PackageLimits> limits(final UUID packageId) {
+        return packages.findById(packageId).map(p -> new PackageLimits(p.getFupBytes(), p.getDataCapBytes()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<PackageTerms> terms(final UUID packageId) {
         return packages.findById(packageId)
                 .map(p -> new PackageTerms(

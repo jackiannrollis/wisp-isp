@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -136,12 +137,12 @@ public class LineService implements SubscriptionDirectory {
 
     /**
      * Filters and pages in SQL. The display status (S1) is derived in the query by
-     * subscription_display_status(), the SQL copy of the rules that SubscriptionAccessAgreementIT
-     * holds equal to AccessPolicy and DisplayStatus (S3); it is never stored.
+     * subscription_line_display_status(), the SQL copy of the rules (with the line's cycle usage) that
+     * SubscriptionAccessAgreementIT holds equal to AccessPolicy and DisplayStatus (S3); it is never
+     * stored.
      */
     @Transactional(readOnly = true)
     public PageResponse<SubscriptionDto> list(final LineFilter filter, final Pageable page) {
-        final SubscriptionViews.Mapper mapper = views.mapper();
         Specification<Subscription> where = Specification.unrestricted();
         if (filter.customerId() != null) {
             where = where.and((root, query, cb) -> cb.equal(root.get("customerId"), filter.customerId()));
@@ -156,14 +157,12 @@ public class LineService implements SubscriptionDirectory {
             where = where.and((root, query, cb) -> cb.equal(root.get("packageId"), filter.packageId()));
         }
         if (filter.displayStatus() != null) {
-            final String graceMode = views.graceMode();
             where = where.and((root, query, cb) -> cb.equal(
-                    cb.function("subscription_display_status", String.class, root.get("state"), root.get("expiresAt"),
-                            root.get("graceDays"), root.get("pausedAt"), root.get("pauseUntil"), cb.literal(graceMode),
-                            cb.currentTimestamp()),
+                    cb.function("subscription_line_display_status", String.class, root.get("id"), cb.currentTimestamp()),
                     filter.displayStatus().name()));
         }
-        return PageResponse.of(lines.findAll(where, page), mapper::toDto);
+        final Page<Subscription> found = lines.findAll(where, page);
+        return PageResponse.of(found, views.mapper(found.getContent())::toDto);
     }
 
     /** Staff list filters; null means any. */
@@ -174,7 +173,7 @@ public class LineService implements SubscriptionDirectory {
     @Transactional(readOnly = true)
     public Optional<LineInfo> line(final UUID subscriptionId) {
         return lines.findById(subscriptionId).map(l -> new LineInfo(l.getId(), l.getCustomerId(), l.getPppoeUsername(),
-                l.getPackageId(), l.packageForNextRenewal(), l.getExpiresAt(), l.getGraceDays()));
+                l.getPackageId(), l.packageForNextRenewal(), l.getExpiresAt(), l.getGraceDays(), l.getCycleStartedAt()));
     }
 
     @Override

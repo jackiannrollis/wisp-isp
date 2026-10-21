@@ -17,8 +17,11 @@ public interface SubscriptionDirectory {
      */
     Optional<String> accessProfile(UUID subscriptionId, Instant at, Instant expiresAt);
 
-    /** {@code nextPackageId} is what the next renewal sells (a pending change, else the current package). */
+    /**
+     * {@code nextPackageId} is what the next renewal sells (a pending change, else the current package);
+     * {@code cycleStartedAt} is when the current cycle began, null while unknown (docs/09 step 8b).
+     */
     record LineInfo(
             UUID id, UUID customerId, String pppoeUsername, UUID packageId, UUID nextPackageId, Instant expiresAt,
-            int graceDays) {}
+            int graceDays, Instant cycleStartedAt) {}
 }

@@ -130,7 +130,7 @@ public class RenewalService {
         outbox.publish(new SubscriptionRenewed(
                 UuidV7.next(clock), line.getTenantId(), now, line.getId(), renewalId, line.getCustomerId(), terms.id(),
                 renewal.previousExpiresAt(), renewal.expiresAt(), charge.minorUnits(),
-                charge.currency().getCurrencyCode(), proRataDays));
+                charge.currency().getCurrencyCode(), proRataDays, before));
         if (renewal.from() != SubscriptionState.ACTIVE) {
             outbox.publish(new SubscriptionStateChanged(
                     UuidV7.next(clock), line.getTenantId(), now, line.getId(), line.getCustomerId(),

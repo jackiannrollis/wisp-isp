@@ -119,6 +119,7 @@ class LinesIT extends IntegrationTest {
             assertDenied("select count(*) from v_radius_auth_v3");
             assertDenied("select count(*) from v_radius_auth_v4");
             assertDenied("select count(*) from v_radius_auth_v5");
+            assertDenied("select count(*) from v_radius_auth_v6");
             assertDenied("select count(*) from radius_client_v3");
             // The keyed update the network module uses works, and only on this tenant's rows (RLS).
             final Integer updated =

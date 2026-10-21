@@ -12,11 +12,9 @@ import com.corebalt.isp.subscriptions.api.PortalLinesDto;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
 import com.corebalt.isp.subscriptions.domain.DisplayStatus;
-import com.corebalt.isp.subscriptions.domain.GraceMode;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
-import com.corebalt.isp.tenancy.api.TenantProfile;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HashMap;
@@ -33,8 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Read models over lines: the dashboard's counts and renewals due, and the portal's view of one
- * customer's lines. Profiles and display statuses come from {@link AccessPolicy} and
- * {@link DisplayStatus} at read time (S1, S3); nothing here stores or recomputes them in SQL.
+ * customer's lines. Profiles and display statuses are derived at read time and never stored (S1): by
+ * {@link AccessPolicy} and {@link DisplayStatus} for the portal, and by their SQL copy
+ * subscription_line_access() for the counts (S3).
  */
 @Service
 public class LineStatisticsService implements LineStatistics {
@@ -44,34 +43,35 @@ public class LineStatisticsService implements LineStatistics {
     private final SubscriptionViews views;
     private final PackageCatalog packages;
     private final Wallets wallets;
-    private final TenantProfile tenantProfile;
 
     LineStatisticsService(final JdbcClient jdbc, final SubscriptionRepository lines, final SubscriptionViews views,
-                          final PackageCatalog packages, final Wallets wallets, final TenantProfile tenantProfile) {
+                          final PackageCatalog packages, final Wallets wallets) {
         this.jdbc = jdbc;
         this.lines = lines;
         this.views = views;
         this.packages = packages;
         this.wallets = wallets;
-        this.tenantProfile = tenantProfile;
     }
 
     @Override
     @Transactional(readOnly = true)
     public LineCounts counts(final Instant now) {
-        final GraceMode graceMode = GraceMode.valueOf(tenantProfile.currentPolicy().graceMode());
         final Map<String, Long> byState = zeros(SubscriptionState.values());
         final Map<String, Long> byDisplay = zeros(DisplayStatus.values());
         final long[] total = {0};
-        jdbc.sql("select state, expires_at, grace_days, paused_at, pause_until from subscriptions_subscription")
+        // subscription_line_access() is the SQL copy of AccessPolicy and DisplayStatus, with each line's
+        // cycle usage (S3), judged at the same instant for every line.
+        jdbc.sql("""
+                        select s.state, a.display_status, count(*)
+                        from subscriptions_subscription s
+                        cross join lateral subscription_line_access(s.id, :now) a
+                        group by 1, 2
+                        """)
+                .param("now", Timestamp.from(now))
                 .query(rs -> {
-                    final AccessPolicy.Facts facts = new AccessPolicy.Facts(
-                            SubscriptionState.valueOf(rs.getString(1)), instant(rs.getTimestamp(2)), rs.getInt(3),
-                            instant(rs.getTimestamp(4)), instant(rs.getTimestamp(5)));
-                    final AccessPolicy.Decision decision = AccessPolicy.evaluate(facts, graceMode, now);
-                    byState.merge(facts.state().name(), 1L, Long::sum);
-                    byDisplay.merge(DisplayStatus.of(facts, decision, now).name(), 1L, Long::sum);
-                    total[0]++;
+                    byState.merge(rs.getString(1), rs.getLong(3), Long::sum);
+                    byDisplay.merge(rs.getString(2), rs.getLong(3), Long::sum);
+                    total[0] += rs.getLong(3);
                 });
         return new LineCounts(total[0], byState, byDisplay);
     }
@@ -132,10 +132,12 @@ public class LineStatisticsService implements LineStatistics {
      */
     @Transactional(readOnly = true)
     public PortalLinesDto portalLines(final UUID customerId) {
-        final SubscriptionViews.Mapper mapper = views.mapper();
         final Money balance = wallets.balance(customerId, Money.KES);
-        final List<PortalLineDto> mine = lines.findByCustomerId(customerId, Pageable.unpaged(Sort.by("createdAt"))).stream()
+        final List<Subscription> open = lines.findByCustomerId(customerId, Pageable.unpaged(Sort.by("createdAt"))).stream()
                 .filter(line -> line.getState() != SubscriptionState.TERMINATED)
+                .toList();
+        final SubscriptionViews.Mapper mapper = views.mapper(open);
+        final List<PortalLineDto> mine = open.stream()
                 .map(line -> portalLine(line, mapper.toDto(line), balance))
                 .toList();
         Money dueTotal = Money.zero(Money.KES);
@@ -174,9 +176,5 @@ public class LineStatisticsService implements LineStatistics {
             counts.put(name.name(), 0L);
         }
         return counts;
-    }
-
-    private static Instant instant(final Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant();
     }
 }

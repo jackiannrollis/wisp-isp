@@ -36,7 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The API's half of CoA and Disconnect (N5): which subscription changes become NetworkAccessChanged,
- * for which sessions, with which rate. The rate a CoA sets is compared with what v_radius_auth_v5
+ * for which sessions, with which rate. The rate a CoA sets is compared with what v_radius_auth_v6
  * gives the same line at login (N4).
  */
 class AccessChangesIT extends IntegrationTest {
@@ -162,7 +162,7 @@ class AccessChangesIT extends IntegrationTest {
 
     private SubscriptionRenewed renewed(final Instant previousExpiresAt, final Instant expiresAt) {
         return new SubscriptionRenewed(UuidV7.next(clock), tenant, clock.instant(), lineId, UUID.randomUUID(), customerId,
-                UUID.fromString(packageId), previousExpiresAt, expiresAt, 250_000, "KES", null);
+                UUID.fromString(packageId), previousExpiresAt, expiresAt, 250_000, "KES", null, null);
     }
 
     private SubscriptionPackageChanged packageChanged(final String toPackageId, final String timing) {
@@ -185,7 +185,7 @@ class AccessChangesIT extends IntegrationTest {
 
     private String viewRateLimit() {
         return OwnerSql.client().sql("""
-                        select value from v_radius_auth_v5
+                        select value from v_radius_auth_v6
                         where username = :u and nasname = :nas and attribute = 'Mikrotik-Rate-Limit'
                         """)
                 .param("u", username).param("nas", tunnelIp).query(String.class).single();

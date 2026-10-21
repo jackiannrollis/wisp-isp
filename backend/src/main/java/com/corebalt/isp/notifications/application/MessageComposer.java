@@ -4,6 +4,7 @@ import com.corebalt.isp.billing.api.Receipts;
 import com.corebalt.isp.billing.api.Wallets;
 import com.corebalt.isp.customers.api.CustomerFacade;
 import com.corebalt.isp.customers.api.CustomerSummary;
+import com.corebalt.isp.network.api.UsageThresholdReached;
 import com.corebalt.isp.notifications.domain.Template;
 import com.corebalt.isp.packages.api.PackageCatalog;
 import com.corebalt.isp.packages.api.PackageCatalog.PackageTerms;
@@ -17,6 +18,7 @@ import com.corebalt.isp.subscriptions.api.SubscriptionPackageChanged;
 import com.corebalt.isp.subscriptions.api.SubscriptionReminderDue;
 import com.corebalt.isp.tenancy.api.TenantProfile;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -145,6 +147,20 @@ public class MessageComposer {
         }));
     }
 
+    /**
+     * One SMS per line, cycle and kind (M1, Q15 default): the line passed its fair-use allowance or data
+     * cap. The price is what the next renewal sells; paying it renews at once and starts a new cycle.
+     */
+    @Transactional
+    public void usageThresholdReached(final UsageThresholdReached event) {
+        final Map<String, String> values = customerValues(event.customerId());
+        lines.line(event.subscriptionId()).ifPresent(l -> packageValues(l.nextPackageId(), values));
+        values.put("allowance", gigabytes(event.limitBytes()));
+        final boolean fairUse = event.kind() == UsageThresholdReached.Kind.FAIR_USE;
+        send(event.customerId(), fairUse ? Template.FAIR_USE_REACHED : Template.DATA_CAP_REACHED, values,
+                "USAGE:" + event.kind() + ":" + event.subscriptionId() + ":" + event.cycleStartedAt());
+    }
+
     @Transactional
     public void packageChanged(final SubscriptionPackageChanged event) {
         final Map<String, String> values = customerValues(event.customerId());
@@ -184,6 +200,13 @@ public class MessageComposer {
             values.put("package", terms.name());
             values.put("price", money(terms.price()));
         });
+    }
+
+    /** Allowances are sold in decimal gigabytes (10^9 bytes): {@code 100 GB}, {@code 1.5 GB}. */
+    static String gigabytes(final long bytes) {
+        final BigDecimal gb = BigDecimal.valueOf(bytes).movePointLeft(9).stripTrailingZeros();
+        return (gb.scale() > 1 ? gb.setScale(1, RoundingMode.HALF_UP).stripTrailingZeros() : gb).toPlainString()
+                + " GB";
     }
 
     private String day(final Instant instant) {

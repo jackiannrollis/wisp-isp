@@ -101,6 +101,48 @@ class AccessPolicyTest {
         assertThat(display(NOW.minus(days(3)), 2)).isEqualTo(DisplayStatus.RESTRICTED);
     }
 
+    @Test
+    void S2_pastTheFairUseAllowanceTheLineIsThrottledUntilGraceEnds() {
+        final AccessPolicy.Decision decision = usage(NOW.plus(days(5)), 2, GraceMode.FULL_SPEED, FairUse.limits(1_000L, null, 1_000));
+        assertThat(decision.profile()).isEqualTo(AccessProfile.THROTTLED);
+        // The throttle lasts until a renewal; by the clock the line next changes when grace ends.
+        assertThat(decision.nextChangeAt()).isEqualTo(NOW.plus(days(7)));
+        assertThat(usage(NOW.plus(days(5)), 2, GraceMode.FULL_SPEED, FairUse.limits(1_000L, null, 999)).profile())
+                .as("one byte under the allowance").isEqualTo(AccessProfile.FULL);
+    }
+
+    @Test
+    void Q14_atTheDataCapTheLineIsRestrictedUntilItRenews() {
+        final AccessPolicy.Decision decision =
+                usage(NOW.plus(days(5)), 2, GraceMode.THROTTLED, FairUse.limits(1_000L, 5_000L, 5_000));
+        assertThat(decision.profile()).as("the cap wins over fair use").isEqualTo(AccessProfile.RESTRICTED);
+        assertThat(decision.nextChangeAt()).isNull();
+        assertThat(decision.sessionTimeoutSeconds(NOW)).isEqualTo(86_400);
+    }
+
+    @Test
+    void S2_usageNeverLiftsAHoldOrAPause_norOutlivesGrace() {
+        final FairUse.Limits capped = FairUse.limits(1_000L, 5_000L, 9_000);
+        assertThat(AccessPolicy.evaluate(new AccessPolicy.Facts(SubscriptionState.SUSPENDED, NOW.plus(days(5)), 2, null, null)
+                .withUsage(capped), GraceMode.FULL_SPEED, NOW).profile()).isEqualTo(AccessProfile.REJECT);
+        assertThat(AccessPolicy.evaluate(new AccessPolicy.Facts(SubscriptionState.PAUSED, NOW.plus(days(5)), 2,
+                NOW.minus(days(1)), NOW.plus(days(1))).withUsage(FairUse.limits(1_000L, null, 1_000)),
+                GraceMode.FULL_SPEED, NOW).profile()).isEqualTo(AccessProfile.RESTRICTED);
+        assertThat(usage(NOW.minus(days(3)), 2, GraceMode.FULL_SPEED, FairUse.limits(1_000L, null, 1_000)).profile())
+                .as("past grace the dates restrict anyway").isEqualTo(AccessProfile.RESTRICTED);
+    }
+
+    @Test
+    void unlimitedPackagesAreNeverThrottledByUsage() {
+        assertThat(FairUse.limits(null, null, Long.MAX_VALUE)).isEqualTo(FairUse.Limits.NONE);
+    }
+
+    private static AccessPolicy.Decision usage(final Instant expiresAt, final int graceDays, final GraceMode mode,
+                                               final FairUse.Limits limits) {
+        return AccessPolicy.evaluate(
+                new AccessPolicy.Facts(SubscriptionState.ACTIVE, expiresAt, graceDays, null, null).withUsage(limits), mode, NOW);
+    }
+
     private static DisplayStatus display(final Instant expiresAt, final int graceDays) {
         final AccessPolicy.Facts facts = new AccessPolicy.Facts(SubscriptionState.ACTIVE, expiresAt, graceDays, null, null);
         return DisplayStatus.of(facts, AccessPolicy.evaluate(facts, GraceMode.THROTTLED, NOW), NOW);

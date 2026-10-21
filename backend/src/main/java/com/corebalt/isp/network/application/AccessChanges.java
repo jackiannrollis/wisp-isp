@@ -2,6 +2,7 @@ package com.corebalt.isp.network.application;
 
 import com.corebalt.isp.network.api.NetworkAccessChanged;
 import com.corebalt.isp.network.api.NetworkAccessChanged.Action;
+import com.corebalt.isp.network.api.UsageThresholdReached;
 import com.corebalt.isp.network.domain.RateLimits;
 import com.corebalt.isp.packages.api.PackageCatalog;
 import com.corebalt.isp.packages.api.PackageCatalog.PackageSpeeds;
@@ -37,8 +38,11 @@ import org.springframework.stereotype.Service;
  *   <li>SubscriptionPackageChanged NOW: CoA with the new package's rate while the line is FULL, or its
  *       throttle rate while THROTTLED (S10); a RESTRICTED or rejected line keeps its fixed profile.
  *   <li>SubscriptionRenewed: Disconnect when the renewal changed the profile (RESTRICTED or THROTTLED
- *       back to FULL: pool or address list differ); nothing when it did not, since the session's
- *       Session-Timeout (S4) already ends it at the old boundary and the redial gets the new expiry.
+ *       back to FULL: pool or address list differ), including a fair-use throttle or a data cap the new
+ *       cycle lifts; nothing when it did not, since the session's Session-Timeout (S4) already ends it
+ *       at the old boundary and the redial gets the new expiry.
+ *   <li>UsageThresholdReached: Disconnect, so the session redials into THROTTLED (fair use) or
+ *       RESTRICTED (data cap); the address list changes, so a CoA is not enough (docs/09 step 8b).
  * </ul>
  */
 @Service
@@ -79,13 +83,27 @@ public class AccessChanges {
         if (event.previousExpiresAt() == null) {
             return 0; // first activation: SubscriptionStateChanged covers it, and a PENDING line has no session
         }
-        final Optional<String> before = lines.accessProfile(event.subscriptionId(), event.occurredAt(), event.previousExpiresAt());
+        // The renewal judged the profile before it in its own transaction, with the ended cycle's usage;
+        // recomputing it here would see the new cycle already and miss a fair-use throttle being lifted.
+        final Optional<String> before = event.previousAccessProfile() != null
+                ? Optional.of(event.previousAccessProfile())
+                : lines.accessProfile(event.subscriptionId(), event.occurredAt(), event.previousExpiresAt());
         final Optional<String> after = lines.accessProfile(event.subscriptionId(), event.occurredAt(), event.expiresAt());
         if (before.isEmpty() || before.equals(after)) {
             return 0;
         }
         return request(event.subscriptionId(), Action.DISCONNECT, null,
                 "renewal " + before.get() + " to " + after.orElse("?"));
+    }
+
+    /**
+     * A crossing changes the address list (throttled or restricted), so the session is disconnected and
+     * redials into the profile the view now gives it. A line already throttled by grace gets one
+     * reconnect it did not strictly need; that is rarer and cheaper than a second copy of the rules.
+     */
+    public int usageThresholdReached(final UsageThresholdReached event) {
+        return request(event.subscriptionId(), Action.DISCONNECT, null,
+                event.kind() == UsageThresholdReached.Kind.FAIR_USE ? "fair-use allowance reached" : "data cap reached");
     }
 
     public int packageChanged(final SubscriptionPackageChanged event) {

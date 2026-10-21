@@ -68,7 +68,7 @@ erDiagram
 | `duration_minutes` | 30 days = 43200; hotspot plans use hours |
 | `price_minor` | KES cents |
 | `grace_days` | Overrides the tenant default when set |
-| `data_cap_bytes`, `fup_bytes`, `throttle_download_kbps`, `throttle_upload_kbps` | Null means unlimited |
+| `data_cap_bytes`, `fup_bytes`, `throttle_download_kbps`, `throttle_upload_kbps` | Null means unlimited. Bytes are download plus upload in one cycle; past `fup_bytes` the line runs at the throttle speeds, past `data_cap_bytes` it is restricted, until it renews ([04](04-subscription-lifecycle.md) Fair use) |
 | `device_limit` | Enforced on hotspot only (shared users); PPPoE cannot see devices behind the customer's router |
 | `billing_mode` | `PREPAID` or `POSTPAID` |
 | `active` | Inactive packages stay attached to existing subscriptions but cannot be sold |
@@ -90,6 +90,7 @@ erDiagram
 | `billing_day` | Postpaid only |
 | `pending_package_id` | Downgrade or deferred upgrade to apply at next renewal |
 | `activated_at`, `terminated_at` | |
+| `cycle_started_at` | When the current cycle began: the last renewal. Fair-use and data-cap usage count from here; null (lines renewed before fair use existed) means not metered until the next renewal |
 
 Derived, never stored: `display_status` (`EXPIRING`, `GRACE`, `RESTRICTED`, …) and `access_profile` (`FULL`, `THROTTLED`, `RESTRICTED`, `REJECT`).
 
@@ -150,11 +151,13 @@ Derived, never stored: `display_status` (`EXPIRING`, `GRACE`, `RESTRICTED`, …)
 
 **radius_client** — a view over `router` giving FreeRADIUS `nasname` (tunnel IP), `secret`, `shortname`, `tenant_id`.
 
-**v_radius_auth** — a view joining `subscription`, `package`, `customer` and `tenant` that computes, at query time, the `access_profile`, `Mikrotik-Rate-Limit`, `Framed-Pool`, `Mikrotik-Address-List` and `Session-Timeout` for a username. FreeRADIUS reads only this view and `radius_client`.
+**v_radius_auth** — a view joining `subscription`, `package`, `customer`, `tenant` and `line_usage` that computes, at query time, the `access_profile`, `Mikrotik-Rate-Limit`, `Framed-Pool`, `Mikrotik-Address-List` and `Session-Timeout` for a username. FreeRADIUS reads only this view and `radius_client`.
 
 **radacct** — the standard FreeRADIUS accounting table, partitioned by month on `acctstarttime`, plus `tenant_id` and `subscription_id` filled by a trigger from the username.
 
 **usage_daily** — `subscription_id`, `day` (tenant local date), `bytes_in`, `bytes_out`, `session_seconds`.
+
+**line_usage** — per line: `cycle_started_at`, `octets` (download plus upload in that cycle) and when the fair-use allowance and the data cap were announced. Fed by the same roll-up as `usage_daily`; a row for an older cycle than the line's counts as zero.
 
 ## notifications
 

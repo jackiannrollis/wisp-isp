@@ -18,6 +18,14 @@ public interface PackageCatalog {
     /** The speeds a CoA sets (N4, N5). */
     Optional<PackageSpeeds> speeds(UUID packageId);
 
+    /** The fair-use allowance and data cap of a cycle (docs/09 step 8b); null means unlimited (docs/03). */
+    Optional<PackageLimits> limits(UUID packageId);
+
+    record PackageLimits(Long fairUseBytes, Long dataCapBytes) {
+
+        public static final PackageLimits NONE = new PackageLimits(null, null);
+    }
+
     /** {@code graceDays} null means "use the tenant default" (docs/04 Grace policy). */
     record PackageTerms(
             UUID id, String name, Money price, int durationMinutes, Integer graceDays, boolean prepaid, boolean sellableAsPppoe) {}

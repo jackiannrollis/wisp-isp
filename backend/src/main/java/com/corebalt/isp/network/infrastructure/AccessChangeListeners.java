@@ -3,6 +3,7 @@ package com.corebalt.isp.network.infrastructure;
 import com.corebalt.isp.network.api.NetworkAccessChanged;
 import com.corebalt.isp.network.api.SessionReauthorizationFailed;
 import com.corebalt.isp.network.api.SessionReauthorized;
+import com.corebalt.isp.network.api.UsageThresholdReached;
 import com.corebalt.isp.network.application.AccessChanges;
 import com.corebalt.isp.network.application.SessionViews;
 import com.corebalt.isp.shared.outbox.EventQueues;
@@ -28,6 +29,7 @@ class AccessChangeListeners {
     static final String STATES = "network.state-changes";
     static final String RENEWALS = "network.renewals";
     static final String PACKAGES = "network.package-changes";
+    static final String USAGE = "network.usage-thresholds";
     /** Declared by the API as well as the worker, so a restore waits in the queue while no worker runs. */
     static final String COA = "network.coa";
     /** The worker's outcomes, kept per line for the pay page (SessionViews). */
@@ -77,8 +79,19 @@ class AccessChangeListeners {
         consumer.handleOnce(PACKAGES, message, () -> changes.packageChanged(event));
     }
 
+    @RabbitListener(queues = USAGE)
+    void usageThresholdReached(final Message message) {
+        final UsageThresholdReached event = EventQueues.read(json, message, UsageThresholdReached.class);
+        consumer.handleOnce(USAGE, message, () -> changes.usageThresholdReached(event));
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class Queues {
+
+        @Bean
+        Declarables networkUsageThresholdsQueue() {
+            return EventQueues.declare(USAGE, EventQueues.routingKey(UsageThresholdReached.class, 1));
+        }
 
         @Bean
         Declarables networkStateChangesQueue() {
