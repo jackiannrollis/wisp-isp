@@ -200,7 +200,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.cache }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: v3.1.4
       - name: Sign by digest
