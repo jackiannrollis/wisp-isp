@@ -1,0 +1,15 @@
+---
+# Provision every host (decisions.md 2026-10-21): hardening, the LUKS data disk, the WireGuard hub.
+# The stack itself (compose, Caddy, backups, monitoring) is added by later roles.
+- name: Base hardening and the data disk
+  hosts: all
+  become: true
+  roles:
+    - base
+    - data_volume
+
+- name: WireGuard hubs
+  hosts: wireguard_hubs
+  become: true
+  roles:
+    - wireguard_hub

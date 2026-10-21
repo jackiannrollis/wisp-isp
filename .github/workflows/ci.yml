@@ -153,6 +153,20 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  ansible:
+    name: Ansible (lint, converge on a throwaway Debian 13)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the ops image
+        run: docker build -t corebalt-ops:local -f infra/ops/Dockerfile infra
+      - name: Lint and syntax check
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro" corebalt-ops:local
+          sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml --syntax-check"
+      - name: Converge (bootstrap, init-disk, provision, unlock, idempotence, hardening checks)
+        run: bash infra/ansible/tests/converge.sh
+
   # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
   # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key
   # when the COSIGN_PRIVATE_KEY and COSIGN_PASSWORD secrets exist; no upload to the public
@@ -160,7 +174,7 @@ jobs:
   publish:
     name: Publish images to GHCR
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend, e2e, compose, dependencies]
+    needs: [backend, frontend, e2e, compose, ansible, dependencies]
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -87,6 +87,8 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
 | Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
 | Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
+| Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|bootstrap\|provision\|init-disk\|unlock <inventory> [-Limit host]` | `infra/ops/ops.sh …` |
+| Test the playbooks against a throwaway Debian 13 container | `bash infra/ansible/tests/converge.sh` (Git Bash) | `infra/ansible/tests/converge.sh` |
 | All checks (what CI runs, except the end-to-end suite) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
 Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672

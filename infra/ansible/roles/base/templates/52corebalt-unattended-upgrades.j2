@@ -1,0 +1,13 @@
+// Managed by Ansible (roles/base): security updates only.
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+{% if data_volume_unlock == 'keyfile' %}
+// The data disk unlocks by itself, so a kernel update may reboot in the quiet hour.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ base_upgrade_reboot_time }}";
+{% else %}
+// The data disk needs the operator after a reboot (ops unlock): never reboot unattended.
+Unattended-Upgrade::Automatic-Reboot "false";
+{% endif %}

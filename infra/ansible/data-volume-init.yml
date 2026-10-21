@@ -1,0 +1,96 @@
+---
+# Encrypt the data disk once (docs/08, ADR 0009). Destroys whatever is on the device, so it refuses
+# unless the device has no filesystem signature and you type its path back. The passphrase goes into
+# key escrow (infra/ops/runbooks/key-escrow.md) before you continue; it is never stored on the host.
+- name: Encrypt the data disk
+  hosts: all
+  become: true
+  serial: 1
+  vars_prompt:
+    - name: confirm_device
+      prompt: "Type the data disk path to ENCRYPT AND ERASE it"
+      private: false
+    - name: luks_passphrase
+      prompt: "New LUKS passphrase (from the password manager)"
+      private: true
+      confirm: true
+  tasks:
+    - name: The typed path is the configured disk
+      ansible.builtin.assert:
+        that: confirm_device == data_volume_device
+        fail_msg: "Typed {{ confirm_device }}, configured {{ data_volume_device }}: nothing done."
+
+    - name: A strong passphrase
+      ansible.builtin.assert:
+        that: luks_passphrase | length >= 20
+        fail_msg: Use a passphrase of at least 20 characters.
+
+    - name: Any signature on the disk?
+      ansible.builtin.command: blkid -p {{ data_volume_device }}
+      register: data_blkid
+      changed_when: false
+      failed_when: data_blkid.rc not in [0, 2]
+
+    - name: Refuse a disk that holds anything
+      ansible.builtin.fail:
+        msg: "{{ data_volume_device }} already has a signature ({{ data_blkid.stdout }}); nothing done."
+      when: data_blkid.rc == 0
+
+    - name: LUKS2 with Argon2id
+      ansible.builtin.command:
+        cmd: cryptsetup luksFormat --batch-mode --type luks2 --pbkdf argon2id {{ data_volume_device }} --key-file=-
+        stdin: "{{ luks_passphrase }}"
+        stdin_add_newline: false
+      no_log: true
+      changed_when: true
+
+    - name: Open it
+      ansible.builtin.command:
+        cmd: cryptsetup open {{ data_volume_device }} {{ data_volume_name | default('corebalt-data') }} --key-file=-
+        stdin: "{{ luks_passphrase }}"
+        stdin_add_newline: false
+      no_log: true
+      changed_when: true
+
+    - name: Filesystem
+      community.general.filesystem:
+        dev: "/dev/mapper/{{ data_volume_name | default('corebalt-data') }}"
+        fstype: ext4
+
+    - name: Mount it
+      ansible.posix.mount:
+        path: "{{ data_volume_mount | default('/srv/corebalt') }}"
+        src: "/dev/mapper/{{ data_volume_name | default('corebalt-data') }}"
+        fstype: ext4
+        opts: noauto,nofail
+        state: ephemeral
+
+    - name: Only root and the services may enter (the mode lives in the filesystem, so it survives reboots)
+      ansible.builtin.file:
+        path: "{{ data_volume_mount | default('/srv/corebalt') }}"
+        state: directory
+        mode: "0750"
+
+    - name: Keyfile (keyfile mode only)
+      when: data_volume_unlock == 'keyfile'
+      block:
+        - name: Key directory
+          ansible.builtin.file:
+            path: /etc/corebalt
+            state: directory
+            mode: "0700"
+        - name: Random keyfile
+          ansible.builtin.command:
+            cmd: dd if=/dev/urandom of=/etc/corebalt/data-volume.key bs=512 count=8
+            creates: /etc/corebalt/data-volume.key
+        - name: Keyfile readable by root only
+          ansible.builtin.file:
+            path: /etc/corebalt/data-volume.key
+            mode: "0400"
+        - name: Add the keyfile as a second key slot
+          ansible.builtin.command:
+            cmd: cryptsetup luksAddKey {{ data_volume_device }} /etc/corebalt/data-volume.key --key-file=-
+            stdin: "{{ luks_passphrase }}"
+            stdin_add_newline: false
+          no_log: true
+          changed_when: true

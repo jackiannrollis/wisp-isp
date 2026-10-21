@@ -1,0 +1,16 @@
+# Managed by Ansible (roles/wireguard_hub).
+[Unit]
+Description=Corebalt WireGuard hub (wg0)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=WG_HUB_ADDRESS={{ wg_hub_address }}
+Environment=WG_LISTEN_PORT={{ wireguard_port }}
+ExecStart=/usr/local/sbin/corebalt-wg-hub start
+ExecStopPost=-/usr/sbin/ip link delete wg0
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

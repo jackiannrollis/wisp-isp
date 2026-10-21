@@ -1,0 +1,42 @@
+---
+# After a reboot (manual unlock mode): open the LUKS data disk with the passphrase from the password
+# manager, mount it and start what needs it. The passphrase is typed, never stored or logged.
+- name: Unlock the data disk
+  hosts: all
+  become: true
+  serial: 1
+  vars_prompt:
+    - name: luks_passphrase
+      prompt: "LUKS passphrase"
+      private: true
+  vars:
+    volume: "{{ data_volume_name | default('corebalt-data') }}"
+    mount_point: "{{ data_volume_mount | default('/srv/corebalt') }}"
+  tasks:
+    - name: Already open?
+      ansible.builtin.stat:
+        path: "/dev/mapper/{{ volume }}"
+      register: mapper
+
+    - name: Open
+      ansible.builtin.command:
+        cmd: cryptsetup open {{ data_volume_device }} {{ volume }} --key-file=-
+        stdin: "{{ luks_passphrase }}"
+        stdin_add_newline: false
+      no_log: true
+      changed_when: true
+      when: not mapper.stat.exists
+
+    - name: Mount
+      ansible.posix.mount:
+        path: "{{ mount_point }}"
+        src: "/dev/mapper/{{ volume }}"
+        fstype: ext4
+        opts: noauto,nofail
+        state: ephemeral
+
+    - name: Start the stack if it is installed
+      ansible.builtin.systemd_service:
+        name: corebalt-stack
+        state: started
+      failed_when: false

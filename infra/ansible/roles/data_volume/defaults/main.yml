@@ -1,0 +1,3 @@
+data_volume_name: corebalt-data
+data_volume_mount: /srv/corebalt
+data_volume_keyfile: /etc/corebalt/data-volume.key

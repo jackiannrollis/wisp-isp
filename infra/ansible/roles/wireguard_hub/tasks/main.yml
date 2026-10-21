@@ -1,0 +1,29 @@
+---
+# WireGuard hub on the host (ADR 0006, N6; infra/README.md "Hetzner (hub A) and Nairobi (hub B)
+# hosts"). The same script as the local hub container (infra/wireguard/entrypoint.sh): the private key
+# is generated on the host on first start and never leaves it, except into key escrow
+# (infra/ops/runbooks/key-escrow.md). Peers are added with: sudo corebalt-wg-hub add-peer ...
+- name: Hub address is set for this host
+  ansible.builtin.assert:
+    that: wg_hub_address is defined and wg_hub_address is match('^10\.')
+
+- name: Hub script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../wireguard/entrypoint.sh"
+    dest: /usr/local/sbin/corebalt-wg-hub
+    mode: "0755"
+  notify: Restart hub
+
+- name: Hub service
+  ansible.builtin.template:
+    src: corebalt-wg-hub.service.j2
+    dest: /etc/systemd/system/corebalt-wg-hub.service
+    mode: "0644"
+  notify: Restart hub
+
+- name: Hub running
+  ansible.builtin.systemd_service:
+    name: corebalt-wg-hub
+    state: started
+    enabled: true
+    daemon_reload: true

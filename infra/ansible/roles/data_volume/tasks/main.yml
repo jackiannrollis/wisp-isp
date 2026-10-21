@@ -1,0 +1,55 @@
+---
+# The LUKS data disk (docs/08: full-disk encryption on every database host, because of ADR 0009).
+# This role only wires up a disk that data-volume-init.yml already encrypted; it never formats.
+- name: The data disk must exist
+  ansible.builtin.stat:
+    path: "{{ data_volume_device }}"
+  register: data_volume_stat
+  failed_when: not data_volume_stat.stat.exists
+
+- name: Is it LUKS?
+  ansible.builtin.command: cryptsetup isLuks {{ data_volume_device }}
+  register: data_volume_luks
+  changed_when: false
+  failed_when: data_volume_luks.rc not in [0, 1]
+
+- name: Say so when the disk is not encrypted yet (first run, before init-disk)
+  ansible.builtin.debug:
+    msg: >-
+      {{ data_volume_device }} is not a LUKS volume yet. Encrypt it once with
+      infra/ops/ops.ps1 init-disk <inventory> -Limit {{ inventory_hostname }}, then provision again.
+  when: data_volume_luks.rc != 0
+
+- name: Wire up the encrypted disk
+  when: data_volume_luks.rc == 0
+  block:
+    - name: Unlock mode is manual or keyfile
+      ansible.builtin.assert:
+        that: data_volume_unlock in ['manual', 'keyfile']
+
+    - name: Crypttab entry
+      ansible.builtin.lineinfile:
+        path: /etc/crypttab
+        regexp: "^{{ data_volume_name }} "
+        line: >-
+          {{ data_volume_name }} {{ data_volume_device }}
+          {{ data_volume_keyfile if data_volume_unlock == 'keyfile' else 'none' }}
+          luks,discard{{ ',noauto' if data_volume_unlock == 'manual' else '' }}
+        create: true
+        mode: "0600"
+
+    - name: Mount point
+      ansible.builtin.file:
+        path: "{{ data_volume_mount }}"
+        state: directory
+        mode: "0750"
+
+    # manual: noauto, so boot never waits for a passphrase; services that need the disk declare
+    # RequiresMountsFor and stay down until ops unlock mounts it.
+    - name: Fstab entry
+      ansible.posix.mount:
+        path: "{{ data_volume_mount }}"
+        src: "/dev/mapper/{{ data_volume_name }}"
+        fstype: ext4
+        opts: "{{ 'noauto,nofail' if data_volume_unlock == 'manual' else 'defaults,nofail' }}"
+        state: present

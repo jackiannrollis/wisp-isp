@@ -1,0 +1,6 @@
+# Ports open to the internet besides SSH from ssh_allowed_cidrs (decisions.md 2026-10-21): web only
+# on hosts in web_hosts, the WireGuard hub port only on hubs.
+base_public_tcp_ports: []
+# Security updates only; reboots are automatic only when the data disk unlocks by itself.
+base_upgrade_reboot_time: "03:30"
+base_docker_apt_release: trixie

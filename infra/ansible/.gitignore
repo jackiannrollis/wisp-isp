@@ -1,0 +1,4 @@
+
+# Real inventories (addresses, operator keys); only the example is committed.
+/inventories/*
+!/inventories/example/

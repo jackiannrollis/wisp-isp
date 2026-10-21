@@ -1,0 +1,17 @@
+# Settings every host shares. Placeholders: replace in the real inventory.
+platform_domain: example.test          # the operator's domain; tenants get <subdomain>.<platform_domain>
+operator_user: corebalt                # the only login account; key only, sudo without password
+operator_ssh_public_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE operator@example"
+# Where SSH is accepted from (the operator's addresses); everything else is closed except 80/443 and
+# the WireGuard port. Required: provisioning stops while this is empty.
+ssh_allowed_cidrs:
+  - 198.51.100.7/32
+# LUKS data disk (docs/08, ADR 0009). manual: the operator unlocks after every reboot (ops unlock),
+# the passphrase never stored on the host. keyfile: unlocks at boot from a key on the root disk,
+# which protects a detached or disposed disk only.
+data_volume_device: /dev/disk/by-id/scsi-0HC_Volume_EXAMPLE
+data_volume_unlock: manual
+# WireGuard hub port, public on hubs (base opens it, wireguard_hub listens on it).
+wireguard_port: 51820
+ansible_user: "{{ operator_user }}"

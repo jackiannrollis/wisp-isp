@@ -1,0 +1,19 @@
+# Converge test only (tests/converge.sh): one throwaway systemd container on a private Docker network.
+all:
+  children:
+    staging:
+      hosts:
+        target:
+          ansible_host: 172.31.250.10
+          wg_hub_address: 10.210.0.1/24
+    wireguard_hubs:
+      children:
+        staging:
+  vars:
+    platform_domain: example.test
+    operator_user: corebalt
+    ansible_user: corebalt
+    ssh_allowed_cidrs: [172.31.250.0/24]
+    base_public_tcp_ports: [80, 443]
+    wireguard_port: 51820
+    data_volume_unlock: manual

@@ -1,0 +1,14 @@
+# A stand-in for a fresh Debian 13 server (Hetzner image): systemd, sshd, root login with a key only.
+# Used only by converge.sh to test the playbooks; never deployed.
+FROM debian:trixie
+# Test runs only: give up on a stalled mirror connection and retry, instead of hanging.
+RUN echo 'Acquire::http::Timeout "30"; Acquire::Retries "3";' > /etc/apt/apt.conf.d/80converge-retries
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends systemd systemd-sysv openssh-server python3 sudo \
+       iproute2 iptables kmod udev procps ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /root/.ssh && chmod 0700 /root/.ssh \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config \
+    && systemctl enable ssh
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

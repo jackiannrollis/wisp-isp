@@ -1,0 +1,11 @@
+# Managed by Ansible (roles/base): keys only, no root, only the operator account.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AllowUsers {{ operator_user }}
+X11Forwarding no
+AllowTcpForwarding local
+MaxAuthTries 3
+LoginGraceTime 30
