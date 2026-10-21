@@ -76,6 +76,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/notifications/sending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The SMS sender ID and the reminder sending window (M2), without the account and its key */
+        put: operations["sending"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/mpesa": {
         parameters: {
             query?: never;
@@ -87,6 +104,24 @@ export interface paths {
         get: operations["view_1"];
         /** Set the Paybill or Till and its Daraja credentials (write-only); returns the callback URLs */
         put: operations["configure_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Grace policy, partial-payment rule, pause limit and branding of the account */
+        get: operations["view_2"];
+        /** Change them: grace and the partial-payment rule apply from each line's next renewal (S6), the pause limit to the next pause, branding at once */
+        put: operations["update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -121,7 +156,7 @@ export interface paths {
         };
         get?: never;
         /** Edit a role; everyone holding it gets a new token on the next request */
-        put: operations["update"];
+        put: operations["update_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -157,7 +192,7 @@ export interface paths {
         /** One customer */
         get: operations["get_1"];
         /** Replace a customer's profile; the number never changes */
-        put: operations["update_1"];
+        put: operations["update_2"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1742,6 +1777,11 @@ export interface components {
             /** Format: int32 */
             segments?: number;
         };
+        SmsSendingRequest: {
+            senderId: string;
+            windowStart: string;
+            windowEnd: string;
+        };
         MpesaSettingsRequest: {
             shortcode: string;
             shortcodeType: string;
@@ -1763,6 +1803,31 @@ export interface components {
             callbackUrls?: {
                 [key: string]: string;
             };
+        };
+        AccountSettingsRequest: {
+            name: string;
+            brandColor: string;
+            logoUrl?: string;
+            /** Format: int32 */
+            defaultGraceDays: number;
+            graceMode: string;
+            partialPaymentRule: string;
+            /** Format: int32 */
+            maxPauseDays: number;
+        };
+        AccountSettingsDto: {
+            code?: string;
+            name?: string;
+            brandColor?: string;
+            logoUrl?: string;
+            timeZone?: string;
+            currency?: string;
+            /** Format: int32 */
+            defaultGraceDays?: number;
+            graceMode?: string;
+            partialPaymentRule?: string;
+            /** Format: int32 */
+            maxPauseDays?: number;
         };
         RestCredential: {
             username: string;
@@ -1933,6 +1998,7 @@ export interface components {
             state?: string;
             accessProfile?: string;
             displayStatus?: string;
+            accessReason?: string;
             /** Format: date-time */
             expiresAt?: string;
             /** Format: int32 */
@@ -2394,6 +2460,9 @@ export interface components {
             expiresAt?: string;
             /** Format: date-time */
             pauseUntil?: string;
+            accessReason?: string;
+            earlyRenewal?: boolean;
+            usage?: components["schemas"]["CycleUsage"];
         };
         PortalLinesDto: {
             lines?: components["schemas"]["PortalLineDto"][];
@@ -2802,6 +2871,30 @@ export interface operations {
             };
         };
     };
+    sending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmsSendingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SmsSettingsView"];
+                };
+            };
+        };
+    };
     view_1: {
         parameters: {
             query?: never;
@@ -2842,6 +2935,50 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MpesaSettingsView"];
+                };
+            };
+        };
+    };
+    view_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AccountSettingsDto"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AccountSettingsDto"];
                 };
             };
         };
@@ -2894,7 +3031,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2990,7 +3127,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -3021,7 +3158,7 @@ export interface operations {
             query?: {
                 customerId?: string;
                 state?: "PENDING" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "TERMINATED";
-                displayStatus?: "PENDING" | "ACTIVE" | "EXPIRING" | "GRACE" | "RESTRICTED" | "PAUSED" | "SUSPENDED" | "TERMINATED";
+                displayStatus?: "PENDING" | "ACTIVE" | "EXPIRING" | "GRACE" | "RESTRICTED" | "THROTTLED" | "CAPPED" | "PAUSED" | "SUSPENDED" | "TERMINATED";
                 routerId?: string;
                 packageId?: string;
                 page?: number;

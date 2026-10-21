@@ -85,6 +85,7 @@
             <th>Status</th>
             <th>Package</th>
             <th>Access</th>
+            <th>Cycle usage</th>
             <th>Expires</th>
             <th class="actions"><span class="sr-only">Actions</span></th>
           </tr>
@@ -95,7 +96,13 @@
               <td class="key">{{ line.pppoeUsername }}</td>
               <td><app-status-chip [status]="line.displayStatus" /></td>
               <td>{{ packageNames().get(line.packageId ?? '') || '—' }}</td>
-              <td>{{ label(line.accessProfile) }}</td>
+              <td [class.limited]="!!line.accessReason">{{ access(line) }}</td>
+              <td>
+                {{ usage(line) }}
+                @if (line.usage?.fairUseExceeded || line.usage?.dataCapReached) {
+                  <span class="muted"> · until renewal</span>
+                }
+              </td>
               <td>
                 {{ date(line.expiresAt) }}
                 @if (line.pauseUntil) {

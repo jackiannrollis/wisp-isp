@@ -26,6 +26,7 @@ const TONES: Record<string, StatusTone> = {
   UNKNOWN: 'warning',
   INVITED: 'warning',
   RESTRICTED: 'error',
+  CAPPED: 'error',
   OFFLINE: 'error',
   SUSPENDED: 'error',
   REJECT: 'error',
@@ -40,6 +41,19 @@ const TONES: Record<string, StatusTone> = {
 
 export function statusTone(status: string | null | undefined): StatusTone {
   return (status && TONES[status]) || 'neutral';
+}
+
+/** Why access is limited, as the API's accessReason says it (null when it is not). */
+const REASONS: Record<string, string> = {
+  EXPIRED: 'expired',
+  PAUSED: 'paused',
+  GRACE_THROTTLE: 'grace period',
+  FAIR_USE: 'fair use',
+  DATA_CAP: 'data cap used up',
+};
+
+export function accessReasonLabel(reason: string | null | undefined): string {
+  return reason ? (REASONS[reason] ?? reason.toLowerCase().replace(/_/g, ' ')) : '';
 }
 
 /** ACTIVE → Active, NOT_MONITORED → Not monitored. */

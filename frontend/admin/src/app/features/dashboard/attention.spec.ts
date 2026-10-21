@@ -50,4 +50,18 @@ describe('attentionItems', () => {
       queryParams: { displayStatus: 'EXPIRING' },
     });
   });
+
+  it('lists throttled and capped lines, and counts capped ones under restricted too', () => {
+    const items = attentionItems(
+      { ...base, lines: { byDisplayStatus: { RESTRICTED: 1, CAPPED: 2, THROTTLED: 4 } } },
+      [],
+    );
+    expect(items.map((i) => [i.key, i.text])).toEqual([
+      ['RESTRICTED', '3 lines restricted'],
+      ['CAPPED', '2 lines capped'],
+      ['THROTTLED', '4 lines throttled (fair use)'],
+    ]);
+    expect(items[0].detail).toContain('2 of them used up their data cap');
+    expect(items[2].queryParams).toEqual({ displayStatus: 'THROTTLED' });
+  });
 });

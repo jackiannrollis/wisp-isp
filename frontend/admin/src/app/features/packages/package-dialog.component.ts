@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -8,16 +9,17 @@ import { MatSelectModule } from '@angular/material/select';
 
 import { errorMessage, shillingsToMinor } from '../../core/api/requests';
 import { Package, PackageRequest, PackagesService } from './data/packages.service';
-import { kbpsToMbps, mbpsToKbps, splitPeriod } from './package-format';
+import { bytesToGb, gbToBytes, kbpsToMbps, mbpsToKbps, splitPeriod } from './package-format';
 
-const MBPS = /^\s*\d{1,5}(\.\d{1,3})?\s*$/;
+const MBPS = /^\s*(\d{1,5}(\.\d{1,3})?)?\s*$/;
 const SHILLINGS = /^\s*\d{1,9}(\.\d{1,2})?\s*$/;
+const GB = /^\s*(\d{1,6}(\.\d{1,2})?)?\s*$/;
 
 /**
  * Create or revise a PPPoE prepaid package (v1). Speeds are typed in Mbit/s and stored in kbit/s
  * (N4); the price in shillings becomes minor units at the boundary (B2). A revision applies from each
- * line's next renewal; the cycle a customer already paid for keeps its terms (S6). Fair-use and cap
- * fields are not edited here yet (docs/09 step 8b) and are sent back unchanged.
+ * line's next renewal; the cycle a customer already paid for keeps its terms (S6). The fair-use
+ * allowance and data cap are decimal gigabytes per cycle (N9); throttle speeds come as a pair.
  */
 @Component({
   selector: 'app-package-dialog',
@@ -83,6 +85,43 @@ const SHILLINGS = /^\s*\d{1,9}(\.\d{1,2})?\s*$/;
             >Days online after expiry before restriction. Blank uses your account default.</mat-hint
           >
         </mat-form-field>
+
+        <h3 class="section">Fair use</h3>
+        <p class="hint">
+          Counted per cycle, download plus upload, from each renewal. Leave blank for unlimited.
+        </p>
+        <div class="two limits">
+          <mat-form-field appearance="outline">
+            <mat-label>Fair-use allowance</mat-label>
+            <input matInput formControlName="fairUse" inputmode="decimal" />
+            <span matTextSuffix>GB</span>
+            <mat-hint>Then the throttle speeds</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Data cap</mat-label>
+            <input matInput formControlName="dataCap" inputmode="decimal" />
+            <span matTextSuffix>GB</span>
+            <mat-hint>Then the pay page only</mat-hint>
+          </mat-form-field>
+        </div>
+        <div class="two">
+          <mat-form-field appearance="outline">
+            <mat-label>Throttle download</mat-label>
+            <input matInput formControlName="throttleDownload" inputmode="decimal" />
+            <span matTextSuffix>Mbit/s</span>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Throttle upload</mat-label>
+            <input matInput formControlName="throttleUpload" inputmode="decimal" />
+            <span matTextSuffix>Mbit/s</span>
+          </mat-form-field>
+        </div>
+        @if (noThrottleSpeeds()) {
+          <p class="warn">
+            Without throttle speeds a line past its allowance keeps full speed, and only the SMS
+            tells the customer.
+          </p>
+        }
         @if (error(); as error) {
           <p class="error" role="alert">{{ error }}</p>
         }
@@ -121,6 +160,18 @@ const SHILLINGS = /^\s*\d{1,9}(\.\d{1,2})?\s*$/;
       color: var(--mat-sys-error);
       margin: 0;
     }
+    .limits {
+      margin-bottom: 0.75rem;
+    }
+    .section {
+      margin: 0.75rem 0 0;
+      font: var(--mat-sys-title-small);
+      font-weight: 600;
+    }
+    .warn {
+      color: var(--app-warning);
+      margin: 0;
+    }
   `,
 })
 export class PackageDialogComponent {
@@ -151,6 +202,17 @@ export class PackageDialogComponent {
       this.data.pkg?.graceDays ?? (null as number | null),
       [Validators.min(0), Validators.max(365)],
     ],
+    fairUse: [bytesToGb(this.data.pkg?.fupBytes), Validators.pattern(GB)],
+    dataCap: [bytesToGb(this.data.pkg?.dataCapBytes), Validators.pattern(GB)],
+    throttleDownload: [kbpsToMbps(this.data.pkg?.throttleDownloadKbps), Validators.pattern(MBPS)],
+    throttleUpload: [kbpsToMbps(this.data.pkg?.throttleUploadKbps), Validators.pattern(MBPS)],
+  });
+
+  private readonly values = toSignal(this.form.valueChanges, { initialValue: this.form.value });
+  /** A fair-use allowance without throttle speeds changes nothing but the SMS (decisions.md 2026-10-19). */
+  protected readonly noThrottleSpeeds = computed(() => {
+    const v = this.values();
+    return !!v.fairUse?.trim() && !v.throttleDownload?.trim() && !v.throttleUpload?.trim();
   });
 
   protected save(): void {
@@ -166,6 +228,18 @@ export class PackageDialogComponent {
       this.error.set('The price must be above zero.');
       return;
     }
+    const fupBytes = gbToBytes(v.fairUse) ?? undefined;
+    const dataCapBytes = gbToBytes(v.dataCap) ?? undefined;
+    if (fupBytes && dataCapBytes && dataCapBytes < fupBytes) {
+      this.error.set('The data cap cannot be below the fair-use allowance.');
+      return;
+    }
+    const throttleDownloadKbps = v.throttleDownload.trim() ? mbpsToKbps(v.throttleDownload) : null;
+    const throttleUploadKbps = v.throttleUpload.trim() ? mbpsToKbps(v.throttleUpload) : null;
+    if (!throttleDownloadKbps !== !throttleUploadKbps) {
+      this.error.set('Give both throttle speeds, or neither.');
+      return;
+    }
     const pkg = this.data.pkg;
     const request: PackageRequest = {
       name: v.name.trim(),
@@ -174,13 +248,13 @@ export class PackageDialogComponent {
       durationMinutes: v.periodAmount * (v.periodUnit === 'days' ? 1440 : 60),
       price: { amount: priceMinor, currency: 'KES' },
       graceDays: v.graceDays === null || (v.graceDays as unknown) === '' ? undefined : v.graceDays,
-      // Kept as they are until the fair-use screen exists (docs/09 step 8b).
+      fupBytes,
+      dataCapBytes,
+      throttleDownloadKbps: throttleDownloadKbps ?? undefined,
+      throttleUploadKbps: throttleUploadKbps ?? undefined,
+      // v1 sells PPPoE prepaid packages; a package's type and billing mode are kept as they are.
       type: pkg?.type,
       billingMode: pkg?.billingMode,
-      dataCapBytes: pkg?.dataCapBytes,
-      fupBytes: pkg?.fupBytes,
-      throttleDownloadKbps: pkg?.throttleDownloadKbps,
-      throttleUploadKbps: pkg?.throttleUploadKbps,
       deviceLimit: pkg?.deviceLimit,
     };
     this.busy.set(true);

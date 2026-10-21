@@ -9,6 +9,9 @@ export type MpesaSettings = components['schemas']['MpesaSettingsView'];
 export type MpesaRequest = components['schemas']['MpesaSettingsRequest'];
 export type SmsSettings = components['schemas']['SmsSettingsView'];
 export type SmsRequest = components['schemas']['SmsSettingsRequest'];
+export type SmsSendingRequest = components['schemas']['SmsSendingRequest'];
+export type AccountSettings = components['schemas']['AccountSettingsDto'];
+export type AccountSettingsRequest = components['schemas']['AccountSettingsRequest'];
 export type StoredSecret = components['schemas']['StoredSecret'];
 export type Template = components['schemas']['TemplateView'];
 export type Placeholder = components['schemas']['PlaceholderView'];
@@ -41,6 +44,20 @@ export class SettingsService {
 
   saveSms(request: SmsRequest): Observable<SmsSettings> {
     return this.http.put<SmsSettings>(`${this.base}/notifications`, request);
+  }
+
+  /** The sender ID and reminder window alone (settings.write), without the account keys. */
+  saveSending(request: SmsSendingRequest): Observable<SmsSettings> {
+    return this.http.put<SmsSettings>(`${this.base}/notifications/sending`, request);
+  }
+
+  /** The account's own policy and look (settings.write). */
+  account(): Observable<AccountSettings> {
+    return this.http.get<AccountSettings>(`${this.base}/account`);
+  }
+
+  saveAccount(request: AccountSettingsRequest): Observable<AccountSettings> {
+    return this.http.put<AccountSettings>(`${this.base}/account`, request);
   }
 
   /** Which secrets are set and when; never their values. */

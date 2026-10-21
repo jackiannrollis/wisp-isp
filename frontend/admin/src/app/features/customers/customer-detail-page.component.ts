@@ -39,6 +39,7 @@ import {
 import { formatDateTime, formatMoney } from '../../shared/ui/format';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.component';
+import { accessText, usageText } from '../subscriptions/line-format';
 import { LedgerEntry, Receipt, WalletsService } from '../billing/data/wallets.service';
 import { PackagesService } from '../packages/data/packages.service';
 import { Payment, PaymentsService } from '../payments/data/payments.service';
@@ -112,6 +113,8 @@ export class CustomerDetailPageComponent {
   protected readonly money = formatMoney;
   protected readonly date = formatDateTime;
   protected readonly label = statusLabel;
+  protected readonly access = accessText;
+  protected readonly usage = usageText;
 
   protected readonly can = computed(() => {
     const p = this.permissions.permissions();

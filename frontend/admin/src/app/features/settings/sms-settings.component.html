@@ -13,7 +13,10 @@
         </p>
       }
       @if (!canEdit()) {
-        <p class="help">Changing the account needs the Account keys permission.</p>
+        <p class="help">Changing the account and its key needs the Account keys permission.</p>
+      }
+      @if (current.value() && !canEditSending()) {
+        <p class="help">The sender ID and sending window are set by the account Owner.</p>
       }
       <mat-form-field appearance="outline">
         <mat-label>Username</mat-label>
@@ -67,7 +70,7 @@
       @if (error(); as error) {
         <p class="error" role="alert">{{ error }}</p>
       }
-      @if (canEdit()) {
+      @if (canSave()) {
         <div class="actions">
           <button
             mat-flat-button

@@ -67,6 +67,11 @@ export const PERMISSION_LABELS: Record<string, PermissionLabel> = {
     description: "Set M-Pesa and Africa's Talking credentials.",
     group: 'Administration',
   },
+  'settings.write': {
+    label: 'Account settings',
+    description: 'Grace policy, partial payments, pause limit, branding, SMS sender. Owner only.',
+    group: 'Administration',
+  },
   'staff.manage': {
     label: 'Manage staff',
     description: 'Invite, disable and re-role staff; edit roles.',

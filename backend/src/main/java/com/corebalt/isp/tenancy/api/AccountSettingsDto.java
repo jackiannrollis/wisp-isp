@@ -1,5 +1,6 @@
 package com.corebalt.isp.tenancy.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -26,6 +27,7 @@ public record AccountSettingsDto(
         int maxPauseDays) {
 
     /** What staff may change. The logo is an https address; null removes it. */
+    @Schema(name = "AccountSettingsRequest")
     public record Request(
             @NotBlank @Size(max = 100) String name,
             @NotNull @Pattern(regexp = "#[0-9a-fA-F]{6}") String brandColor,

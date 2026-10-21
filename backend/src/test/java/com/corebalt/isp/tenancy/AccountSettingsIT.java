@@ -125,8 +125,23 @@ class AccountSettingsIT extends IntegrationTest {
     void M2_theSenderAndWindowNeedAnSmsAccountFirst() {
         assertThat(owner.put("/api/v1/settings/notifications/sending",
                 "{\"senderId\":\"KAHAWA\",\"windowStart\":\"08:00\",\"windowEnd\":\"20:00\"}").status()).isEqualTo(404);
-        assertThat(new Api(port, tenant, "settings.secrets").put("/api/v1/settings/notifications/sending",
+        final Api keys = new Api(port, tenant, "settings.secrets", "settings.notifications");
+        assertThat(keys.put("/api/v1/settings/notifications/sending",
                 "{\"senderId\":\"KAHAWA\",\"windowStart\":\"08:00\",\"windowEnd\":\"20:00\"}").status()).isEqualTo(403);
+
+        // The account is set up with the keys; from then on the sender ID and window are the Owner's.
+        assertThat(keys.put("/api/v1/settings/notifications", """
+                {"atUsername":"sandbox","senderId":"FIRST","sandbox":true,"windowStart":"07:00","windowEnd":"21:00",
+                 "apiKey":"fake-at-key-for-tests"}""").status()).isEqualTo(200);
+        final JsonNode kept = keys.put("/api/v1/settings/notifications", """
+                {"atUsername":"sandbox","senderId":"OTHER","sandbox":true,"windowStart":"06:00","windowEnd":"23:00"}""").json();
+        assertThat(kept.get("senderId").asString()).isEqualTo("FIRST");
+        assertThat(kept.get("windowStart").asString()).isEqualTo("07:00");
+
+        final JsonNode changed = owner.put("/api/v1/settings/notifications/sending",
+                "{\"senderId\":\"KAHAWA\",\"windowStart\":\"08:00\",\"windowEnd\":\"20:00\"}").json();
+        assertThat(changed.get("senderId").asString()).isEqualTo("KAHAWA");
+        assertThat(changed.get("windowEnd").asString()).isEqualTo("20:00");
     }
 
     private void fund(final UUID customer, final long minor) {

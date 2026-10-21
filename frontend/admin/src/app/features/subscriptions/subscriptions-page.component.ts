@@ -11,6 +11,7 @@ import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.co
 import { RoutersService } from '../network/data/routers.service';
 import { PackagesService } from '../packages/data/packages.service';
 import { Line, LinesService } from './data/lines.service';
+import { accessText, usageText } from './line-format';
 
 const DISPLAY_STATUSES = [
   'PENDING',
@@ -18,6 +19,8 @@ const DISPLAY_STATUSES = [
   'EXPIRING',
   'GRACE',
   'RESTRICTED',
+  'THROTTLED',
+  'CAPPED',
   'PAUSED',
   'SUSPENDED',
   'TERMINATED',
@@ -135,7 +138,8 @@ export class SubscriptionsPageComponent {
         value: (l) => (l.packageId && packages.get(l.packageId)) || '—',
       },
       { key: 'displayStatus', header: 'Status', value: (l) => statusLabel(l.displayStatus) },
-      { key: 'accessProfile', header: 'Access', value: (l) => statusLabel(l.accessProfile) },
+      { key: 'accessProfile', header: 'Access', value: (l) => accessText(l) },
+      { key: 'usage', header: 'Cycle usage', value: (l) => usageText(l), align: 'end' },
       {
         key: 'expiresAt',
         header: 'Expires',

@@ -2,6 +2,8 @@ package com.corebalt.isp.notifications.application;
 
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
+import com.corebalt.isp.shared.security.CurrentActor;
+import com.corebalt.isp.shared.security.Permissions;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.SecretStore;
@@ -121,11 +123,21 @@ public class SmsSettings {
         return view();
     }
 
+    /**
+     * The Africa's Talking account (settings.secrets). Once it exists, the sender ID and the sending
+     * window belong to the Owner (settings.write, decisions.md 2026-10-21): a caller without that
+     * permission keeps the stored ones whatever the request says.
+     */
     @Transactional
     public SettingsView configure(final SettingsRequest request) {
         final UUID tenantId = TenantContext.requireTenantId();
-        final LocalTime start = LocalTime.parse(Optional.ofNullable(request.windowStart()).orElse("07:00"));
-        final LocalTime end = LocalTime.parse(Optional.ofNullable(request.windowEnd()).orElse("21:00"));
+        final Optional<Stored> existing = stored();
+        final boolean ownerFields = existing.isEmpty() || CurrentActor.has(Permissions.SETTINGS_WRITE);
+        final LocalTime start = ownerFields
+                ? LocalTime.parse(Optional.ofNullable(request.windowStart()).orElse("07:00")) : existing.get().start();
+        final LocalTime end = ownerFields
+                ? LocalTime.parse(Optional.ofNullable(request.windowEnd()).orElse("21:00")) : existing.get().end();
+        final String senderId = ownerFields ? request.senderId().strip() : existing.get().senderId();
         if (!start.isBefore(end)) {
             throw com.corebalt.isp.shared.web.InvalidRequestException.of("windowEnd", "must be after windowStart");
         }
@@ -135,7 +147,7 @@ public class SmsSettings {
                             enabled = coalesce(:enabled, enabled), window_start = :start, window_end = :end, updated_at = :now
                         """)
                 .param("username", request.atUsername().strip())
-                .param("sender", request.senderId().strip())
+                .param("sender", senderId)
                 .param("sandbox", request.sandbox())
                 .param("enabled", request.enabled())
                 .param("start", Time.valueOf(start))
@@ -173,7 +185,7 @@ public class SmsSettings {
             secrets.put(SecretKind.SMS_API_KEY, request.apiKey().strip());
         }
         audit.record(AuditEntry.of("notifications.sms_configured", "tenant", tenantId,
-                Map.of("senderId", request.senderId().strip(), "sandbox", request.sandbox())));
+                Map.of("senderId", senderId, "sandbox", request.sandbox())));
         return view();
     }
 

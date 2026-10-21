@@ -35,6 +35,8 @@ const DISPLAY_ORDER = [
   'ACTIVE',
   'EXPIRING',
   'GRACE',
+  'THROTTLED',
+  'CAPPED',
   'RESTRICTED',
   'PENDING',
   'PAUSED',
@@ -153,14 +155,19 @@ export class DashboardPageComponent {
     const d = this.data.value();
     return d ? `Updated ${formatDateTime(d.asOf)} · ${d.zone}` : null;
   });
-  /** Lines that can use the internet now: active, expiring or in grace (display status, S1). */
+  /** Lines that can use the internet now: active, expiring, in grace or slowed by fair use (S1). */
   protected readonly linesWithService = computed(() => {
     const counts = this.data.value()?.lines?.byDisplayStatus ?? {};
-    return (counts['ACTIVE'] ?? 0) + (counts['EXPIRING'] ?? 0) + (counts['GRACE'] ?? 0);
+    return ['ACTIVE', 'EXPIRING', 'GRACE', 'THROTTLED'].reduce(
+      (sum, s) => sum + (counts[s] ?? 0),
+      0,
+    );
   });
-  protected readonly restrictedLines = computed(
-    () => this.data.value()?.lines?.byDisplayStatus?.['RESTRICTED'] ?? 0,
-  );
+  /** Restricted to the pay page, capped lines included (decisions.md 2026-10-21). */
+  protected readonly restrictedLines = computed(() => {
+    const counts = this.data.value()?.lines?.byDisplayStatus ?? {};
+    return (counts['RESTRICTED'] ?? 0) + (counts['CAPPED'] ?? 0);
+  });
   protected readonly when = formatDateTime;
   protected readonly routersOnline = computed(
     () => this.data.value()?.network?.routersByStatus?.['ONLINE'] ?? 0,

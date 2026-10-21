@@ -1,5 +1,7 @@
 import {
+  bytesToGb,
   formatPeriod,
+  gbToBytes,
   formatSpeed,
   formatSpeeds,
   kbpsToMbps,
@@ -36,5 +38,17 @@ describe('package formatting', () => {
   it('splits a period into days when it divides, else hours', () => {
     expect(splitPeriod(43_200)).toEqual({ amount: 30, unit: 'days' });
     expect(splitPeriod(720)).toEqual({ amount: 12, unit: 'hours' });
+  });
+});
+
+describe('allowances', () => {
+  it('converts typed decimal gigabytes to bytes and back (N9)', () => {
+    expect(gbToBytes('100')).toBe(100_000_000_000);
+    expect(gbToBytes('1.5')).toBe(1_500_000_000);
+    expect(gbToBytes('')).toBeNull();
+    expect(gbToBytes('0')).toBeNull();
+    expect(gbToBytes('lots')).toBeNull();
+    expect(bytesToGb(1_500_000_000)).toBe('1.5');
+    expect(bytesToGb(null)).toBe('');
   });
 });

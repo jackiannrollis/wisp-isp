@@ -170,3 +170,9 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+// A limited profile (throttled or restricted) reads in the warning colour, with its reason beside it.
+td.limited {
+  color: var(--app-warning);
+  font-weight: 600;
+}

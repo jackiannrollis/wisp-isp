@@ -275,7 +275,7 @@ export class ChangeRoleDialogComponent {
             <mat-checkbox
               class="perm"
               [checked]="selected().has(p.code ?? '')"
-              [disabled]="readOnly"
+              [disabled]="readOnly || p.code === ownerOnly"
               (change)="toggle(p.code ?? '', $event.checked)"
             >
               <span class="perm-text">
@@ -333,6 +333,8 @@ export class RoleEditorDialogComponent {
   private readonly staff = inject(StaffService);
   private readonly ref = inject<MatDialogRef<RoleEditorDialogComponent, Role>>(MatDialogRef);
   protected readonly lockIcon = IconShieldLock;
+  /** Held by the built-in Owner role only; the API refuses it for any other role. */
+  protected readonly ownerOnly = 'settings.write';
   protected readonly label = (code: string | undefined) => permissionLabel(code ?? '');
   protected readonly readOnly = !!this.data.role?.builtIn && this.data.role.name === 'Owner';
   protected readonly busy = signal(false);

@@ -143,13 +143,12 @@ export class PackagesPageComponent {
     {
       key: 'fup',
       header: 'Fair use',
-      value: (p) => (p.fupBytes ? formatBytes(p.fupBytes) : '—'),
-      hiddenByDefault: true,
+      value: (p) => (p.fupBytes ? formatBytes(p.fupBytes) : 'Unlimited'),
     },
     {
       key: 'cap',
       header: 'Data cap',
-      value: (p) => (p.dataCapBytes ? formatBytes(p.dataCapBytes) : '—'),
+      value: (p) => (p.dataCapBytes ? formatBytes(p.dataCapBytes) : 'None'),
       hiddenByDefault: true,
     },
   ];

@@ -49,9 +49,17 @@ export class SmsSettingsComponent {
   private readonly permissions = inject(PermissionService);
 
   protected readonly date = formatDateTime;
+  /** The Africa's Talking account and its key (settings.secrets, T4). */
   protected readonly canEdit = computed(() =>
     this.permissions.permissions().has('settings.secrets'),
   );
+  /** The sender ID and sending window belong to the Owner once the account exists (settings.write). */
+  protected readonly canEditSending = computed(
+    () =>
+      this.permissions.permissions().has('settings.write') ||
+      (this.canEdit() && !this.current.value()),
+  );
+  protected readonly canSave = computed(() => this.canEdit() || this.canEditSending());
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   private readonly version = signal(0);
@@ -94,7 +102,16 @@ export class SmsSettingsComponent {
         this.form.markAsPristine();
       }
     });
-    effect(() => (this.canEdit() ? this.form.enable() : this.form.disable()));
+    effect(() => {
+      const account = this.canEdit();
+      const sending = this.canEditSending();
+      for (const name of ['atUsername', 'sandbox', 'enabled', 'apiKey'] as const) {
+        this.toggle(name, account);
+      }
+      for (const name of ['senderId', 'windowStart', 'windowEnd'] as const) {
+        this.toggle(name, sending);
+      }
+    });
   }
 
   protected save(): void {
@@ -114,7 +131,14 @@ export class SmsSettingsComponent {
     };
     this.busy.set(true);
     this.error.set(null);
-    this.settings.saveSms(request).subscribe({
+    const save = this.canEdit()
+      ? this.settings.saveSms(request)
+      : this.settings.saveSending({
+          senderId: request.senderId,
+          windowStart: v.windowStart,
+          windowEnd: v.windowEnd,
+        });
+    save.subscribe({
       next: () => {
         this.busy.set(false);
         this.form.patchValue({ apiKey: '' });
@@ -126,5 +150,14 @@ export class SmsSettingsComponent {
         this.error.set(errorMessage(e));
       },
     });
+  }
+
+  private toggle(name: keyof typeof this.form.controls, enabled: boolean): void {
+    const control = this.form.controls[name];
+    if (enabled) {
+      control.enable({ emitEvent: false });
+    } else {
+      control.disable({ emitEvent: false });
+    }
   }
 }

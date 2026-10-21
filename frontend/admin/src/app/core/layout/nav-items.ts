@@ -91,7 +91,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         path: '/settings',
         label: 'Settings',
         icon: IconSettings,
-        anyOf: ['settings.secrets', 'settings.notifications'],
+        anyOf: ['settings.write', 'settings.secrets', 'settings.notifications'],
       },
     ],
   },

@@ -63,3 +63,18 @@ function trim(value: number): number {
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
+
+/** Gigabytes typed by staff (decimal, 10^9 bytes, up to 2 decimals) to bytes; null when blank or not positive. */
+export function gbToBytes(text: string): number | null {
+  const match = /^\s*(\d{1,6})(?:\.(\d{1,2}))?\s*$/.exec(text);
+  if (!match) {
+    return null;
+  }
+  const bytes = Number(match[1]) * 1e9 + Number((match[2] ?? '').padEnd(2, '0')) * 1e7;
+  return bytes > 0 ? bytes : null;
+}
+
+/** Bytes back to the GB text the form shows; empty for no limit. */
+export function bytesToGb(bytes: number | null | undefined): string {
+  return bytes ? String(Math.round(bytes / 1e7) / 100) : '';
+}
