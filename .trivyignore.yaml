@@ -7,3 +7,10 @@ misconfigurations:
       The local WireGuard hub must create wg0, which needs CAP_NET_ADMIN; file capabilities are not
       honoured by every Docker runtime, so it runs as root. Compose drops all other capabilities,
       mounts the root filesystem read-only and sets no-new-privileges. Local stack only.
+  - id: AVD-DS-0002
+    paths:
+      - "infra/ansible/tests/Dockerfile.target"
+    statement: >-
+      A throwaway stand-in for a fresh Debian server in the playbook converge test: systemd must run as
+      PID 1, which is root, as on a real host. Built and run only by infra/ansible/tests/converge.sh
+      on a private Docker network, removed afterwards; never published or deployed.
