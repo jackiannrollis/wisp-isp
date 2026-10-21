@@ -110,6 +110,7 @@ One row per decision that shapes the code. The ADR column links to the full reco
 | 2026-10-21 | Event versioning: adding fields does not bump an event's version; removing or renaming one does (user decision) | Consumers ignore unknown fields; a removal breaks them | conventions.md Events |
 | 2026-10-21 | Q12 to Q15 defaults accepted; an 80% allowance warning SMS, tenant-configurable, goes to the v2 backlog (user decision) | | docs/09 v2 |
 | 2026-10-21 | Tenant settings screens in v1: grace policy, partial-payment rule, pause limit, branding, SMS sender ID and sending window, behind a new `settings.write` permission held by Owner only. Grace and partial-payment changes affect future renewals only (S6), so a line copies `grace_mode` at renewal like `grace_days`; branding applies at once; secrets stay write-only (user decision) | Owners run their own policy without Corebalt support | S6, A2, docs/07 |
+| 2026-10-21 | Playwright suite (sign-in, customer search, Pay Now) runs against the real stack with a fake Daraja in an opt-in compose override, in its own CI job; installed Chrome, no browser download | Proves the refresh cookie, server-side search and the payment road to "Internet restored", which mocked browser tests cannot | [ADR 0012](../docs/adr/0012-end-to-end-suite-against-the-stack.md) |
 
 ## How to add a row
 

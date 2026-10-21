@@ -1,0 +1,17 @@
+# End-to-end override (ADR 0012): the backend talks to a fake Daraja instead of the Safaricom sandbox,
+# and the fake posts its result callbacks straight to the backend on the compose network. Use only
+# through infra/e2e/up.(sh|ps1); infra/scripts/up.(sh|ps1) starts the normal stack again.
+services:
+  fake-daraja:
+    build: e2e/fake-daraja
+    image: corebalt/isp-fake-daraja:e2e
+    ports:
+      - "127.0.0.1:${FAKE_DARAJA_PORT:-8095}:8095"
+
+  backend:
+    environment:
+      ISP_MPESA_DARAJA_SANDBOXURL: http://fake-daraja:8095
+      CALLBACK_BASE_URL: http://backend:8080
+    depends_on:
+      fake-daraja:
+        condition: service_healthy

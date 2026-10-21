@@ -15,6 +15,7 @@ Each record states the context, the decision and its consequences at the time it
 | [0009](0009-radius-credentials-readable-only-by-radius.md) | RADIUS credentials are stored readable only by FreeRADIUS, not envelope-encrypted | Accepted |
 | [0010](0010-self-issued-jwt-and-sign-in.md) | Self-issued RS256 tokens, rotating refresh tokens and per-request revocation | Accepted |
 | [0011](0011-tunnel-worker.md) | A tunnel worker, the only process that talks to routers | Accepted |
+| [0012](0012-end-to-end-suite-against-the-stack.md) | End-to-end suite against the real stack, with a fake Daraja | Accepted |
 
 ## Writing a new record
 

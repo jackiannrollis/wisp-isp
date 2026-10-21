@@ -51,7 +51,7 @@ context/            this folder
 - **Permissions.** Route guards and a `*hasPermission` directive driven by the permission codes in the JWT; the server is the authority.
 - **Tables.** Server-side pagination, sorting and filtering for every list; never load all customers.
 - **Theming.** Tenant logo and colour from the API at startup; CSS variables; light and dark supported.
-- **Testing.** Component tests with the Angular testing library style; a small Playwright suite for login, pay-now and customer search.
+- **Testing.** Component tests with the Angular testing library style; a small Playwright suite (`frontend/e2e/`) for login, pay-now and customer search, run against the real stack with a fake Daraja (ADR 0012).
 - **Style.** Angular ESLint and Prettier defaults; 2-space indentation; file names `customer-list.component.ts`.
 
 ## API

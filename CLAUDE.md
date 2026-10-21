@@ -29,8 +29,9 @@ admin Angular app. Step 8b, fair use and data caps, is done (N9: cycle usage in 
 screen). The portal Angular app is done: PIN sign-in with an SMS code to set or reset the PIN (Q7
 default), lines with status and usage, Pay Now per line and pay-all by STK with the restore wait and
 the 90-second router fallback, payments, receipts and the wallet statement. Its SMS-code sign-in and a
-live STK payment are covered by tests only (no Africa's Talking or Daraja account locally). Not yet:
-the Playwright suite (login, pay-now, customer search).
+live STK payment are covered by tests only (no Africa's Talking or Daraja account locally). The
+Playwright suite (ADR 0012: sign-in, customer search, Pay Now through a fake Daraja to "Internet
+restored") runs against the real stack in its own CI job.
 
 ## Commands
 
@@ -66,6 +67,7 @@ After `infra/lab/seed.sql` the local stack has a lab admin: tenant `CB`,
 | Build both apps | `npm run build` |
 | Test both apps (Vitest, jsdom, no browser) | `npm run test` |
 | Regenerate API types from the running backend | `npm run api:generate` (env `API_DOCS_URL` overrides the URL) |
+| End-to-end suite (Playwright, installed Chrome; start the e2e stack first, see below) | `npm run e2e` (type-check: `npm run e2e:typecheck`) |
 
 ### Local stack (`infra/`)
 
@@ -84,7 +86,8 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Africa's Talking sandbox round-trip (needs `AT_SANDBOX_*` and an https `CALLBACK_BASE_URL`; skips otherwise) | `infra\scripts\at-sandbox.ps1` | `infra/scripts/at-sandbox.sh` |
 | Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
 | Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
-| All checks (what CI runs) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
+| Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
+| All checks (what CI runs, except the end-to-end suite) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 
 Services: API :8080, Caddy :8088 (lab pay page :8089), PostgreSQL :5432, RabbitMQ :5672
 (UI :15672), Redis :6379, WireGuard hub :51820 UDP, FreeRADIUS :1812/:1813 UDP (ports configurable
