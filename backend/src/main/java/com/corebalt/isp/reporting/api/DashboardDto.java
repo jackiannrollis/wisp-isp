@@ -4,6 +4,7 @@ import com.corebalt.isp.shared.money.MoneyDto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,8 +21,12 @@ import java.util.Map;
  *   <li>{@code lapsed}: lines stored ACTIVE whose expiry fell before the period and that have not
  *       renewed, and the price of their next renewal (the churn list).
  *   <li>{@code collected}: payments received in the period, every channel, reversals left out;
- *       {@code unmatched} is the part still in suspense (P3).
+ *       {@code unmatched} is the part still in suspense (P3). {@code collectedByDay} splits it per
+ *       tenant-local day, every day of the period up to today, zero days included.
  * </ul>
+ *
+ * <p>{@code suspense} is everything in the suspense queue now, whatever the period, for callers with
+ * {@code finance.read} or {@code payments.assign}: the dashboard's action queue leads them to it.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record DashboardDto(
@@ -31,6 +36,7 @@ public record DashboardDto(
         Instant asOf,
         Lines lines,
         Revenue revenue,
+        Suspense suspense,
         Network network) {
 
     public record Lines(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus) {}
@@ -44,7 +50,12 @@ public record DashboardDto(
             long payments,
             MoneyDto collected,
             long unmatchedPayments,
-            MoneyDto unmatched) {}
+            MoneyDto unmatched,
+            List<DayCollected> collectedByDay) {}
+
+    public record DayCollected(LocalDate day, long payments, MoneyDto amount) {}
+
+    public record Suspense(long payments, MoneyDto amount) {}
 
     public record Network(Map<String, Long> routersByStatus, long activeSessions, long inputOctets, long outputOctets) {}
 }

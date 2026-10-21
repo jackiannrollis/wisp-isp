@@ -2543,7 +2543,15 @@ export interface components {
             asOf?: string;
             lines?: components["schemas"]["Lines"];
             revenue?: components["schemas"]["Revenue"];
+            suspense?: components["schemas"]["Suspense"];
             network?: components["schemas"]["Network"];
+        };
+        DayCollected: {
+            /** Format: date */
+            day?: string;
+            /** Format: int64 */
+            payments?: number;
+            amount?: components["schemas"]["MoneyDto"];
         };
         Lines: {
             /** Format: int64 */
@@ -2580,6 +2588,12 @@ export interface components {
             /** Format: int64 */
             unmatchedPayments?: number;
             unmatched?: components["schemas"]["MoneyDto"];
+            collectedByDay?: components["schemas"]["DayCollected"][];
+        };
+        Suspense: {
+            /** Format: int64 */
+            payments?: number;
+            amount?: components["schemas"]["MoneyDto"];
         };
         PageResponseCustomerDto: {
             items?: components["schemas"]["CustomerDto"][];

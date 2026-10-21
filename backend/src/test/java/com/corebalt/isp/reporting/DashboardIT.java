@@ -106,6 +106,7 @@ class DashboardIT extends IntegrationTest {
         final Api.Response response = technician.get("/api/v1/dashboard");
         assertThat(response.status()).isEqualTo(200);
         assertThat(response.json().has("revenue")).isFalse();
+        assertThat(response.json().has("suspense")).isFalse();
         assertThat(response.body()).doesNotContain("\"amount\"");
         assertThat(response.json().get("lines").get("total").asLong()).isOne();
         assertThat(response.json().get("network")).isNotNull();
@@ -144,6 +145,23 @@ class DashboardIT extends IntegrationTest {
         assertThat(revenue.get("collected").get("amount").asLong()).isEqualTo(230_000);
         assertThat(revenue.get("unmatchedPayments").asLong()).isOne();
         assertThat(revenue.get("unmatched").get("amount").asLong()).isEqualTo(30_000);
+
+        // Per tenant-local day, zero days included, adding up to the period's total.
+        final JsonNode threeDays = api.get("/api/v1/dashboard?from=" + day.minusDays(1) + "&to=" + day.plusDays(1)).json();
+        final JsonNode byDay = threeDays.get("revenue").get("collectedByDay");
+        assertThat(byDay).extracting(d -> d.get("day").asString())
+                .containsExactly(day.minusDays(1).toString(), day.toString(), day.plusDays(1).toString());
+        assertThat(byDay).extracting(d -> d.get("amount").get("amount").asLong()).containsExactly(10_000L, 230_000L, 20_000L);
+        assertThat(byDay).extracting(d -> d.get("payments").asLong()).containsExactly(1L, 3L, 1L);
+        final JsonNode quiet = api.get("/api/v1/dashboard?from=" + day.minusDays(10) + "&to=" + day.minusDays(10)).json();
+        assertThat(quiet.get("revenue").get("collectedByDay").get(0).get("amount").get("amount").asLong()).isZero();
+
+        // The suspense queue as it stands now, whatever the period (P3).
+        assertThat(quiet.get("suspense").get("payments").asLong()).isOne();
+        assertThat(quiet.get("suspense").get("amount").get("amount").asLong()).isEqualTo(30_000);
+        final JsonNode assigner = new Api(port, tenant, "payments.assign").get("/api/v1/dashboard").json();
+        assertThat(assigner.has("revenue")).isFalse();
+        assertThat(assigner.get("suspense").get("payments").asLong()).as("leads the assigner to the queue").isOne();
     }
 
     @Test

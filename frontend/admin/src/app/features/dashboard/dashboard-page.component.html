@@ -42,25 +42,52 @@
 }
 
 @if (data.value(); as d) {
+  <section class="panel queue" aria-labelledby="queue-heading" [class.stale]="data.isLoading()">
+    <header class="panel-head">
+      <h2 id="queue-heading" class="section-title">Needs attention</h2>
+      @if (queue().length) {
+        <span class="count">{{ queue().length }}</span>
+      }
+    </header>
+    @if (queue().length) {
+      <ul class="queue-list">
+        @for (item of queue(); track item.key) {
+          <li>
+            <a class="queue-row" [routerLink]="item.link" [queryParams]="item.queryParams ?? null">
+              <tabler-icon class="queue-icon" [class]="item.tone" [icon]="item.icon" [size]="20" />
+              <span class="queue-text">
+                <span class="queue-title">{{ item.text }}</span>
+                @if (item.detail) {
+                  <span class="queue-detail">{{ item.detail }}</span>
+                }
+              </span>
+              <span class="queue-action">
+                {{ item.action }}
+                <tabler-icon [icon]="icons.go" [size]="16" />
+              </span>
+            </a>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="all-clear">
+        <tabler-icon [icon]="icons.clear" [size]="20" />
+        Nothing needs attention. Routers are up, every payment is matched and no line is expiring
+        soon.
+      </p>
+    }
+  </section>
+
+  <h2 class="section-title heading">Right now</h2>
   <div class="panel strip" [class.stale]="data.isLoading()">
     <a class="cell link" routerLink="/subscriptions">
-      <span class="label">Lines</span>
-      <span class="value">{{ d.lines?.total ?? 0 }}</span>
-      <span class="note">{{ activeLines() }} active</span>
-    </a>
-    <a
-      class="cell link"
-      routerLink="/subscriptions"
-      [queryParams]="{ displayStatus: 'RESTRICTED' }"
-    >
-      <span class="label">Need attention</span>
-      <span class="value" [class.warn]="attention() > 0">{{ attention() }}</span>
-      <span class="note">expiring, in grace or restricted</span>
-    </a>
-    <a class="cell link" routerLink="/sessions">
-      <span class="label">Active sessions</span>
-      <span class="value">{{ d.network?.activeSessions ?? 0 }}</span>
-      <span class="note">{{ bytes(d.network?.outputOctets) }} down this period</span>
+      <span class="label">Lines with service</span>
+      <span class="value"
+        >{{ linesWithService() }}<span class="of"> / {{ d.lines?.total ?? 0 }}</span></span
+      >
+      <span class="note" [class.alert]="restrictedLines() > 0"
+        >{{ restrictedLines() }} restricted to the pay page</span
+      >
     </a>
     <a class="cell link" routerLink="/network">
       <span class="label">Routers online</span>
@@ -69,40 +96,62 @@
       >
       <span class="note" [class.alert]="routersOffline() > 0">{{ routersOffline() }} offline</span>
     </a>
+    <a class="cell link" routerLink="/sessions">
+      <span class="label">Active sessions</span>
+      <span class="value">{{ d.network?.activeSessions ?? 0 }}</span>
+      <span class="note">connected through RADIUS</span>
+    </a>
   </div>
 
   @if (d.revenue; as r) {
-    <h2 class="section-title heading">Revenue · {{ monthLabel() }}</h2>
+    <h2 class="section-title heading">Money · {{ monthLabel() }}</h2>
     <div class="panel strip money" [class.stale]="data.isLoading()">
+      <a class="cell link" routerLink="/payments">
+        <span class="label">Collected</span>
+        <span class="value">{{ money(r.collected) }}</span>
+        <span class="note">
+          {{ r.payments ?? 0 }} {{ r.payments === 1 ? 'payment' : 'payments' }} received
+          @if (r.unmatchedPayments) {
+            · {{ money(r.unmatched) }} unmatched
+          }
+        </span>
+      </a>
       <div class="cell">
         <span class="label">Renewals due</span>
         <span class="value">{{ money(r.renewalsDue) }}</span>
-        <span class="note">{{ r.renewalsDueLines ?? 0 }} lines expiring</span>
+        <span class="note"
+          >{{ r.renewalsDueLines ?? 0 }} {{ r.renewalsDueLines === 1 ? 'line' : 'lines' }} expire
+          this period</span
+        >
       </div>
       <div class="cell">
-        <span class="label">Outstanding</span>
-        <span class="value">{{ money(r.outstanding) }}</span>
-        <span class="note">still to be paid on those lines</span>
-      </div>
-      <div class="cell">
-        <span class="label">Collected</span>
-        <span class="value">{{ money(r.collected) }}</span>
-        <span class="note">{{ r.payments ?? 0 }} payments</span>
-      </div>
-      <a class="cell link" routerLink="/payments/suspense">
-        <span class="label">Unmatched</span>
-        <span class="value">{{ money(r.unmatched) }}</span>
-        <span class="note">{{ r.unmatchedPayments ?? 0 }} in suspense</span>
-      </a>
-      <div class="cell">
-        <span class="label">Lapsed</span>
-        <span class="value">{{ money(r.lapsed) }}</span>
-        <span class="note">{{ r.lapsedLines ?? 0 }} lines expired earlier</span>
+        <span class="label">Still to pay</span>
+        <span class="value" [class.warn]="(r.outstanding?.amount ?? 0) > 0">{{
+          money(r.outstanding)
+        }}</span>
+        <span class="note">of the renewals due, not yet in wallets</span>
       </div>
     </div>
+    @if (r.lapsedLines) {
+      <p class="aside">
+        {{ r.lapsedLines }} {{ r.lapsedLines === 1 ? 'line' : 'lines' }} expired before this period
+        and did not renew ({{ money(r.lapsed) }} at their package price).
+      </p>
+    }
   }
 
   <div class="panels">
+    @if (d.revenue) {
+      <section class="panel chart-panel" aria-labelledby="trend-heading">
+        <header class="panel-head">
+          <h2 id="trend-heading" class="section-title">Collections per day</h2>
+        </header>
+        <div class="trend">
+          <app-chart [option]="collectionChart()" [label]="collectionSummary()" />
+          <p class="chart-note">{{ collectionSummary() }}</p>
+        </div>
+      </section>
+    }
     <section class="panel chart-panel" aria-labelledby="lines-heading">
       <header class="panel-head">
         <h2 id="lines-heading" class="section-title">Lines by status</h2>
@@ -126,7 +175,6 @@
         </ul>
       </div>
     </section>
-
     <section class="panel chart-panel" aria-labelledby="network-heading">
       <header class="panel-head">
         <h2 id="network-heading" class="section-title">Network</h2>
@@ -158,8 +206,42 @@
         </ul>
       </div>
     </section>
+    @if (canSeeMoney()) {
+      <section class="panel" aria-labelledby="recent-heading">
+        <header class="panel-head">
+          <h2 id="recent-heading" class="section-title">Latest payments</h2>
+          <a class="more" routerLink="/payments">All payments</a>
+        </header>
+        @if (recentPayments.value(); as list) {
+          @if (list.length) {
+            <table class="recent">
+              <tbody>
+                @for (p of list; track p.id) {
+                  <tr>
+                    <td class="when">{{ when(p.receivedAt) }}</td>
+                    <td class="who">
+                      @if (p.customerNumber) {
+                        <a [routerLink]="['/customers', p.customerId]">{{ p.customerNumber }}</a>
+                        <span class="muted"> · {{ p.customerName }}</span>
+                      } @else {
+                        <a routerLink="/payments/suspense" class="unmatched">Unmatched</a>
+                        <span class="muted"> · {{ p.reference }}</span>
+                      }
+                    </td>
+                    <td class="amount">{{ money(p.amount) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="empty">No payments yet.</p>
+          }
+        }
+      </section>
+    }
   </div>
   <p class="asof">
-    Days {{ d.from }} to {{ d.to }} ({{ d.zone }}). Lines, routers and sessions are as of now.
+    Money covers {{ d.from }} to {{ d.to }} ({{ d.zone }}). Lines, routers, sessions and the queue
+    are as of now.
   </p>
 }

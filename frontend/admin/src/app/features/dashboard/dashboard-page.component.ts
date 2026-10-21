@@ -4,14 +4,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import {
+  IconArrowRight,
   IconChevronLeft,
   IconChevronRight,
+  IconCircleCheck,
   IconRefresh,
   TablerIconComponent,
 } from '@tabler/icons-angular';
 import { EChartsCoreOption } from 'echarts/core';
-import { switchMap, timer } from 'rxjs';
+import { catchError, map, of, switchMap, timer } from 'rxjs';
 
+import { PermissionService } from '../../core/permissions/permission.service';
 import { ChartComponent } from '../../shared/chart/chart.component';
 import { formatBytes, formatDateTime, formatMoney } from '../../shared/ui/format';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
@@ -20,7 +23,10 @@ import {
   statusLabel,
   statusTone,
 } from '../../shared/ui/status-chip.component';
-import { DashboardService } from './data/dashboard.service';
+import { AlertsService } from '../alerts/data/alerts.service';
+import { PaymentsService } from '../payments/data/payments.service';
+import { attentionItems } from './attention';
+import { DashboardService, DayCollected } from './data/dashboard.service';
 
 /** How often the dashboard re-reads its figures (conventions.md: polling until WebSockets in v2). */
 export const REFRESH_MS = 30_000;
@@ -47,8 +53,11 @@ const TONE_COLOUR = {
 } as const;
 
 /**
- * The admin dashboard (docs/09 step 8; docs/05 Dashboard figures). Figures are shown as text first;
- * each chart repeats a list beside it. Money appears only when the API sends it (finance.read).
+ * The admin dashboard (docs/09 step 8; docs/05 Dashboard figures; decisions.md 2026-10-20). It answers,
+ * in order: what needs doing (the action queue, each row leading to the fix), how things stand right
+ * now (lines, routers, sessions), and, for finance.read, the period's money with its daily trend and
+ * the latest payments. Period money and current status sit apart and are labelled so. Figures are
+ * text first; each chart has a text equivalent.
  */
 @Component({
   selector: 'app-dashboard-page',
@@ -67,12 +76,20 @@ const TONE_COLOUR = {
 })
 export class DashboardPageComponent {
   private readonly dashboards = inject(DashboardService);
+  private readonly alerts = inject(AlertsService);
+  private readonly payments = inject(PaymentsService);
+  private readonly permissions = inject(PermissionService);
 
   protected readonly icons = {
     prev: IconChevronLeft,
     next: IconChevronRight,
     refresh: IconRefresh,
+    go: IconArrowRight,
+    clear: IconCircleCheck,
   };
+  protected readonly canSeeMoney = computed(() =>
+    this.permissions.permissions().has('finance.read'),
+  );
   protected readonly money = formatMoney;
   protected readonly bytes = formatBytes;
   protected readonly label = statusLabel;
@@ -94,6 +111,39 @@ export class DashboardPageComponent {
       ),
   });
 
+  /** Open alerts feed the queue; a failure leaves the queue to the dashboard's own figures. */
+  private readonly openAlerts = rxResource({
+    stream: () =>
+      timer(0, REFRESH_MS).pipe(
+        switchMap(() =>
+          this.alerts.list('OPEN', { page: 0, size: 50, filters: {} }).pipe(
+            map((page) => page.items),
+            catchError(() => of([])),
+          ),
+        ),
+      ),
+  });
+
+  protected readonly recentPayments = rxResource({
+    params: () => this.canSeeMoney() || undefined,
+    stream: () =>
+      timer(0, REFRESH_MS).pipe(
+        switchMap(() =>
+          this.payments
+            .list({ page: 0, size: 6, sort: 'receivedAt,desc', filters: {} })
+            .pipe(map((page) => page.items)),
+        ),
+      ),
+  });
+
+  protected readonly queue = computed(() =>
+    attentionItems(this.data.value(), this.openAlerts.value()),
+  );
+
+  protected readonly collection = computed(() => this.data.value()?.revenue?.collectedByDay ?? []);
+  protected readonly collectionChart = computed(() => collectionChart(this.collection()));
+  protected readonly collectionSummary = computed(() => collectionSummary(this.collection()));
+
   protected readonly displayRows = computed(() => {
     const counts = this.data.value()?.lines?.byDisplayStatus ?? {};
     return DISPLAY_ORDER.map((status) => ({ status, count: counts[status] ?? 0 }));
@@ -103,14 +153,15 @@ export class DashboardPageComponent {
     const d = this.data.value();
     return d ? `Updated ${formatDateTime(d.asOf)} · ${d.zone}` : null;
   });
-  protected readonly activeLines = computed(
-    () => this.data.value()?.lines?.byState?.['ACTIVE'] ?? 0,
-  );
-  /** Lines someone may need to act on: about to expire, in grace, or restricted. */
-  protected readonly attention = computed(() => {
+  /** Lines that can use the internet now: active, expiring or in grace (display status, S1). */
+  protected readonly linesWithService = computed(() => {
     const counts = this.data.value()?.lines?.byDisplayStatus ?? {};
-    return (counts['EXPIRING'] ?? 0) + (counts['GRACE'] ?? 0) + (counts['RESTRICTED'] ?? 0);
+    return (counts['ACTIVE'] ?? 0) + (counts['EXPIRING'] ?? 0) + (counts['GRACE'] ?? 0);
   });
+  protected readonly restrictedLines = computed(
+    () => this.data.value()?.lines?.byDisplayStatus?.['RESTRICTED'] ?? 0,
+  );
+  protected readonly when = formatDateTime;
   protected readonly routersOnline = computed(
     () => this.data.value()?.network?.routersByStatus?.['ONLINE'] ?? 0,
   );
@@ -195,6 +246,86 @@ export class DashboardPageComponent {
     const current = this.month();
     this.month.set(new Date(current.getFullYear(), current.getMonth() + months, 1));
   }
+}
+
+/** Daily collections as thin bars in the tenant colour, one series, so no legend; a tooltip per day. */
+export function collectionChart(days: DayCollected[]): EChartsCoreOption {
+  return {
+    textStyle: CHART_TEXT,
+    grid: { left: 4, right: 8, top: 12, bottom: 4, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { opacity: 0.25 } },
+      formatter: (params: { dataIndex: number }[]) => {
+        const day = days[params[0]?.dataIndex ?? 0];
+        if (!day) {
+          return '';
+        }
+        const count = day.payments ?? 0;
+        return `${dayLabel(day.day)}<br/><b>${formatMoney(day.amount)}</b> · ${count} ${
+          count === 1 ? 'payment' : 'payments'
+        }`;
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: days.map((d) => dayLabel(d.day)),
+      axisLabel: { color: MUTED, fontSize: 11, hideOverlap: true },
+      axisLine: { lineStyle: { color: 'var(--mat-sys-outline-variant)' } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: MUTED, fontSize: 11, formatter: shortShillings },
+      splitLine: { lineStyle: { color: 'var(--mat-sys-outline-variant)', type: 'dashed' } },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 12,
+        // Shillings set the axis scale only; the tooltip shows the exact amount from minor units.
+        data: days.map((d) => (d.amount?.amount ?? 0) / 100),
+        itemStyle: { color: 'var(--mat-sys-primary)', borderRadius: [4, 4, 0, 0] },
+      },
+    ],
+  };
+}
+
+/** The chart's text equivalent: the total, the number of days and the best day. */
+export function collectionSummary(days: DayCollected[]): string {
+  if (days.length === 0) {
+    return 'No days in this period yet.';
+  }
+  const best = days.reduce((a, b) => ((b.amount?.amount ?? 0) > (a.amount?.amount ?? 0) ? b : a));
+  const total = days.reduce((sum, d) => sum + (d.amount?.amount ?? 0), 0);
+  const parts = [
+    `Collected ${formatMoney({ amount: total, currency: 'KES' })} over ${days.length} ${
+      days.length === 1 ? 'day' : 'days'
+    }`,
+  ];
+  if ((best.amount?.amount ?? 0) > 0) {
+    parts.push(`highest on ${dayLabel(best.day)} with ${formatMoney(best.amount)}`);
+  }
+  return parts.join(', ') + '.';
+}
+
+function dayLabel(iso: string | undefined): string {
+  if (!iso) {
+    return '';
+  }
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** `12k`, `1.2M` or `850` shillings for axis ticks. */
+function shortShillings(value: number): string {
+  if (value >= 1_000_000) {
+    return `${Math.round(value / 100_000) / 10}M`;
+  }
+  if (value >= 1_000) {
+    return `${Math.round(value / 100) / 10}k`;
+  }
+  return String(value);
 }
 
 function firstOfMonth(date: Date): Date {

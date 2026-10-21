@@ -6,8 +6,12 @@ import { API_BASE } from '../../../core/api/api.config';
 import { components } from '../../../shared/models';
 
 export type Dashboard = components['schemas']['DashboardDto'];
+export type DayCollected = components['schemas']['DayCollected'];
 
-/** `/api/v1/dashboard`: tenant-local days, both included; `revenue` is absent without finance.read. */
+/**
+ * `/api/v1/dashboard`: tenant-local days, both included; `revenue` is absent without finance.read and
+ * `suspense` without finance.read or payments.assign.
+ */
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly http = inject(HttpClient);
