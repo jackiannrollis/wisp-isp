@@ -212,6 +212,39 @@ class LifecycleIT extends IntegrationTest {
     }
 
     @Test
+    void S9_A1_aPendingLineIsCancelledBeforeActivationWithItsCredentialRevokedAndTheWalletUntouched() {
+        fund(100_000); // a partial payment waiting for the price (B5)
+        final String body = "{\"reason\":\"Customer changed their mind before installation\"}";
+        assertThat(new Api(port, tenant, "subscriptions.write")
+                .postWithKey("/api/v1/subscriptions/" + lineId + "/cancel", "c0", body).status()).isEqualTo(403);
+        assertThat(api.postWithKey("/api/v1/subscriptions/" + lineId + "/cancel", "c1", "{\"reason\":\"\"}").status())
+                .isEqualTo(400);
+
+        final Api.Response cancelled = new Api(port, tenant, "customers.write")
+                .postWithKey("/api/v1/subscriptions/" + lineId + "/cancel", "c2", body);
+        assertThat(cancelled.status()).isEqualTo(200);
+        assertThat(cancelled.json().get("state").asString()).isEqualTo("TERMINATED");
+        assertThat(radius("Cleartext-Password")).isNull();
+        assertThat(radius("Auth-Type")).isEqualTo("Reject");
+        assertThat(balance()).isEqualTo(100_000);
+        assertThat(events("SubscriptionStateChanged")).containsExactly("PENDING>TERMINATED STAFF_ACTION");
+        final JsonNode audit = api.get("/api/v1/audit-log?action=subscriptions.cancelled").json().get("items").get(0);
+        assertThat(audit.get("reason").asString()).isEqualTo("Customer changed their mind before installation");
+
+        // Only a PENDING line: an active one is terminated instead, and a closed one stays closed.
+        assertThat(api.postWithKey("/api/v1/subscriptions/" + lineId + "/cancel", "c3", body).status()).isEqualTo(409);
+    }
+
+    @Test
+    void S9_anActiveLineCannotBeCancelledOnlyTerminated() {
+        activate();
+        final Api.Response refused = api.postWithKey("/api/v1/subscriptions/" + lineId + "/cancel", "c4",
+                "{\"reason\":\"Wrong line\"}");
+        assertThat(refused.status()).isEqualTo(409);
+        assertThat(refused.body()).contains("Terminate an active line instead");
+    }
+
+    @Test
     void M1_remindersAreRaisedOncePerEventAndExpiry() {
         activate();
         OwnerSql.client()

@@ -34,7 +34,7 @@ test.beforeAll(async () => {
   expect(mpesa.ok(), await mpesa.text()).toBeTruthy();
 
   // A second line for the lab customer: PENDING, so due, and not FULL, so the page waits for it.
-  // A PENDING line cannot be closed (docs/04), so one left by an interrupted run is used again.
+  // One left by an interrupted run is used again.
   const customers = await (await staff.get(`/api/v1/customers?q=${LAB.customer}`)).json();
   const customerId: string = customers.items[0].id;
   const lines = (await (await staff.get(`/api/v1/subscriptions?customerId=${customerId}`)).json())
@@ -50,9 +50,11 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  // Paid: terminate it. Still PENDING (the test stopped early): cancel it before activation (docs/04).
   const now = line && (await (await staff.get(`/api/v1/subscriptions/${line.id}`)).json());
-  if (now?.state === 'ACTIVE') {
-    const closed = await staff.post(`/api/v1/subscriptions/${line!.id}/terminate`, {
+  const close = now?.state === 'ACTIVE' ? 'terminate' : now?.state === 'PENDING' ? 'cancel' : null;
+  if (close) {
+    const closed = await staff.post(`/api/v1/subscriptions/${line!.id}/${close}`, {
       headers: { 'Idempotency-Key': crypto.randomUUID() },
       data: { reason: 'End-to-end test clean-up' },
     });

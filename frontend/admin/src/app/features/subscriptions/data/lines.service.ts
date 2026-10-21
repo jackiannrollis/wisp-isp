@@ -67,6 +67,11 @@ export class LinesService {
     return this.http.post<Line>(`${LINES}/${id}/terminate`, { reason }, idempotent(key));
   }
 
+  /** A PENDING line, never paid, closed before activation (customers.write; docs/04). */
+  cancel(id: string, reason: string, key: string): Observable<Line> {
+    return this.http.post<Line>(`${LINES}/${id}/cancel`, { reason }, idempotent(key));
+  }
+
   changePackage(
     id: string,
     packageId: string,

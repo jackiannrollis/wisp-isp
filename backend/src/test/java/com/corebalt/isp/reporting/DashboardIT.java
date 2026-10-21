@@ -77,6 +77,20 @@ class DashboardIT extends IntegrationTest {
         assertThat(display.get("EXPIRING").asLong()).isEqualTo(1);
         assertThat(display.get("RESTRICTED").asLong()).isEqualTo(1);
         assertThat(display.get("GRACE").asLong()).isZero();
+        assertThat(lines.get("pendingOver14Days").asLong()).as("Akinyi's line is new").isZero();
+    }
+
+    @Test
+    void S9_linesPendingForMoreThan14DaysAreCountedForTheQueue() {
+        line("Akinyi", null);
+        line("Baraka", null);
+        OwnerSql.client().sql("""
+                        update subscriptions_subscription set created_at = now() - interval '15 days'
+                        where tenant_id = :t and pppoe_username = (
+                            select min(pppoe_username) from subscriptions_subscription where tenant_id = :t)
+                        """)
+                .param("t", tenant).update();
+        assertThat(api.get("/api/v1/dashboard").json().get("lines").get("pendingOver14Days").asLong()).isOne();
     }
 
     @Test

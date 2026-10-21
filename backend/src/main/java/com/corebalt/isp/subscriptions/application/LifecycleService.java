@@ -85,6 +85,19 @@ public class LifecycleService {
         return terminated;
     }
 
+    /**
+     * Cancel before activation (docs/04): a PENDING line closes, its PPPoE credential is revoked so the
+     * RADIUS view has nothing for it (ADR 0009), and the wallet is untouched; a refund takes the normal
+     * road. Audited with its reason (A1) and published like every transition (S9).
+     */
+    @Transactional
+    public SubscriptionDto cancelBeforeActivation(final UUID subscriptionId, final String reason) {
+        final SubscriptionDto cancelled = apply(subscriptionId, "subscriptions.cancelled", reason,
+                (line, now) -> line.cancelBeforeActivation(now));
+        credentials.revoke(subscriptionId);
+        return cancelled;
+    }
+
     /** For the job: record a resume the RADIUS view applied at pause_until (E4). */
     @Transactional
     public void recordAutoResume(final UUID subscriptionId) {

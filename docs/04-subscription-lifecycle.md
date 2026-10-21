@@ -23,6 +23,7 @@ Store only the states people set by hand; derive everything else from dates. RAD
 stateDiagram-v2
     [*] --> PENDING: customer and line created
     PENDING --> ACTIVE: first renewal paid
+    PENDING --> TERMINATED: cancelled before activation
     ACTIVE --> ACTIVE: renewal extends expires_at
     ACTIVE --> PAUSED: customer pause request
     PAUSED --> ACTIVE: resume or pause_until reached
@@ -36,7 +37,7 @@ stateDiagram-v2
 
 Every transition writes an audit row and publishes `SubscriptionStateChanged` with a cause, which the network module turns into a CoA or Disconnect. The cause `AUTO_RESUME_RECORDED` (a job recording a resume the RADIUS view already applied at `pause_until`) needs neither: the customer's session is already on the new profile.
 
-Staff transitions (pause, resume, suspend, lift, terminate) change access, so the API requires an `Idempotency-Key` on each and replays the original response for a repeated key. Renewal has no endpoint: it happens when money reaches the wallet (or through a wallet adjustment with a reason), charging through the billing module's wallet lock so one payment never renews two lines.
+Staff transitions (pause, resume, suspend, lift, terminate, cancel) change access, so the API requires an `Idempotency-Key` on each and replays the original response for a repeated key. Renewal has no endpoint: it happens when money reaches the wallet (or through a wallet adjustment with a reason), charging through the billing module's wallet lock so one payment never renews two lines.
 
 ## How access is decided
 
@@ -89,6 +90,7 @@ The same logic lives in two places that must agree: the SQL function `subscripti
 
 - `SUSPENDED` is an admin action with a reason; access is `REJECT`; the router drops the session at once. Lifting the hold re-evaluates dates: a subscription that expired during the hold comes back as `RESTRICTED`, not `FULL`.
 - `TERMINATED` revokes the PPPoE password (RADIUS rejects it with "Account terminated") and frees the static IP; the customer, ledger and accounting history remain for records and lawful requests. Any wallet balance is settled by refund or credit note.
+- **Cancel before activation.** A `PENDING` line that was never paid (the customer changed their mind, the installation fell through) is closed with `POST /api/v1/subscriptions/{id}/cancel`. It needs `customers.write`, a reason and an `Idempotency-Key`; it writes an audit row and publishes `SubscriptionStateChanged` (`PENDING` to `TERMINATED`) like every transition (S9). The PPPoE credential is revoked, so the RADIUS view has nothing for the line. The wallet is untouched: money paid towards the line stays as credit, and a refund takes the normal road. Only a `PENDING` line can be cancelled; an active one is terminated. Nothing cancels a line automatically: the dashboard's action queue lists lines pending for more than 14 days, for staff to chase or cancel (decisions.md 2026-10-21).
 
 ## Reminders
 

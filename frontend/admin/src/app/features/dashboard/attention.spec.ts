@@ -64,4 +64,16 @@ describe('attentionItems', () => {
     expect(items[0].detail).toContain('2 of them used up their data cap');
     expect(items[2].queryParams).toEqual({ displayStatus: 'THROTTLED' });
   });
+
+  it('S9_listsLinesPendingForMoreThan14DaysLast', () => {
+    const items = attentionItems(
+      { ...base, lines: { byDisplayStatus: { EXPIRING: 1 }, pendingOver14Days: 2 } },
+      [],
+    );
+    expect(items.map((i) => [i.key, i.text])).toEqual([
+      ['EXPIRING', '1 line expiring within 3 days'],
+      ['PENDING_STALE', '2 lines pending over 14 days'],
+    ]);
+    expect(items[1].queryParams).toEqual({ displayStatus: 'PENDING' });
+  });
 });

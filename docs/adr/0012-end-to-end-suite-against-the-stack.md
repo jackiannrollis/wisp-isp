@@ -27,7 +27,7 @@ Pay Now cannot run against Safaricom in CI. The backend calls Daraja synchronous
   - The suite signs in as the lab admin and the lab customer `CB000001` (obvious fakes, local and CI only).
   - It sets fake M-Pesa settings for tenant `CB`. The Daraja sandbox script sets its own again when it runs.
   - Pay Now opens a second line for `CB000001`. The line is PENDING, so it is due, and not FULL, so the page waits for its restore. The suite pays it through the portal and terminates it afterwards.
-  - A PENDING line cannot be closed (docs/04), so a line left behind by an interrupted run is reused, not duplicated.
+  - A line still PENDING when the test stops early is cancelled before activation (docs/04); one left behind by an interrupted run is reused, not duplicated.
   - Payments and ledger entries stay, as the ledger is append-only (B1). Locally the lab customer's history therefore grows by one payment per run; CI starts from empty databases.
 - **No browser download.** The suite uses the installed Chrome (`channel: 'chrome'`), which GitHub's Ubuntu runners include.
 - **CI.** A separate `e2e` job writes an `infra/.env` with throwaway secrets, starts the e2e stack with the seed, type-checks the suite and runs it. On failure it uploads the Playwright report and prints the backend and fake Daraja logs. The job adds several minutes, mostly the backend image build.

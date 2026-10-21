@@ -19,7 +19,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **S6** `grace_days` and `grace_mode` are copied onto the subscription at each renewal; a policy change never alters a cycle already paid for (a line renewed before the mode was kept follows the tenant's).
 - **S7** Pause freezes the clock: on resume `expires_at += now − paused_at`. Only an `ACTIVE` line with time remaining can be paused, for at most the tenant's `max_pause_days`; a paused line is `RESTRICTED`, not rejected. At `pause_until` the line resumes by itself: the RADIUS view and `AccessPolicy` treat it as `ACTIVE` with `expires_at + (pause_until − paused_at)` from that instant (E4); the job only records it, with cause `AUTO_RESUME_RECORDED`, which needs no CoA.
 - **S8** Lifting a suspension re-evaluates dates; a line that expired during the hold returns as `RESTRICTED`.
-- **S9** Every state transition writes an audit row and publishes `SubscriptionStateChanged`.
+- **S9** Every state transition writes an audit row and publishes `SubscriptionStateChanged`. A `PENDING` line that was never paid may be cancelled before activation (`PENDING` → `TERMINATED`, `customers.write`, reason required): its credential is revoked and the wallet is untouched. No line is ever cancelled automatically.
 - **S10** Downgrades always apply at the next renewal; immediate upgrades charge proration and change speed by CoA.
 
 ## Billing (docs/05)

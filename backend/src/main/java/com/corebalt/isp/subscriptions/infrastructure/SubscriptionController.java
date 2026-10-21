@@ -153,6 +153,18 @@ class SubscriptionController {
                 () -> lifecycle.terminate(id, request.reason())));
     }
 
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAuthority('customers.write')")
+    @Operation(summary = "Cancel a PENDING line before activation: closed for good, password revoked, wallet untouched")
+    ResponseEntity<SubscriptionDto> cancel(
+            @RequestHeader(IdempotentRequests.HEADER) final String key,
+            @PathVariable final UUID id,
+            @Valid @RequestBody final ReasonRequest request) {
+        return respond(idempotent.execute(
+                key, "POST /subscriptions/" + id + "/cancel", request, SubscriptionDto.class,
+                () -> lifecycle.cancelBeforeActivation(id, request.reason())));
+    }
+
     @PostMapping("/{id}/package")
     @PreAuthorize("hasAuthority('subscriptions.write')")
     @Operation(summary = "Change the package: an upgrade NOW charges proration (B6); a downgrade waits for the next renewal (S10)")

@@ -337,6 +337,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subscriptions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a PENDING line before activation: closed for good, password revoked, wallet untouched */
+        post: operations["cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff": {
         parameters: {
             query?: never;
@@ -2666,6 +2683,8 @@ export interface components {
             byDisplayStatus?: {
                 [key: string]: number;
             };
+            /** Format: int64 */
+            pendingOver14Days?: number;
         };
         Network: {
             routersByStatus?: {
@@ -3382,6 +3401,34 @@ export interface operations {
         };
     };
     liftSuspension: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    cancel: {
         parameters: {
             query?: never;
             header: {

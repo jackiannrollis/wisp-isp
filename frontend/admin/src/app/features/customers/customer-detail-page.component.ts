@@ -236,10 +236,33 @@ export class CustomerDetailPageComponent {
 
   /** The actions a line's stored state allows (docs/04 transitions); the server enforces them again. */
   protected lineActions(line: Line): LineAction[] {
+    const id = line.id ?? '';
+    if (line.state === 'PENDING' && this.can().editCustomer) {
+      // Cancel before activation needs customers.write, not subscriptions.write (decisions.md 2026-10-21).
+      const cancel: LineAction = {
+        label: 'Cancel line',
+        icon: IconTrash,
+        run: () =>
+          this.lineChange(
+            line,
+            'Cancel line',
+            'The line was never paid. It closes for good; any money in the wallet stays there.',
+            'Reason',
+            (r, key) => this.lines.cancel(id, r, key),
+            true,
+            'Keep line',
+          ),
+      };
+      return this.can().manageLines ? [...this.manageActions(line, id), cancel] : [cancel];
+    }
     if (!this.can().manageLines || line.state === 'TERMINATED') {
       return [];
     }
-    const id = line.id ?? '';
+    return this.manageActions(line, id);
+  }
+
+  /** What subscriptions.write allows for the line's stored state. */
+  private manageActions(line: Line, id: string): LineAction[] {
     const actions: LineAction[] = [];
     if (line.state === 'ACTIVE') {
       actions.push({ label: 'Pause', icon: IconPlayerPause, run: () => this.pause(line) });
@@ -294,6 +317,9 @@ export class CustomerDetailPageComponent {
       });
     }
     actions.push({ label: 'New PPPoE password', icon: IconKey, run: () => this.newPassword(line) });
+    if (line.state !== 'ACTIVE' && line.state !== 'SUSPENDED') {
+      return actions;
+    }
     actions.push({
       label: 'Terminate',
       icon: IconTrash,
@@ -345,6 +371,7 @@ export class CustomerDetailPageComponent {
     reasonLabel: string | null,
     run: (reason: string, key: string) => Observable<Line>,
     destructive = false,
+    dismiss?: string,
   ): void {
     const key = newIdempotencyKey();
     this.confirm({
@@ -353,6 +380,7 @@ export class CustomerDetailPageComponent {
       confirm: action,
       reasonLabel: reasonLabel ?? undefined,
       destructive,
+      dismiss,
       run: (reason) => run(reason, key),
     }).subscribe((done) => done && this.lineList.reload());
   }

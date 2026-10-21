@@ -39,7 +39,8 @@ public record DashboardDto(
         Suspense suspense,
         Network network) {
 
-    public record Lines(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus) {}
+    /** {@code pendingOver14Days}: lines PENDING for more than 14 days, to cancel or chase (docs/04). */
+    public record Lines(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus, long pendingOver14Days) {}
 
     public record Revenue(
             long renewalsDueLines,

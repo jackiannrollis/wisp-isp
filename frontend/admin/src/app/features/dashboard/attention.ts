@@ -6,6 +6,7 @@ import {
   IconHourglassLow,
   IconInbox,
   IconLock,
+  IconUserPause,
   IconRouterOff,
   type TablerIcon,
 } from '@tabler/icons-angular';
@@ -143,6 +144,21 @@ export function attentionItems(
         queryParams: { displayStatus: row.key },
       });
     }
+  }
+  // Signed up but never paid: chase or cancel before activation; never cancelled automatically
+  // (docs/04, decisions.md 2026-10-21).
+  const stale = d.lines?.pendingOver14Days ?? 0;
+  if (stale > 0) {
+    items.push({
+      key: 'PENDING_STALE',
+      tone: 'warning',
+      icon: IconUserPause,
+      text: `${plural(stale, 'line')} pending over 14 days`,
+      detail: 'Never paid. Chase the first payment, or cancel the line.',
+      action: 'Review pending lines',
+      link: '/subscriptions',
+      queryParams: { displayStatus: 'PENDING' },
+    });
   }
   return items;
 }

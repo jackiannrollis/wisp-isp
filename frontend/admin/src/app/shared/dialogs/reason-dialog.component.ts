@@ -15,6 +15,8 @@ export interface ReasonDialogData<T> {
   /** Ask for a reason (kept in the audit log, A1); without it the dialog only confirms. */
   reasonLabel?: string;
   destructive?: boolean;
+  /** The label that closes without acting, when "Cancel" would read like the action itself. */
+  dismiss?: string;
   /** Runs on confirm with the reason; the dialog closes with its result, or shows the error. */
   run: (reason: string) => Observable<T>;
 }
@@ -45,7 +47,7 @@ export interface ReasonDialogData<T> {
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" mat-dialog-close>Cancel</button>
+      <button mat-button type="button" mat-dialog-close>{{ data.dismiss ?? 'Cancel' }}</button>
       <button
         mat-flat-button
         type="button"

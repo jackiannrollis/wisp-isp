@@ -1,6 +1,7 @@
 package com.corebalt.isp.subscriptions.api;
 
 import com.corebalt.isp.shared.money.Money;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
@@ -10,6 +11,9 @@ public interface LineStatistics {
     /**
      * Lines by stored state and by display status, the latter derived at {@code now} by
      * {@code AccessPolicy} (S1), never stored. Every name appears, with zero when no line has it.
+     * {@code pendingStale}: PENDING lines opened more than {@link #PENDING_STALE_AFTER} ago, the
+     * dashboard's "Pending over 14 days" row (cancel before activation, docs/04); never cancelled
+     * automatically.
      */
     LineCounts counts(Instant now);
 
@@ -28,7 +32,10 @@ public interface LineStatistics {
      */
     Lapsed lapsed(Instant before);
 
-    record LineCounts(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus) {}
+    /** How long a line may stay PENDING before the dashboard asks staff to look at it. */
+    Duration PENDING_STALE_AFTER = Duration.ofDays(14);
+
+    record LineCounts(long total, Map<String, Long> byState, Map<String, Long> byDisplayStatus, long pendingStale) {}
 
     record RenewalsDue(long lines, Money amount, Money outstanding) {}
 

@@ -26,6 +26,7 @@ import org.hibernate.type.SqlTypes;
  * ACTIVE, PAUSED -> SUSPENDED
  * SUSPENDED -> ACTIVE     lift
  * ACTIVE, SUSPENDED -> TERMINATED
+ * PENDING  -> TERMINATED  cancel before activation (never paid)
  * </pre>
  */
 @Entity
@@ -265,6 +266,23 @@ public class Subscription {
     public Transition terminate(final Instant now) {
         if (state != SubscriptionState.ACTIVE && state != SubscriptionState.SUSPENDED) {
             throw new LifecycleViolation("Only an ACTIVE or SUSPENDED line can be terminated; this one is " + state + ".");
+        }
+        final Transition transition = new Transition(state, SubscriptionState.TERMINATED, false);
+        state = SubscriptionState.TERMINATED;
+        terminatedAt = now;
+        staticIp = null;
+        updatedAt = now;
+        return transition;
+    }
+
+    /**
+     * Cancel before activation (docs/04, decisions.md 2026-10-21): a PENDING line that was never paid
+     * closes for good. Nothing was charged, so the wallet is left as it is.
+     */
+    public Transition cancelBeforeActivation(final Instant now) {
+        if (state != SubscriptionState.PENDING) {
+            throw new LifecycleViolation("Only a PENDING line can be cancelled before activation; this one is " + state
+                    + ". Terminate an active line instead.");
         }
         final Transition transition = new Transition(state, SubscriptionState.TERMINATED, false);
         state = SubscriptionState.TERMINATED;

@@ -126,7 +126,9 @@
                         <button
                           mat-menu-item
                           type="button"
-                          [class.danger]="action.label === 'Terminate'"
+                          [class.danger]="
+                            action.label === 'Terminate' || action.label === 'Cancel line'
+                          "
                           (click)="action.run()"
                         >
                           <tabler-icon [icon]="action.icon" [size]="18" class="menu-icon" />

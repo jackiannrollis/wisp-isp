@@ -99,7 +99,7 @@ public class DashboardService {
                 last,
                 zone.getId(),
                 now,
-                new DashboardDto.Lines(counts.total(), counts.byState(), counts.byDisplayStatus()),
+                new DashboardDto.Lines(counts.total(), counts.byState(), counts.byDisplayStatus(), counts.pendingStale()),
                 CurrentActor.has(Permissions.FINANCE_READ)
                         ? revenue(start, end, first, last.isAfter(today) ? today : last, zone) : null,
                 CurrentActor.has(Permissions.FINANCE_READ) || CurrentActor.has(Permissions.PAYMENTS_ASSIGN)

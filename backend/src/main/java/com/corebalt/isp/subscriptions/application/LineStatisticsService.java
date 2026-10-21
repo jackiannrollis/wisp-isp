@@ -73,7 +73,14 @@ public class LineStatisticsService implements LineStatistics {
                     byDisplay.merge(rs.getString(2), rs.getLong(3), Long::sum);
                     total[0] += rs.getLong(3);
                 });
-        return new LineCounts(total[0], byState, byDisplay);
+        final long pendingStale = jdbc.sql("""
+                        select count(*) from subscriptions_subscription
+                        where state = 'PENDING' and created_at < :before
+                        """)
+                .param("before", Timestamp.from(now.minus(PENDING_STALE_AFTER)))
+                .query(Long.class)
+                .single();
+        return new LineCounts(total[0], byState, byDisplay, pendingStale);
     }
 
     @Override
