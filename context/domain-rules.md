@@ -16,7 +16,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **S3** The same logic exists in the SQL function `subscription_access_v2()` (used by the `v_radius_auth` view, and through `subscription_access_v3()` and `subscription_line_access()` by the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus` / `AccessReason`; a test proves they agree for the same inputs, cycle usage included, on profile, next change, display status and access reason. Change both or neither.
 - **S4** Every accepted login carries `Session-Timeout` = seconds until the next profile change, capped at 86400.
 - **S5** A renewal extends from the current `expires_at` when the line is not yet past grace, and from the moment of payment when it is. The clock time of `expires_at` is preserved.
-- **S6** `grace_days` is copied onto the subscription at each renewal; a policy change never shortens a cycle already paid for.
+- **S6** `grace_days` and `grace_mode` are copied onto the subscription at each renewal; a policy change never alters a cycle already paid for (a line renewed before the mode was kept follows the tenant's).
 - **S7** Pause freezes the clock: on resume `expires_at += now − paused_at`. Only an `ACTIVE` line with time remaining can be paused, for at most the tenant's `max_pause_days`; a paused line is `RESTRICTED`, not rejected. At `pause_until` the line resumes by itself: the RADIUS view and `AccessPolicy` treat it as `ACTIVE` with `expires_at + (pause_until − paused_at)` from that instant (E4); the job only records it, with cause `AUTO_RESUME_RECORDED`, which needs no CoA.
 - **S8** Lifting a suspension re-evaluates dates; a line that expired during the hold returns as `RESTRICTED`.
 - **S9** Every state transition writes an audit row and publishes `SubscriptionStateChanged`.
@@ -69,5 +69,5 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 ## Identity and audit (docs/08)
 
 - **A1** Every money movement, access change, secret change and impersonation writes an append-only audit row with actor, before and after.
-- **A2** Finance and admin roles require 2FA; permissions are fixed codes checked server-side, never only in the UI.
+- **A2** Finance and admin roles require 2FA; permissions are fixed codes checked server-side, never only in the UI. `settings.write` (the account's own settings) is held by the built-in Owner role only.
 - **A3** Logs mask phone numbers and never contain secrets, passwords or PINs.

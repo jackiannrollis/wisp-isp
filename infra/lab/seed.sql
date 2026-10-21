@@ -143,12 +143,13 @@ ON CONFLICT (id) DO UPDATE SET secret = EXCLUDED.secret, updated_at = now();
 -- only: lab-admin@corebalt.example.test with the obvious fake password 'lab-admin-password'
 -- (Argon2id hash below). Its "Lab operator" role holds every permission WITHOUT 2FA so scripts can
 -- sign in unattended; the application never creates such a role (A2: finance and admin codes force
--- 2FA). Never load this file outside a developer machine.
+-- 2FA, and settings.write stays with the built-in Owner role). Never load this file outside a
+-- developer machine.
 INSERT INTO identity_role (id, tenant_id, name, permissions, requires_2fa, built_in)
 SELECT '01900000-0000-7000-8000-0000000e0001'::uuid, t.id, 'Lab operator',
        ARRAY['customers.write', 'packages.write', 'subscriptions.write', 'network.write', 'payments.record_manual',
              'payments.assign', 'payments.stk', 'payments.reconcile', 'billing.adjust', 'settings.secrets',
-             'settings.notifications', 'staff.manage', 'audit.read', 'finance.read'], false, false
+             'settings.notifications', 'settings.write', 'staff.manage', 'audit.read', 'finance.read'], false, false
 FROM tenancy_tenant t WHERE t.code = 'CB'
 ON CONFLICT (id) DO UPDATE SET permissions = EXCLUDED.permissions, requires_2fa = false, updated_at = now();
 

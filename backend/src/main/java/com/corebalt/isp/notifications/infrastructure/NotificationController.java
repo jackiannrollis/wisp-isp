@@ -48,6 +48,13 @@ class NotificationController {
         return settings.configure(request);
     }
 
+    @PutMapping("/api/v1/settings/notifications/sending")
+    @PreAuthorize("hasAuthority('settings.write')")
+    @Operation(summary = "The SMS sender ID and the reminder sending window (M2), without the account and its key")
+    SmsSettings.SettingsView sending(@Valid @RequestBody final SmsSettings.SendingRequest request) {
+        return settings.updateSending(request);
+    }
+
     @GetMapping("/api/v1/settings/notifications")
     @PreAuthorize("hasAuthority('settings.notifications')")
     @Operation(summary = "SMS settings and the delivery-report URL to give Africa's Talking (never the API key)")

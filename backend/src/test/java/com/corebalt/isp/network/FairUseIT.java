@@ -146,7 +146,7 @@ class FairUseIT extends IntegrationTest {
     @Test
     void N5_aLineAlreadyThrottledByGraceIsNotDisconnectedWhenItPassesFairUse() {
         OwnerSql.client().sql("update tenancy_tenant set grace_mode = 'THROTTLED' where id = :id").param("id", tenant).update();
-        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() - interval '1 hour', grace_days = 3 where id = :id")
+        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() - interval '1 hour', grace_days = 3, grace_mode = 'THROTTLED' where id = :id")
                 .param("id", lineId).update();
         session(GB, GB + 1);
         rollUp();
@@ -239,7 +239,7 @@ class FairUseIT extends IntegrationTest {
 
     private String viewAttribute(final String attribute) {
         return OwnerSql.client().sql("""
-                        select value from v_radius_auth_v6 where username = :u and nasname = :nas and attribute = :a
+                        select value from v_radius_auth_v7 where username = :u and nasname = :nas and attribute = :a
                         """)
                 .param("u", username).param("nas", tunnelIp).param("a", attribute)
                 .query(String.class).optional().orElse(null);

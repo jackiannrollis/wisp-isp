@@ -38,6 +38,11 @@ public final class Permissions {
     public static final String SETTINGS_SECRETS = "settings.secrets";
     /** M2, M3: edit SMS templates and the sending window. */
     public static final String SETTINGS_NOTIFICATIONS = "settings.notifications";
+    /**
+     * The account's own policy and look: grace policy, partial-payment rule, pause limit, branding, SMS
+     * sender ID and sending window (decisions.md 2026-10-21). Held by the built-in Owner role only.
+     */
+    public static final String SETTINGS_WRITE = "settings.write";
     /** Invite, disable and re-role staff; edit roles. */
     public static final String STAFF_MANAGE = "staff.manage";
     /** A1: read the audit log. */
@@ -51,8 +56,8 @@ public final class Permissions {
     /** The whole catalogue, for the role editor and the built-in Owner role. */
     public static final List<String> ALL = List.of(
             CUSTOMERS_WRITE, PACKAGES_WRITE, SUBSCRIPTIONS_WRITE, NETWORK_WRITE, PAYMENTS_RECORD_MANUAL, PAYMENTS_ASSIGN,
-            PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, STAFF_MANAGE,
-            AUDIT_READ, FINANCE_READ);
+            PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, SETTINGS_WRITE,
+            STAFF_MANAGE, AUDIT_READ, FINANCE_READ);
 
     private Permissions() {}
 

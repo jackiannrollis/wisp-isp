@@ -85,7 +85,7 @@ erDiagram
 | `static_ip`, `mac_address` | Optional |
 | `state` | Stored: `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` (see [04](04-subscription-lifecycle.md)) |
 | `expires_at` | The date the paid period ends |
-| `grace_days` | Copied from package or tenant at renewal so a later policy change does not alter a running cycle |
+| `grace_days`, `grace_mode` | Copied from package or tenant at renewal so a later policy change does not alter a running cycle (S6); `grace_mode` is null on lines renewed before it was kept, which follow the tenant's |
 | `paused_at`, `pause_until` | Clock freeze for customer-requested pause |
 | `billing_day` | Postpaid only |
 | `pending_package_id` | Downgrade or deferred upgrade to apply at next renewal |

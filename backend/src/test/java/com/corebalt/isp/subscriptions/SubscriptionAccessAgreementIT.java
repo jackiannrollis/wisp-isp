@@ -26,7 +26,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
- * S3: {@code AccessPolicy} and {@code v_radius_auth_v6} return the same profile and the same
+ * S3: {@code AccessPolicy} and {@code v_radius_auth_v7} return the same profile and the same
  * Session-Timeout for the same inputs at the same instant, and {@code DisplayStatus} and the SQL
  * function {@code subscription_line_access()} (which {@code v_subscription_status} uses, on top of
  * {@code subscription_access_v3()}, itself on top of the {@code subscription_access_v2()} that v6 uses) the
@@ -54,16 +54,21 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
 
     record Case(
             String username, String state, String expiresIn, String shift, int graceDays, String pausedAgo, String pauseLeft,
-            Usage usage) {
+            Usage usage, String lineGraceMode) {
 
         Case(final String username, final String state, final String expiresIn, final int graceDays,
                 final String pausedAgo, final String pauseLeft) {
-            this(username, state, expiresIn, "0 seconds", graceDays, pausedAgo, pauseLeft, Usage.NONE);
+            this(username, state, expiresIn, "0 seconds", graceDays, pausedAgo, pauseLeft, Usage.NONE, null);
         }
 
         Case(final String username, final String state, final String expiresIn, final String shift, final int graceDays,
                 final String pausedAgo, final String pauseLeft) {
-            this(username, state, expiresIn, shift, graceDays, pausedAgo, pauseLeft, Usage.NONE);
+            this(username, state, expiresIn, shift, graceDays, pausedAgo, pauseLeft, Usage.NONE, null);
+        }
+
+        Case(final String username, final String state, final String expiresIn, final String shift, final int graceDays,
+                final String pausedAgo, final String pauseLeft, final Usage usage) {
+            this(username, state, expiresIn, shift, graceDays, pausedAgo, pauseLeft, usage, null);
         }
     }
 
@@ -87,6 +92,8 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                 }
                 final Instant now = dbNow(db);
                 final Map<String, AccessPolicy.Facts> facts = readFacts(db);
+                // Each line is judged by its own grace mode when it has one (S6), as the application does.
+                modeByUsername.putAll(readModes(db));
                 final Map<String, Map<String, String>> view = readView(db);
                 final Map<String, String[]> function = readFunction(db, now);
                 final Map<String, String> viewStatus = readStatusView(db);
@@ -194,6 +201,12 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
         for (final Usage usage : Usage.values()) {
             cases.add(new Case(probe(code, usage), "ACTIVE", "+5 days", "0 seconds", 2, null, null, usage));
         }
+        // Lines renewed under the other grace mode keep it (S6): the line's mode wins over the tenant's.
+        final String other = code.equals("ZQF") ? "THROTTLED" : "FULL_SPEED";
+        for (final String offset : OFFSETS) {
+            cases.add(new Case(code + "000003-" + n++, "ACTIVE", offset, "0 seconds", 2, null, null, Usage.NONE, other));
+            cases.add(new Case(code + "000003-" + n++, "ACTIVE", offset, "0 seconds", 2, null, null, Usage.FAIR_USE, other));
+        }
         return cases;
     }
 
@@ -222,11 +235,11 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
         try (PreparedStatement insert = db.prepareStatement("""
                 insert into subscriptions_subscription
                     (id, tenant_id, customer_id, package_id, router_id, pppoe_username, state, expires_at, grace_days,
-                     paused_at, pause_until, terminated_at, cycle_started_at)
+                     paused_at, pause_until, terminated_at, cycle_started_at, grace_mode)
                 values (?, ?, ?, ?, ?, ?, ?, now() + cast(? as interval) + cast(? as interval), ?,
                         now() - cast(? as interval), now() + cast(? as interval),
                         case when ? = 'TERMINATED' then now() end,
-                        case when ? = 'UNKNOWN' then null else now() - interval '1 day' end)
+                        case when ? = 'UNKNOWN' then null else now() - interval '1 day' end, ?)
                 """);
              PreparedStatement usage = db.prepareStatement("""
                 insert into network_line_usage (tenant_id, subscription_id, cycle_started_at, octets, updated_at)
@@ -248,6 +261,7 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                 insert.setString(12, c.pauseLeft());
                 insert.setString(13, c.state());
                 insert.setString(14, c.usage().name());
+                insert.setString(15, c.lineGraceMode());
                 insert.addBatch();
                 // NONE sits one byte under the allowance; STALE and UNKNOWN carry more than the cap.
                 final String cycle = c.usage() == Usage.STALE ? "40 days" : "1 day";
@@ -303,10 +317,21 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
         return facts;
     }
 
+    private static Map<String, GraceMode> readModes(final Connection db) throws Exception {
+        final Map<String, GraceMode> modes = new HashMap<>();
+        try (ResultSet rs = db.createStatement().executeQuery("select s.pppoe_username, coalesce(s.grace_mode, t.grace_mode) "
+                + "from subscriptions_subscription s join tenancy_tenant t on t.id = s.tenant_id where s.pppoe_username like 'ZQ%'")) {
+            while (rs.next()) {
+                modes.put(rs.getString(1), GraceMode.valueOf(rs.getString(2)));
+            }
+        }
+        return modes;
+    }
+
     private static Map<String, Map<String, String>> readView(final Connection db) throws Exception {
         final Map<String, Map<String, String>> view = new HashMap<>();
         try (ResultSet rs = db.createStatement().executeQuery(
-                "select username, attribute, value from v_radius_auth_v6 where username like 'ZQ%'")) {
+                "select username, attribute, value from v_radius_auth_v7 where username like 'ZQ%'")) {
             while (rs.next()) {
                 view.computeIfAbsent(rs.getString(1), k -> new HashMap<>()).put(rs.getString(2), rs.getString(3));
             }

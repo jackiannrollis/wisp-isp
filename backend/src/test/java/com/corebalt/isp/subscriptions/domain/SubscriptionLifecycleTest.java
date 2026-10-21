@@ -17,7 +17,7 @@ class SubscriptionLifecycleTest {
     @Test
     void S5_firstRenewalActivatesFromPaymentTime() {
         final Subscription line = pending();
-        final Subscription.Renewal renewal = line.renew(MONTH, 2, PKG, T0);
+        final Subscription.Renewal renewal = line.renew(MONTH, 2, GraceMode.FULL_SPEED, PKG, T0);
         assertThat(renewal.from()).isEqualTo(SubscriptionState.PENDING);
         assertThat(line.getState()).isEqualTo(SubscriptionState.ACTIVE);
         assertThat(line.getExpiresAt()).isEqualTo(T0.plus(MONTH));
@@ -27,15 +27,15 @@ class SubscriptionLifecycleTest {
     @Test
     void S5_earlyRenewalExtendsFromCurrentExpiryKeepingTheClockTime() {
         final Subscription line = active(T0);
-        line.renew(MONTH, 0, PKG, T0.plus(Duration.ofDays(25)).plus(Duration.ofHours(3)));
+        line.renew(MONTH, 0, GraceMode.FULL_SPEED, PKG, T0.plus(Duration.ofDays(25)).plus(Duration.ofHours(3)));
         assertThat(line.getExpiresAt()).isEqualTo(T0.plus(MONTH).plus(MONTH));
     }
 
     @Test
     void S5_renewalInsideGraceStillExtendsFromExpiry() {
         final Subscription line = active(T0);
-        line.renew(MONTH, 2, PKG, T0.plus(MONTH)); // grace days copied for the next cycle
-        line.renew(MONTH, 2, PKG, T0.plus(MONTH).plus(MONTH).plus(Duration.ofDays(1)));
+        line.renew(MONTH, 2, GraceMode.FULL_SPEED, PKG, T0.plus(MONTH)); // grace days copied for the next cycle
+        line.renew(MONTH, 2, GraceMode.FULL_SPEED, PKG, T0.plus(MONTH).plus(MONTH).plus(Duration.ofDays(1)));
         assertThat(line.getExpiresAt()).isEqualTo(T0.plus(MONTH.multipliedBy(3)));
     }
 
@@ -43,14 +43,14 @@ class SubscriptionLifecycleTest {
     void S5_renewalPastGraceStartsFromPayment() {
         final Subscription line = active(T0);
         final Instant paidAt = T0.plus(MONTH).plus(Duration.ofDays(5)).plus(Duration.ofMinutes(7));
-        line.renew(MONTH, 2, PKG, paidAt);
+        line.renew(MONTH, 2, GraceMode.FULL_SPEED, PKG, paidAt);
         assertThat(line.getExpiresAt()).isEqualTo(paidAt.plus(MONTH));
     }
 
     @Test
     void S6_graceDaysAreCopiedAtEachRenewal() {
         final Subscription line = active(T0);
-        line.renew(MONTH, 3, PKG, T0.plus(Duration.ofDays(29)));
+        line.renew(MONTH, 3, GraceMode.FULL_SPEED, PKG, T0.plus(Duration.ofDays(29)));
         assertThat(line.getGraceDays()).isEqualTo(3);
     }
 
@@ -119,7 +119,7 @@ class SubscriptionLifecycleTest {
         line.terminate(T0.plus(Duration.ofDays(1)));
         assertThat(line.getTerminatedAt()).isEqualTo(T0.plus(Duration.ofDays(1)));
         assertThatThrownBy(() -> line.liftSuspension(T0)).isInstanceOf(LifecycleViolation.class);
-        assertThatThrownBy(() -> line.renew(MONTH, 0, PKG, T0)).hasMessageStartingWith("S5");
+        assertThatThrownBy(() -> line.renew(MONTH, 0, GraceMode.FULL_SPEED, PKG, T0)).hasMessageStartingWith("S5");
         assertThatThrownBy(() -> pending().terminate(T0)).isInstanceOf(LifecycleViolation.class);
     }
 
@@ -131,7 +131,7 @@ class SubscriptionLifecycleTest {
     /** ACTIVE, activated at {@code activatedAt}, expiring a month later, no grace. */
     private static Subscription active(final Instant activatedAt) {
         final Subscription line = pending();
-        line.renew(MONTH, 0, PKG, activatedAt);
+        line.renew(MONTH, 0, GraceMode.FULL_SPEED, PKG, activatedAt);
         return line;
     }
 }

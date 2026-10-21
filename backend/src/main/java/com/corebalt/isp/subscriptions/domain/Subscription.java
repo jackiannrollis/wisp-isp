@@ -66,6 +66,11 @@ public class Subscription {
     @Column(name = "grace_days", nullable = false)
     private int graceDays;
 
+    /** The tenant's grace mode when the cycle was sold (S6); null on lines renewed before it was kept. */
+    @Column(name = "grace_mode")
+    @Enumerated(EnumType.STRING)
+    private GraceMode graceMode;
+
     @Column(name = "paused_at")
     private Instant pausedAt;
 
@@ -124,11 +129,12 @@ public class Subscription {
      * S5, S6: an early renewal extends from the current expiry, so no paid time is lost; a line past
      * grace (or a first activation) starts from {@code now}. The clock time of the base is kept
      * because the period is a whole number of minutes added to an instant (Q6 default: exact
-     * timestamps). {@code graceDays} is copied for the new cycle, and the package the cycle was sold
+     * timestamps). {@code graceDays} and {@code graceMode} are copied for the new cycle (S6), and the package the cycle was sold
      * for becomes the line's package, clearing a pending change (S10). Every renewal starts a new
      * cycle for fair use and data caps at {@code now}, so its allowance resets (Q12, Q13 defaults).
      */
-    public Renewal renew(final Duration period, final int graceDays, final UUID packageId, final Instant now) {
+    public Renewal renew(final Duration period, final int graceDays, final GraceMode graceMode, final UUID packageId,
+                         final Instant now) {
         requireRenewable();
         final SubscriptionState from = state;
         final Instant previousExpiresAt = expiresAt;
@@ -143,6 +149,7 @@ public class Subscription {
         state = SubscriptionState.ACTIVE;
         expiresAt = base.plus(period);
         this.graceDays = graceDays;
+        this.graceMode = graceMode;
         this.packageId = packageId;
         pendingPackageId = null;
         cycleStartedAt = now;
@@ -333,6 +340,11 @@ public class Subscription {
 
     public Instant getActivatedAt() {
         return activatedAt;
+    }
+
+    /** The grace mode this cycle was sold with, or {@code tenantMode} for a line renewed before it was kept. */
+    public GraceMode graceModeOr(final GraceMode tenantMode) {
+        return graceMode != null ? graceMode : tenantMode;
     }
 
     public Instant getCycleStartedAt() {

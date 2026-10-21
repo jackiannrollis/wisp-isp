@@ -39,6 +39,8 @@ One platform serves many ISPs, and nothing crosses between them: every row carri
 | Staff | Users, roles, permissions, 2FA enforcement |
 | Network | Sites, routers, IP pools |
 
+Who changes what: the account's own settings (name, logo, brand colour, default grace days, grace mode, partial-payment rule, pause limit, SMS sender ID and sending window) need `settings.write`, held by the built-in Owner role only; account keys (Daraja, Africa's Talking) need `settings.secrets` and stay write-only (T4); templates need `settings.notifications`. The code, subdomain, time zone and currency are fixed when the tenant is created. Grace and the partial-payment rule apply from each line's next renewal, because a line copies its grace days and grace mode when it renews (S6); the pause limit applies to the next pause; branding applies at once. Every change is audited (A1).
+
 ## Platform layer (Corebalt)
 
 Corebalt staff use a separate platform console, with its own roles, for:

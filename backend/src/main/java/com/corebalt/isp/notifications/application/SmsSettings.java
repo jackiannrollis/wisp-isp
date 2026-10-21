@@ -88,6 +88,39 @@ public class SmsSettings {
         this.callbackBaseUrl = callbackBaseUrl.replaceAll("/+$", "");
     }
 
+    /** The sender ID and reminder window alone (settings.write), without the Africa's Talking account. */
+    @Schema(name = "SmsSendingRequest")
+    public record SendingRequest(
+            @NotBlank @Size(max = 11) @Pattern(regexp = "[A-Za-z0-9 _-]+") String senderId,
+            @NotNull @Pattern(regexp = "([01][0-9]|2[0-3]):[0-5][0-9]") String windowStart,
+            @NotNull @Pattern(regexp = "([01][0-9]|2[0-3]):[0-5][0-9]") String windowEnd) {}
+
+    /**
+     * Changes the sender ID and the reminder sending window (M2) of an account already set up
+     * (decisions.md 2026-10-21); audited like the account itself.
+     */
+    @Transactional
+    public SettingsView updateSending(final SendingRequest request) {
+        final UUID tenantId = TenantContext.requireTenantId();
+        final LocalTime start = LocalTime.parse(request.windowStart());
+        final LocalTime end = LocalTime.parse(request.windowEnd());
+        if (!start.isBefore(end)) {
+            throw com.corebalt.isp.shared.web.InvalidRequestException.of("windowEnd", "must be after windowStart");
+        }
+        final Stored before = stored().orElseThrow(() -> new NotFoundException("SMS settings"));
+        jdbc.sql("update notifications_settings set sender_id = :sender, window_start = :start, window_end = :end, updated_at = :now")
+                .param("sender", request.senderId().strip())
+                .param("start", Time.valueOf(start))
+                .param("end", Time.valueOf(end))
+                .param("now", Timestamp.from(clock.instant()))
+                .update();
+        audit.record(new AuditEntry("notifications.sms_sending_changed", "tenant", tenantId,
+                Map.of("senderId", before.senderId(), "windowStart", before.start().toString(), "windowEnd", before.end().toString()),
+                Map.of("senderId", request.senderId().strip(), "windowStart", start.toString(), "windowEnd", end.toString()),
+                null));
+        return view();
+    }
+
     @Transactional
     public SettingsView configure(final SettingsRequest request) {
         final UUID tenantId = TenantContext.requireTenantId();

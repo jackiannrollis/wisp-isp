@@ -102,7 +102,7 @@ class IdentityIT extends IntegrationTest {
         final JsonNode me = new Api(port, signedIn.json().get("accessToken").asString()).get("/api/v1/me").json();
         assertThat(me.get("email").asString()).isEqualTo(invited.email());
         assertThat(me.get("role").asString()).isEqualTo("Owner");
-        assertThat(me.get("permissions").size()).isEqualTo(Permissions.ALL.size()).isEqualTo(14);
+        assertThat(me.get("permissions").size()).isEqualTo(Permissions.ALL.size()).isEqualTo(15);
 
         // The next sign-in asks for the code.
         final JsonNode again = post("/api/v1/auth/login", Map.of("tenant", tenant.code().toLowerCase(), "email",

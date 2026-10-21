@@ -255,7 +255,7 @@ class LifecycleIT extends IntegrationTest {
     /** One reply or check attribute FreeRADIUS would read for this line (any NAS of the tenant). */
     private String radius(final String attribute) {
         return OwnerSql.client()
-                .sql("select max(value) from v_radius_auth_v6 where username = :username and attribute = :attribute")
+                .sql("select max(value) from v_radius_auth_v7 where username = :username and attribute = :attribute")
                 .param("username", username)
                 .param("attribute", attribute)
                 .query((rs, row) -> java.util.Optional.ofNullable(rs.getString(1)))

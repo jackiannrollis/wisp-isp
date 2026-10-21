@@ -115,4 +115,21 @@ public class Tenant {
     public String getPartialPaymentRule() {
         return partialPaymentRule;
     }
+
+    /**
+     * The account's own policy and look (decisions.md 2026-10-21). Lines copy grace at each renewal
+     * (S6), so a change here never alters a cycle already paid for.
+     */
+    public void updateSettings(final String name, final String brandColor, final String logoUrl, final int defaultGraceDays,
+                               final String graceMode, final String partialPaymentRule, final int maxPauseDays,
+                               final Instant now) {
+        this.name = name;
+        this.brandColor = brandColor;
+        this.logoUrl = logoUrl;
+        this.defaultGraceDays = defaultGraceDays;
+        this.graceMode = graceMode;
+        this.partialPaymentRule = partialPaymentRule;
+        this.maxPauseDays = maxPauseDays;
+        this.updatedAt = now;
+    }
 }

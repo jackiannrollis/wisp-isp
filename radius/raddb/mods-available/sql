@@ -2,12 +2,13 @@
 #
 # FreeRADIUS reads exactly two views from PostgreSQL and writes only radacct (accounting below):
 #   radius_client_v3   routers (NAS) allowed to talk to this node
-#   v_radius_auth_v6   check and reply attributes per username and router (T3)
+#   v_radius_auth_v7   check and reply attributes per username and router (T3)
 # Both are defined by Flyway migrations in backend/; see docs/06-network-access-control.md.
 # Views are versioned: switch the name here, never alter a view in place. The client list is
 # radius_client_v3 (V202610191106); v_radius_auth_v4 (V202610201003) adds the pause clock (S7, E4);
 # v_radius_auth_v5 (V202610201801) takes the profile from subscription_access(), shared with staff screens (S3);
-# v_radius_auth_v6 (V202610211003) adds fair use and data caps through subscription_access_v2() (docs/09 step 8b).
+# v_radius_auth_v6 (V202610211003) adds fair use and data caps through subscription_access_v2() (docs/09 step 8b);
+# v_radius_auth_v7 (V202610211203) judges each line by the grace mode it was renewed under (S6).
 #
 # Connection settings come from the environment, never from this file:
 #   RADIUS_DB_HOST, RADIUS_DB_PORT, RADIUS_DB_NAME, RADIUS_DB_USER, RADIUS_DB_PASSWORD
@@ -37,8 +38,8 @@ sql {
 	read_groups = no
 	group_attribute = "SQL-Group"
 
-	authcheck_table = "v_radius_auth_v6"
-	authreply_table = "v_radius_auth_v6"
+	authcheck_table = "v_radius_auth_v7"
+	authreply_table = "v_radius_auth_v7"
 
 	# T3: a username only matches through a router of its own tenant; the view joins on nasname.
 	# The router is identified by the packet's source address (its tunnel IP), which the client

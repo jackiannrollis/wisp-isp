@@ -14,6 +14,7 @@ import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged;
 import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged.Cause;
 import com.corebalt.isp.subscriptions.api.WalletCharger;
 import com.corebalt.isp.subscriptions.domain.ProRata;
+import com.corebalt.isp.subscriptions.domain.GraceMode;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
@@ -115,7 +116,9 @@ public class RenewalService {
         final int graceDays =
                 terms.graceDays() != null ? terms.graceDays() : tenantProfile.currentPolicy().defaultGraceDays();
         final Instant now = clock.instant();
-        final Subscription.Renewal renewal = line.renew(period, graceDays, terms.id(), now);
+        // S6: the grace mode is kept with the cycle too, so a later policy change leaves it alone.
+        final GraceMode graceMode = GraceMode.valueOf(tenantProfile.currentPolicy().graceMode());
+        final Subscription.Renewal renewal = line.renew(period, graceDays, graceMode, terms.id(), now);
 
         final Map<String, Object> after = new LinkedHashMap<>();
         after.put("state", line.getState().name());

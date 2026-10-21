@@ -54,11 +54,6 @@ class SubscriptionViews {
         return mapper(List.of(line)).toDto(line);
     }
 
-    /** The current tenant's grace mode, as stored (FULL_SPEED or THROTTLED). */
-    String graceMode() {
-        return tenantProfile.currentPolicy().graceMode();
-    }
-
     /**
      * The profile at {@code at}, with {@code expiresAt} in place of the stored expiry when not null,
      * judged with the line's current cycle usage.
@@ -66,7 +61,7 @@ class SubscriptionViews {
     AccessProfile profile(final Subscription line, final Instant at, final Instant expiresAt) {
         final Mapper mapper = mapper(List.of(line));
         final AccessPolicy.Facts facts = mapper.facts(line);
-        return AccessPolicy.evaluate(expiresAt == null ? facts : facts.withExpiresAt(expiresAt), mapper.graceMode(), at)
+        return AccessPolicy.evaluate(expiresAt == null ? facts : facts.withExpiresAt(expiresAt), mapper.graceModeOf(line), at)
                 .profile();
     }
 
@@ -75,7 +70,7 @@ class SubscriptionViews {
         final Mapper mapper = mapper(List.of(line));
         final AccessPolicy.Facts facts = mapper.facts(line);
         final FairUse.Limits before = new FairUse.Limits(dataCap && facts.fairUseExceeded(), false);
-        return AccessPolicy.evaluate(facts.withUsage(before), mapper.graceMode(), at).profile();
+        return AccessPolicy.evaluate(facts.withUsage(before), mapper.graceModeOf(line), at).profile();
     }
 
     final class Mapper {
@@ -93,8 +88,9 @@ class SubscriptionViews {
             this.limits = limits;
         }
 
-        GraceMode graceMode() {
-            return graceMode;
+        /** The line's own grace mode (S6), else the tenant's for a line renewed before it was kept. */
+        GraceMode graceModeOf(final Subscription line) {
+            return line.graceModeOr(graceMode);
         }
 
         /** The one instant every line of this mapper is judged at. */
@@ -108,7 +104,7 @@ class SubscriptionViews {
 
         SubscriptionDto toDto(final Subscription line) {
             final AccessPolicy.Facts facts = facts(line);
-            final AccessPolicy.Decision decision = AccessPolicy.evaluate(facts, graceMode, now);
+            final AccessPolicy.Decision decision = AccessPolicy.evaluate(facts, graceModeOf(line), now);
             final PackageLimits packageLimits = limitsOf(line);
             return new SubscriptionDto(
                     line.getId(),

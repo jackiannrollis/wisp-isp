@@ -34,7 +34,7 @@ public class Roles {
 
     /** A2: holding any of these makes 2FA mandatory for the role. */
     public static final Set<String> NEEDS_2FA = Set.of(
-            Permissions.STAFF_MANAGE, Permissions.SETTINGS_SECRETS, Permissions.BILLING_ADJUST,
+            Permissions.STAFF_MANAGE, Permissions.SETTINGS_SECRETS, Permissions.SETTINGS_WRITE, Permissions.BILLING_ADJUST,
             Permissions.PAYMENTS_RECORD_MANUAL, Permissions.PAYMENTS_ASSIGN, Permissions.PAYMENTS_RECONCILE,
             Permissions.FINANCE_READ);
 
@@ -177,6 +177,10 @@ public class Roles {
         final List<String> unknown = permissions.stream().filter(p -> !Permissions.ALL.contains(p)).toList();
         if (!unknown.isEmpty()) {
             throw InvalidRequestException.of("permissions", "unknown codes: " + String.join(", ", unknown));
+        }
+        // Only the built-in Owner role, which is never edited here, holds the account's own settings.
+        if (permissions.contains(Permissions.SETTINGS_WRITE)) {
+            throw InvalidRequestException.of("permissions", Permissions.SETTINGS_WRITE + " is held by the Owner role only");
         }
         return Permissions.ALL.stream().filter(permissions::contains).toList();
     }

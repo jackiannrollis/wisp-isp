@@ -36,7 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The API's half of CoA and Disconnect (N5): which subscription changes become NetworkAccessChanged,
- * for which sessions, with which rate. The rate a CoA sets is compared with what v_radius_auth_v6
+ * for which sessions, with which rate. The rate a CoA sets is compared with what v_radius_auth_v7
  * gives the same line at login (N4).
  */
 class AccessChangesIT extends IntegrationTest {
@@ -144,7 +144,7 @@ class AccessChangesIT extends IntegrationTest {
     void N4_N5_aThrottledLineGetsTheNewPackagesThrottleRate() {
         openSession("81a00008", Duration.ofMinutes(10));
         OwnerSql.client().sql("update tenancy_tenant set grace_mode = 'THROTTLED' where id = :id").param("id", tenant).update();
-        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() - interval '1 hour', grace_days = 3 where id = :id")
+        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() - interval '1 hour', grace_days = 3, grace_mode = 'THROTTLED' where id = :id")
                 .param("id", lineId).update();
 
         assertThat(run(() -> changes.packageChanged(packageChanged(packageId, "NOW")))).isEqualTo(1);
@@ -185,7 +185,7 @@ class AccessChangesIT extends IntegrationTest {
 
     private String viewRateLimit() {
         return OwnerSql.client().sql("""
-                        select value from v_radius_auth_v6
+                        select value from v_radius_auth_v7
                         where username = :u and nasname = :nas and attribute = 'Mikrotik-Rate-Limit'
                         """)
                 .param("u", username).param("nas", tunnelIp).query(String.class).single();
