@@ -1,86 +1,139 @@
 .shell {
-  display: grid;
-  grid-template-areas:
-    'top top'
-    'nav main';
-  grid-template-columns: 14rem 1fr;
-  grid-template-rows: auto 1fr;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
-  grid-area: top;
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
-  background: var(--brand-primary);
-  color: var(--brand-on-primary);
-}
-
-.logo {
-  height: 2rem;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--mat-sys-surface);
+  border-bottom: var(--app-border);
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.logo,
+.initial {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--app-radius-s);
+  flex: none;
+}
+
+.logo {
+  object-fit: contain;
+}
+
+.initial {
+  display: grid;
+  place-items: center;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: 700;
+}
+
+.name {
+  font: var(--mat-sys-title-medium);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.app-label {
-  opacity: 0.8;
-}
-
-.nav {
-  grid-area: nav;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
-
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0.5rem;
-  }
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 auto;
 
   a {
-    display: block;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
-    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: var(--app-radius-s);
+    color: var(--mat-sys-on-surface-variant);
     text-decoration: none;
+    font: var(--mat-sys-label-large);
 
     &:hover {
-      background: var(--color-hover);
+      background: var(--mat-sys-surface-container);
     }
 
     &.active {
-      background: var(--brand-primary);
-      color: var(--brand-on-primary);
+      color: var(--mat-sys-primary);
+      background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+      font-weight: 600;
     }
   }
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.customer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.customer-name {
+  font-weight: 600;
+}
+
+.customer-number {
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .content {
-  grid-area: main;
-  padding: 1.5rem;
+  flex: 1;
+  width: min(100%, 48rem);
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
 }
 
+// Phones: the destinations move to a tab bar at the bottom of the screen.
 @media (max-width: 640px) {
-  .shell {
-    grid-template-areas:
-      'top'
-      'nav'
-      'main';
-    grid-template-columns: 1fr;
+  .customer-name {
+    display: none;
   }
 
-  .nav {
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
+  .tabs {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 2;
+    margin: 0;
+    padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
+    background: var(--mat-sys-surface);
+    border-top: var(--app-border);
+    justify-content: space-around;
 
-    ul {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.25rem;
+    a {
+      flex: 1;
+      flex-direction: column;
+      gap: 0.125rem;
+      padding: 0.375rem 0.25rem;
+      font: var(--mat-sys-label-medium);
     }
+  }
+
+  .content {
+    padding-bottom: 5.5rem;
   }
 }

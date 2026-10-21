@@ -1,0 +1,108 @@
+<h1 class="page-title">History</h1>
+
+<mat-tab-group class="panel" mat-stretch-tabs="false" animationDuration="0ms">
+  <mat-tab label="Payments">
+    @if (payments.error(); as e) {
+      <p class="state" role="alert">{{ message(e) }}</p>
+    } @else if (payments.value(); as p) {
+      <ul class="rows">
+        @for (payment of p.items; track payment.id) {
+          <li>
+            <div class="main">
+              <span class="title">{{ channel(payment.channel) }}</span>
+              <span class="muted">{{ payment.reference }} · {{ date(payment.receivedAt) }}</span>
+            </div>
+            <div class="end">
+              <span class="amount">{{ money(payment.amount) }}</span>
+              <span class="muted">{{ status(payment.status) }}</span>
+            </div>
+          </li>
+        } @empty {
+          <li class="state muted">No payments yet.</li>
+        }
+      </ul>
+      <ng-container
+        [ngTemplateOutlet]="pager"
+        [ngTemplateOutletContext]="{ page: paymentsPage, pages: paymentsPages() }"
+      />
+    } @else {
+      <p class="state muted">Loading…</p>
+    }
+  </mat-tab>
+
+  <mat-tab label="Receipts">
+    @if (receipts.error(); as e) {
+      <p class="state" role="alert">{{ message(e) }}</p>
+    } @else if (receipts.value(); as r) {
+      <ul class="rows">
+        @for (receipt of r.items; track receipt.id) {
+          <li>
+            <div class="main">
+              <span class="title">Receipt {{ receipt.number }}</span>
+              <span class="muted">{{ date(receipt.issuedAt) }}</span>
+            </div>
+            <div class="end">
+              <span class="amount">{{ money(receipt.amount) }}</span>
+            </div>
+          </li>
+        } @empty {
+          <li class="state muted">No receipts yet. Each payment gets one.</li>
+        }
+      </ul>
+      <ng-container
+        [ngTemplateOutlet]="pager"
+        [ngTemplateOutletContext]="{ page: receiptsPage, pages: receiptsPages() }"
+      />
+    } @else {
+      <p class="state muted">Loading…</p>
+    }
+  </mat-tab>
+
+  <mat-tab label="Wallet">
+    @if (statement.error(); as e) {
+      <p class="state" role="alert">{{ message(e) }}</p>
+    } @else if (statement.value(); as s) {
+      <ul class="rows">
+        @for (entry of s.items; track entry.id) {
+          <li>
+            <div class="main">
+              <span class="title">{{ entryType(entry.type) }}</span>
+              <span class="muted">{{ entry.description }} · {{ date(entry.createdAt) }}</span>
+            </div>
+            <div class="end">
+              <span class="amount">{{ money(entry.amount) }}</span>
+              <span class="muted">Balance {{ money(entry.balanceAfter) }}</span>
+            </div>
+          </li>
+        } @empty {
+          <li class="state muted">Your wallet has no entries yet.</li>
+        }
+      </ul>
+      <ng-container
+        [ngTemplateOutlet]="pager"
+        [ngTemplateOutletContext]="{ page: statementPage, pages: statementPages() }"
+      />
+    } @else {
+      <p class="state muted">Loading…</p>
+    }
+  </mat-tab>
+</mat-tab-group>
+
+<ng-template #pager let-page="page" let-pages="pages">
+  @if (pages > 1) {
+    <nav class="pager" aria-label="Pages">
+      <button mat-button type="button" [disabled]="page() === 0" (click)="page.set(page() - 1)">
+        Newer
+      </button>
+      <span class="muted">Page {{ page() + 1 }} of {{ pages }}</span>
+      <button
+        mat-button
+        type="button"
+        [disabled]="page() + 1 >= pages"
+        (click)="page.set(page() + 1)"
+      >
+        Older
+      </button>
+    </nav>
+  }
+</ng-template>

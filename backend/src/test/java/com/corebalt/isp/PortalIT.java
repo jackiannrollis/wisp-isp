@@ -178,6 +178,26 @@ class PortalIT extends IntegrationTest {
         assertThat(mary.portal().get("/api/v1/customers").status()).isEqualTo(403);
         assertThat(mary.portal().get("/api/v1/dashboard").status()).isEqualTo(403);
         assertThat(mary.portal().get("/api/v1/subscriptions/" + mary.lineId()).status()).isEqualTo(403);
+        assertThat(mary.portal().get("/api/v1/branding").status()).isEqualTo(403);
+    }
+
+    @Test
+    void T1_thePortalLoadsItsOwnProvidersBranding() {
+        assertThat(staff.put("/api/v1/settings/account", """
+                {"name":"Juja Net","brandColor":"#1D4ED8","defaultGraceDays":0,"graceMode":"FULL_SPEED",
+                 "partialPaymentRule":"WAIT_FOR_FULL","maxPauseDays":30}""").status()).isEqualTo(200);
+        final JsonNode branding = mary.portal().get("/api/v1/portal/branding").json();
+        assertThat(branding.get("name").asString()).isEqualTo("Juja Net");
+        assertThat(branding.get("primaryColor").asString()).isEqualTo("#1d4ed8");
+
+        // Another tenant's customer sees their own provider, never this one.
+        final UUID other = TestTenants.create(jdbc, tx);
+        final UUID stranger = UUID.fromString(Catalog.customer(new Api(port, other), "Wanjiku Kamau", "0733000555"));
+        OwnerSql.client().sql("insert into identity_customer_credential (tenant_id, customer_id) values (:t, :c)")
+                .param("t", other).param("c", stranger).update();
+        final JsonNode theirs = new Api(port, TestTokens.customer(stranger, other)).get("/api/v1/portal/branding").json();
+        assertThat(theirs.get("name").asString()).isNotEqualTo("Juja Net");
+        assertThat(staff.get("/api/v1/portal/branding").status()).isEqualTo(403);
     }
 
     private Customer customer(final String name, final String phone, final String packageId, final String routerId) {

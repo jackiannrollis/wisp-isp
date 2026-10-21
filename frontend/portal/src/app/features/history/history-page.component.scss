@@ -1,0 +1,58 @@
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
+    border-bottom: var(--app-border);
+  }
+
+  li:last-child {
+    border-bottom: none;
+  }
+}
+
+.main,
+.end {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.end {
+  align-items: flex-end;
+  text-align: right;
+  flex: none;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.main .muted {
+  overflow-wrap: anywhere;
+}
+
+.amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.state {
+  padding: 1rem 1.25rem;
+  margin: 0;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-top: var(--app-border);
+}

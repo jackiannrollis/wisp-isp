@@ -1,0 +1,199 @@
+<h1 class="page-title">Pay</h1>
+
+@switch (flow.phase()) {
+  @case ('idle') {
+    @if (data.error(); as e) {
+      <section class="panel notice" role="alert">
+        <p>{{ message(e) }}</p>
+        <button mat-stroked-button type="button" (click)="data.reload()">Try again</button>
+      </section>
+    } @else if (data.value(); as d) {
+      <p class="muted phone">
+        <tabler-icon [icon]="icons.phone" [size]="18" aria-hidden="true" />
+        <span>
+          The M-Pesa prompt goes to {{ customer()?.phone ?? 'your registered phone' }}. Enter your
+          M-Pesa PIN there to pay.
+        </span>
+      </p>
+      @if (flow.error(); as error) {
+        <section class="panel notice" role="alert">
+          <p>{{ error }}</p>
+          <button mat-flat-button type="button" (click)="flow.retry()">Try again</button>
+        </section>
+      }
+
+      @if (showPayAll()) {
+        <section class="panel all">
+          <div>
+            <strong>Pay for everything due</strong>
+            <span class="muted">
+              @for (line of payable(); track line.id; let last = $last) {
+                {{ line.packageName }}{{ line.earlyRenewal ? ' (early)' : ''
+                }}{{ last ? '' : ', ' }}
+              }
+              @if ((d.balance?.amount ?? 0) > 0) {
+                · less {{ money(d.balance) }} in your wallet
+              }
+            </span>
+          </div>
+          <button mat-flat-button type="button" (click)="payEverything()">
+            Pay {{ money(payAll()) }}
+          </button>
+        </section>
+      }
+
+      @for (line of payable(); track line.id) {
+        <section class="panel line">
+          <header>
+            <div>
+              <h2 class="package">{{ line.packageName }}</h2>
+              <span class="muted">{{ line.pppoeUsername }}</span>
+            </div>
+            <app-status-chip [status]="line.displayStatus" />
+          </header>
+          <p class="summary">{{ summary(line) }}</p>
+          @if (line.earlyRenewal) {
+            <p class="early">
+              <strong>Renew early to restore full speed.</strong> The new period starts when this
+              one ends, and your allowance resets as soon as you pay.
+            </p>
+          }
+          <div class="pay-row">
+            <span class="muted"
+              >{{ line.nextPackageName }} · {{ money(line.renewalPrice) }}
+              @if (
+                canPay(line) && (line.payToRenew?.amount ?? 0) < (line.renewalPrice?.amount ?? 0)
+              ) {
+                · {{ money(d.balance) }} from your wallet
+              }
+            </span>
+            @if (canPay(line)) {
+              <button mat-flat-button type="button" (click)="payLine(line)">
+                Pay {{ money(line.payToRenew) }}
+              </button>
+            } @else {
+              <span class="covered">Your wallet covers it; it renews on its own.</span>
+            }
+          </div>
+        </section>
+      } @empty {
+        <section class="panel notice">
+          <p>
+            <strong>Nothing to pay right now.</strong>
+            @if (others().length) {
+              Your lines are paid up.
+            }
+          </p>
+          <a mat-stroked-button routerLink="/status">See my internet</a>
+        </section>
+      }
+
+      @if (payable().length && others().length) {
+        <p class="muted">
+          Paid up:
+          @for (line of others(); track line.id; let last = $last) {
+            {{ line.packageName }} ({{ line.pppoeUsername }}){{ last ? '' : ', ' }}
+          }
+        </p>
+      }
+    } @else {
+      <p class="muted">Loading…</p>
+    }
+  }
+
+  @case ('sending') {
+    <section class="panel progress" aria-live="polite">
+      <mat-spinner diameter="40" />
+      <p><strong>Sending the M-Pesa prompt…</strong></p>
+    </section>
+  }
+
+  @case ('waiting') {
+    <section class="panel progress" aria-live="polite">
+      <mat-spinner diameter="40" />
+      <p><strong>Check your phone.</strong></p>
+      <p class="muted">
+        Enter your M-Pesa PIN in the prompt to pay {{ money(flow.target()?.amount) }} for
+        {{ flow.target()?.label }}. This page updates by itself.
+      </p>
+    </section>
+  }
+
+  @case ('restoring') {
+    <section class="panel progress" aria-live="polite">
+      <mat-spinner diameter="40" />
+      <p><strong>Payment received. Restoring your internet…</strong></p>
+      <p class="muted">This usually takes a few seconds.</p>
+    </section>
+  }
+
+  @case ('restored') {
+    <section class="panel result ok" aria-live="polite">
+      <tabler-icon [icon]="icons.done" [size]="40" aria-hidden="true" />
+      <p><strong>Internet restored.</strong></p>
+      <p class="muted">Thank you. Your receipt is in History.</p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+
+  @case ('paid') {
+    <section class="panel result ok" aria-live="polite">
+      <tabler-icon [icon]="icons.done" [size]="40" aria-hidden="true" />
+      <p><strong>Payment received.</strong></p>
+      <p class="muted">Thank you. Your receipt is in History.</p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+
+  @case ('restart') {
+    <section class="panel result" aria-live="polite">
+      <tabler-icon [icon]="icons.router" [size]="40" aria-hidden="true" />
+      <p><strong>Payment received. Restart your router.</strong></p>
+      <p class="muted">
+        Your line is paid, but the router has not picked it up yet. Switch the router off, wait 10
+        seconds and switch it on again.
+      </p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+
+  @case ('failed') {
+    <section class="panel result" role="alert">
+      <tabler-icon [icon]="icons.warn" [size]="40" aria-hidden="true" />
+      <p><strong>The payment did not go through.</strong></p>
+      @if (flow.resultDesc(); as reason) {
+        <p class="muted">M-Pesa said: {{ reason }}</p>
+      }
+      <p class="muted">No money was taken. You can try again.</p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+
+  @case ('timedOut') {
+    <section class="panel result" role="alert">
+      <tabler-icon [icon]="icons.warn" [size]="40" aria-hidden="true" />
+      <p><strong>No answer from the M-Pesa prompt.</strong></p>
+      <p class="muted">
+        The prompt expired without a PIN. If you did pay, the payment still arrives and your line
+        renews by itself.
+      </p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+
+  @case ('noAnswer') {
+    <section class="panel result" role="alert">
+      <tabler-icon [icon]="icons.warn" [size]="40" aria-hidden="true" />
+      <p><strong>We have not heard back from M-Pesa yet.</strong></p>
+      <p class="muted">
+        If money left your M-Pesa, the payment arrives and your line renews by itself. Check History
+        in a few minutes.
+      </p>
+      <ng-container *ngTemplateOutlet="done" />
+    </section>
+  }
+}
+
+<ng-template #done>
+  <button mat-flat-button type="button" (click)="flow.reset()">Done</button>
+</ng-template>

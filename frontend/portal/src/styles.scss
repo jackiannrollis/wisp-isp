@@ -1,31 +1,91 @@
-// Global theme tokens. Tenant branding (--brand-primary, --brand-on-primary) is set at startup
-// by TenantThemeService on <html>; the values below are the defaults used until then.
+// Global theme (ADR 0002 amendments), as in the admin app: Material 3 through Angular Material and
+// Inter, at the default density, since customers use the portal on phones (touch targets).
+// TenantThemeService replaces the accent roles (primary, secondary, tertiary) with the scheme of the
+// tenant's brand colour; surfaces, text and borders are a fixed neutral ramp for every tenant, so the
+// brand colour is an accent, never a wash. Every role is a light-dark() pair: the system setting or
+// the manual override (html[data-theme]) picks the mode.
+@use '@angular/material' as mat;
 
-:root {
+html {
   color-scheme: light dark;
 
-  --brand-primary: #0f766e;
-  --brand-on-primary: #ffffff;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$cyan-palette,
+        theme-type: color-scheme,
+      ),
+      typography: (
+        plain-family: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        brand-family: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+      ),
+      density: 0,
+    )
+  );
 
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-text: #0f172a;
-  --color-muted: #64748b;
-  --color-border: #e2e8f0;
-  --color-hover: #f1f5f9;
+  // Status colours are fixed for every tenant (never branded). The text colours reach 4.5:1 on the
+  // light and dark surfaces; status is shown as a small marker with text, so colour is never alone.
+  --app-success: light-dark(#167236, #6fcf8a);
+  --app-warning: light-dark(#a35600, #f0a54a);
+  --app-error: light-dark(#b3261e, #f2b8b5);
+  --app-neutral: light-dark(#6b7280, #9aa3ad);
+  --app-success-soft: light-dark(#e8f5ec, #12301d);
+  --app-warning-soft: light-dark(#fdf1e3, #3a2a12);
+  --app-error-soft: light-dark(#fce9e8, #3d1c1b);
 
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  // Layout tokens: one spacing scale, two radii, one border, one focus ring.
+  --app-space-1: 0.25rem;
+  --app-space-2: 0.5rem;
+  --app-space-3: 0.75rem;
+  --app-space-4: 1rem;
+  --app-space-5: 1.5rem;
+  --app-space-6: 2rem;
+  --app-radius-s: 6px;
+  --app-radius-m: 8px;
+  --app-border: 1px solid var(--mat-sys-outline-variant);
+  --app-focus: 0 0 0 2px var(--mat-sys-surface), 0 0 0 4px var(--mat-sys-primary);
+  // The canvas behind panels; panels are the surface.
+  --app-canvas: var(--mat-sys-surface-container-low);
+
+  // Quieter Material defaults: small-radius buttons, fields, dialogs and menus.
+  @include mat.button-overrides(
+    (
+      filled-container-shape: var(--app-radius-s),
+      outlined-container-shape: var(--app-radius-s),
+      text-container-shape: var(--app-radius-s),
+      outlined-outline-color: var(--mat-sys-outline-variant),
+    )
+  );
+  @include mat.form-field-overrides(
+    (
+      outlined-container-shape: var(--app-radius-s),
+      outlined-outline-color: var(--mat-sys-outline-variant),
+      outlined-hover-outline-color: var(--mat-sys-outline),
+    )
+  );
+  @include mat.dialog-overrides(
+    (
+      container-shape: var(--app-radius-m),
+    )
+  );
+  @include mat.menu-overrides(
+    (
+      container-shape: var(--app-radius-s),
+    )
+  );
+  @include mat.chips-overrides(
+    (
+      container-shape-radius: var(--app-radius-s),
+    )
+  );
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0b1120;
-    --color-surface: #111827;
-    --color-text: #e5e7eb;
-    --color-muted: #9ca3af;
-    --color-border: #1f2937;
-    --color-hover: #1e293b;
-  }
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 *,
@@ -37,19 +97,56 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
-  font-family: var(--font-family);
-  background: var(--color-bg);
-  color: var(--color-text);
+  font: var(--mat-sys-body-medium);
+  background: var(--app-canvas);
+  color: var(--mat-sys-on-surface);
+  -webkit-font-smoothing: antialiased;
+  // Money, dates and counters line up in columns.
+  font-variant-numeric: tabular-nums;
 }
 
 a {
-  color: var(--brand-primary);
+  color: var(--mat-sys-primary);
+}
+
+// One visible focus ring for everything a keyboard can reach that Material does not style itself.
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus);
+  border-radius: var(--app-radius-s);
 }
 
 .muted {
-  color: var(--color-muted);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Panels: the one container style (surface, hairline border, small radius, no shadow).
+.panel {
+  background: var(--mat-sys-surface);
+  border: var(--app-border);
+  border-radius: var(--app-radius-m);
+}
+
+// Section headings inside a page.
+.section-title {
+  font: var(--mat-sys-title-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+// Page headings.
+.page-title {
+  font: var(--mat-sys-headline-small);
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+// Tabs inside a panel keep its rounded corners.
+.mat-mdc-tab-group.panel {
+  overflow: hidden;
 }

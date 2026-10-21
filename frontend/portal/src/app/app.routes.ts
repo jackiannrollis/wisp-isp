@@ -5,6 +5,11 @@ import { ShellComponent } from './core/layout/shell.component';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () =>
+      import('./features/auth/login-page.component').then((m) => m.LoginPageComponent),
+  },
+  {
     path: '',
     component: ShellComponent,
     canActivate: [authGuard],

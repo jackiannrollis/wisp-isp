@@ -1,22 +1,39 @@
 <div class="shell">
   <header class="topbar">
-    @if (branding().logoUrl; as logoUrl) {
-      <img class="logo" [src]="logoUrl" [alt]="branding().name + ' logo'" />
-    }
-    <span class="brand">{{ branding().name }}</span>
-    <span class="app-label">{{ appLabel }}</span>
-  </header>
-  <nav class="nav" aria-label="Main">
-    <ul>
-      @for (item of navItems; track item.path) {
-        <li>
-          <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page">{{
-            item.label
-          }}</a>
-        </li>
+    <div class="brand">
+      @if (branding().logoUrl; as logoUrl) {
+        <img class="logo" [src]="logoUrl" alt="" />
+      } @else {
+        <span class="initial" aria-hidden="true">{{ branding().name.charAt(0) }}</span>
       }
-    </ul>
-  </nav>
+      <span class="name">{{ branding().name }}</span>
+    </div>
+    <nav class="tabs" aria-label="Main">
+      @for (item of navItems; track item.path) {
+        <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page">
+          <tabler-icon [icon]="item.icon" [size]="20" aria-hidden="true" />
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+    <div class="who">
+      @if (customer(); as c) {
+        <span class="customer">
+          <span class="customer-name">{{ c.name }}</span>
+          <span class="customer-number">{{ c.number }}</span>
+        </span>
+      }
+      <button
+        mat-icon-button
+        type="button"
+        (click)="signOut()"
+        aria-label="Sign out"
+        title="Sign out"
+      >
+        <tabler-icon [icon]="logoutIcon" [size]="20" />
+      </button>
+    </div>
+  </header>
   <main class="content">
     <router-outlet />
   </main>

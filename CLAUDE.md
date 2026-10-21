@@ -24,9 +24,13 @@ platform admins, impersonation), RADIUS accounting into partitioned `radacct` wi
 and the tunnel worker (ADR 0011) polling routers over RouterOS REST and sending CoA/Disconnect
 (N5; proven against a fake router and radclient, not yet on a real router). The dashboard and portal
 APIs are done too (`/api/v1/dashboard`; `/api/v1/portal/...` per module), and every v1 screen of the
-admin Angular app. Step 8b, fair use and data caps, has its backend (N9: cycle usage in
-`network_line_usage`, `UsageThresholdReached` with Disconnect and one SMS); not
-yet its screens (package limits, usage against the allowance). Not yet: the portal Angular app.
+admin Angular app. Step 8b, fair use and data caps, is done (N9: cycle usage in `network_line_usage`,
+`UsageThresholdReached` with Disconnect and one SMS; package limits and usage against the allowance on
+screen). The portal Angular app is done: PIN sign-in with an SMS code to set or reset the PIN (Q7
+default), lines with status and usage, Pay Now per line and pay-all by STK with the restore wait and
+the 90-second router fallback, payments, receipts and the wallet statement. Its SMS-code sign-in and a
+live STK payment are covered by tests only (no Africa's Talking or Daraja account locally). Not yet:
+the Playwright suite (login, pay-now, customer search).
 
 ## Commands
 

@@ -5,12 +5,13 @@ import com.corebalt.isp.tenancy.application.BrandingQuery;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Stub endpoint the web apps load their theme from; full tenant settings come later. */
+/**
+ * The branding the web apps load their theme from (docs/07: name, logo, brand colour): staff under
+ * /api/v1, customers under /api/v1/portal, each for the tenant of their own token.
+ */
 @RestController
-@RequestMapping("/api/v1/branding")
 @Tag(name = "Tenancy")
 class BrandingController {
 
@@ -20,9 +21,15 @@ class BrandingController {
         this.brandingQuery = brandingQuery;
     }
 
-    @GetMapping
+    @GetMapping("/api/v1/branding")
     @Operation(summary = "Branding of the caller's tenant")
     BrandingDto branding() {
+        return brandingQuery.currentTenantBranding();
+    }
+
+    @GetMapping("/api/v1/portal/branding")
+    @Operation(summary = "Branding of my provider, for the customer portal", tags = "Portal")
+    BrandingDto portalBranding() {
         return brandingQuery.currentTenantBranding();
     }
 }

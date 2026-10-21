@@ -1,0 +1,171 @@
+<main class="frame">
+  <section class="card" aria-labelledby="title">
+    @if (busy()) {
+      <mat-progress-bar mode="indeterminate" class="progress" />
+    }
+    <div class="brand">{{ brandName }}</div>
+
+    @switch (step()) {
+      @case ('pin') {
+        <h1 id="title">Sign in</h1>
+        <form [formGroup]="pinForm" (ngSubmit)="signIn()">
+          <mat-form-field appearance="outline">
+            <mat-label>Account number</mat-label>
+            <input
+              matInput
+              formControlName="account"
+              autocomplete="username"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
+            <mat-hint>On your SMS and receipts, for example CB000123</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>PIN</mat-label>
+            <input
+              matInput
+              type="password"
+              inputmode="numeric"
+              maxlength="6"
+              formControlName="pin"
+              autocomplete="current-password"
+            />
+          </mat-form-field>
+          @if (error(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+          <button mat-flat-button type="submit" [disabled]="pinForm.invalid || busy()">
+            Sign in
+          </button>
+        </form>
+        <p class="switch">
+          First time here, or forgot your PIN?
+          <button mat-button type="button" (click)="useCode()">Get a code by SMS</button>
+        </p>
+      }
+
+      @case ('phone') {
+        <h1 id="title">Get a sign-in code</h1>
+        <p class="muted">
+          We send a 6-digit code to the phone number your provider has for you. With it you set a
+          new PIN.
+        </p>
+        <form [formGroup]="phoneForm" (ngSubmit)="sendCode()">
+          <mat-form-field appearance="outline">
+            <mat-label>Provider code</mat-label>
+            <input
+              matInput
+              formControlName="tenant"
+              autocomplete="organization"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
+            <mat-hint>The letters at the start of your account number, for example CB</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Phone number</mat-label>
+            <input
+              matInput
+              type="tel"
+              formControlName="phone"
+              autocomplete="tel"
+              placeholder="0712 345 678"
+            />
+          </mat-form-field>
+          @if (error(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+          <button mat-flat-button type="submit" [disabled]="phoneForm.invalid || busy()">
+            Send code
+          </button>
+          <button mat-button type="button" (click)="restart()">Back to sign in</button>
+        </form>
+      }
+
+      @case ('code') {
+        <h1 id="title">Enter the code</h1>
+        <p class="muted" role="status">
+          If this number is registered with your provider, a code is on its way by SMS. It is valid
+          for 5 minutes.
+        </p>
+        <form [formGroup]="codeForm" (ngSubmit)="verifyCode()">
+          <mat-form-field appearance="outline">
+            <mat-label>Code</mat-label>
+            <input
+              matInput
+              formControlName="code"
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+            />
+          </mat-form-field>
+          @if (error(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+          <button mat-flat-button type="submit" [disabled]="codeForm.invalid || busy()">
+            Continue
+          </button>
+          <button mat-button type="button" (click)="go('phone')">Send a new code</button>
+        </form>
+      }
+
+      @case ('CHOOSE_ACCOUNT') {
+        <h1 id="title">Choose your account</h1>
+        <p class="muted">This phone number has more than one account. Set a PIN for one of them.</p>
+        <ul class="accounts">
+          @for (account of accounts(); track account.number) {
+            <li>
+              <button mat-stroked-button type="button" (click)="choose(account)">
+                <span class="number">{{ account.number }}</span>
+                <span class="name">{{ account.name }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+        <button mat-button type="button" (click)="restart()">Back to sign in</button>
+      }
+
+      @case ('PIN_SETUP') {
+        <h1 id="title">Choose your PIN</h1>
+        @if (chosen(); as account) {
+          <p class="muted">For account {{ account.number }}.</p>
+        }
+        <p class="muted">
+          4 to 6 digits, not all the same and not a run such as 1234. You sign in with it from now
+          on.
+        </p>
+        <form [formGroup]="newPinForm" (ngSubmit)="setPin()">
+          <mat-form-field appearance="outline">
+            <mat-label>New PIN</mat-label>
+            <input
+              matInput
+              type="password"
+              inputmode="numeric"
+              maxlength="6"
+              formControlName="pin"
+              autocomplete="new-password"
+            />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Repeat the PIN</mat-label>
+            <input
+              matInput
+              type="password"
+              inputmode="numeric"
+              maxlength="6"
+              formControlName="repeat"
+              autocomplete="new-password"
+            />
+          </mat-form-field>
+          @if (error(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+          <button mat-flat-button type="submit" [disabled]="newPinForm.invalid || busy()">
+            Save PIN and sign in
+          </button>
+          <button mat-button type="button" (click)="restart()">Cancel</button>
+        </form>
+      }
+    }
+  </section>
+</main>

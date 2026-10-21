@@ -1409,6 +1409,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Branding of my provider, for the customer portal */
+        get: operations["portalBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions": {
         parameters: {
             query?: never;
@@ -2487,6 +2504,11 @@ export interface components {
             sessionsFromBefore?: number;
             restored?: boolean;
         };
+        BrandingDto: {
+            name?: string;
+            logoUrl?: string;
+            primaryColor?: string;
+        };
         PermissionDto: {
             code?: string;
             requires2fa?: boolean;
@@ -2685,11 +2707,6 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
-        };
-        BrandingDto: {
-            name?: string;
-            logoUrl?: string;
-            primaryColor?: string;
         };
         AuditRow: {
             /** Format: uuid */
@@ -5006,6 +5023,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    portalBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BrandingDto"];
                 };
             };
         };

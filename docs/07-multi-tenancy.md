@@ -41,6 +41,8 @@ One platform serves many ISPs, and nothing crosses between them: every row carri
 
 Who changes what: the account's own settings (name, logo, brand colour, default grace days, grace mode, partial-payment rule, pause limit, SMS sender ID and sending window) need `settings.write`, held by the built-in Owner role only; account keys (Daraja, Africa's Talking) need `settings.secrets` and stay write-only (T4); templates need `settings.notifications`. The code, subdomain, time zone and currency are fixed when the tenant is created. Grace and the partial-payment rule apply from each line's next renewal, because a line copies its grace days and grace mode when it renews (S6); the pause limit applies to the next pause; branding applies at once. Every change is audited (A1).
 
+The apps load branding after sign-in, each for the tenant of its own token: staff from `GET /api/v1/branding`, customers from `GET /api/v1/portal/branding`. Before sign-in both show the Corebalt default. The portal takes the provider from the customer number's letters (T2) at PIN sign-in, and asks for the provider code for the SMS-code step. Branding and a prefilled provider by subdomain, before sign-in, are not built yet.
+
 ## Platform layer (Corebalt)
 
 Corebalt staff use a separate platform console, with its own roles, for:
