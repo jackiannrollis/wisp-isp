@@ -153,6 +153,71 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
+  # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key
+  # when the COSIGN_PRIVATE_KEY and COSIGN_PASSWORD secrets exist; no upload to the public
+  # transparency log, which would publish this private repository's name and commits.
+  publish:
+    name: Publish images to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend, e2e, compose, dependencies]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            context: backend
+            cache: backend
+          - name: freeradius
+            context: radius
+            cache: freeradius
+          - name: wireguard
+            context: infra/wireguard
+            cache: wireguard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push corebalt-isp-${{ matrix.name }}
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # One manifest per image: no attestation children for the retention job to orphan.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ github.repository_owner }}/corebalt-isp-${{ matrix.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+      - uses: sigstore/cosign-installer@v4
+        with:
+          cosign-release: v3.1.4
+      - name: Sign by digest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/corebalt-isp-${{ matrix.name }}@${{ steps.push.outputs.digest }}
+        run: |
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::warning::COSIGN_PRIVATE_KEY is not set: $IMAGE is published unsigned (infra/ops/README.md, Signing)."
+            exit 0
+          fi
+          # cosign v3: no transparency log needs the default signing config off as well (tried locally).
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY --use-signing-config=false --tlog-upload=false "$IMAGE"
+      - name: Record the digest
+        run: echo "corebalt-isp-${{ matrix.name }} sha-${{ github.sha }} ${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+
   dependencies:
     name: Dependency scan
     runs-on: ubuntu-latest
