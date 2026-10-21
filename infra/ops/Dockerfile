@@ -9,7 +9,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir ansible-core==2.21.5 ansible-lint==26.10.1 netaddr==1.3.0
 COPY ansible/requirements.yml /tmp/requirements.yml
-RUN ansible-galaxy collection install -r /tmp/requirements.yml -p /usr/share/ansible/collections \
+# Galaxy has brief outages (HTTP 502): three tries, then the build fails.
+RUN for attempt in 1 2 3; do \
+        ansible-galaxy collection install -r /tmp/requirements.yml -p /usr/share/ansible/collections && break; \
+        [ "$attempt" = 3 ] && exit 1; sleep 15; \
+    done \
     && rm /tmp/requirements.yml
 COPY --from=cosign /ko-app/cosign /usr/local/bin/cosign
 COPY --from=crane /ko-app/crane /usr/local/bin/crane
