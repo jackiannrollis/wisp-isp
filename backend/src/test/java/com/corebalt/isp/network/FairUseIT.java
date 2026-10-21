@@ -17,6 +17,7 @@ import com.corebalt.isp.support.Catalog;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
+import com.corebalt.isp.support.TestTokens;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -97,6 +98,19 @@ class FairUseIT extends IntegrationTest {
         assertThat(line.get("usage").get("fairUseBytes").asLong()).isEqualTo(2 * GB);
         assertThat(line.get("usage").get("fairUseExceeded").asBoolean()).isTrue();
         assertThat(line.get("usage").get("dataCapReached").asBoolean()).isFalse();
+        assertThat(line.get("displayStatus").asString()).as("never ACTIVE while throttled").isEqualTo("THROTTLED");
+        assertThat(line.get("accessReason").asString()).isEqualTo("FAIR_USE");
+
+        // The portal offers early renewal, not a due payment, and pay-all includes it.
+        OwnerSql.client().sql("insert into identity_customer_credential (tenant_id, customer_id) values (:t, :c)")
+                .param("t", tenant).param("c", customerId).update();
+        final JsonNode portal = new Api(port, TestTokens.customer(customerId, tenant)).get("/api/v1/portal/lines").json();
+        final JsonNode mine = portal.get("lines").get(0);
+        assertThat(mine.get("due").asBoolean()).isFalse();
+        assertThat(mine.get("earlyRenewal").asBoolean()).isTrue();
+        assertThat(mine.get("accessReason").asString()).isEqualTo("FAIR_USE");
+        assertThat(mine.get("payToRenew").get("amount").asLong()).isEqualTo(250_000);
+        assertThat(portal.get("payAll").get("amount").asLong()).isEqualTo(250_000);
 
         // More traffic in the same cycle announces nothing new.
         grow(session, GB, GB + 500);
@@ -130,13 +144,31 @@ class FairUseIT extends IntegrationTest {
     }
 
     @Test
+    void N5_aLineAlreadyThrottledByGraceIsNotDisconnectedWhenItPassesFairUse() {
+        OwnerSql.client().sql("update tenancy_tenant set grace_mode = 'THROTTLED' where id = :id").param("id", tenant).update();
+        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() - interval '1 hour', grace_days = 3 where id = :id")
+                .param("id", lineId).update();
+        session(GB, GB + 1);
+        rollUp();
+        final UsageThresholdReached reached = JSON.readValue(thresholds().getFirst().toString(), UsageThresholdReached.class);
+        assertThat(run(() -> changes.usageThresholdReached(reached))).as("THROTTLED before and after").isZero();
+        final JsonNode line = api.get("/api/v1/subscriptions/" + lineId).json();
+        assertThat(line.get("displayStatus").asString()).as("expired in grace: simply due").isEqualTo("GRACE");
+        assertThat(line.get("accessReason").asString()).isEqualTo("FAIR_USE");
+    }
+
+    @Test
     void Q14_atTheDataCapTheLineIsRestrictedUntilItRenews() {
         session(3 * GB, 2 * GB);
         rollUp();
         assertThat(thresholds()).extracting(e -> e.get("kind").asString()).containsExactlyInAnyOrder("FAIR_USE", "DATA_CAP");
         assertThat(viewAttribute("Mikrotik-Address-List")).isEqualTo("restricted");
         assertThat(viewAttribute("Framed-Pool")).isEqualTo("restricted");
-        assertThat(api.get("/api/v1/subscriptions/" + lineId).json().get("accessProfile").asString()).isEqualTo("RESTRICTED");
+        final JsonNode capped = api.get("/api/v1/subscriptions/" + lineId).json();
+        assertThat(capped.get("accessProfile").asString()).isEqualTo("RESTRICTED");
+        assertThat(capped.get("displayStatus").asString()).isEqualTo("CAPPED");
+        assertThat(capped.get("accessReason").asString()).isEqualTo("DATA_CAP");
+        assertThat(api.get("/api/v1/subscriptions?displayStatus=CAPPED").json().get("total").asLong()).isOne();
     }
 
     @Test

@@ -34,7 +34,7 @@ The smallest product an ISP would pay for: PPPoE billing that collects and recon
 | Self-service | Upgrade and downgrade, PIN change, outage reports, relocation and pause requests |
 | Support | Tickets, technician assignment, outage notices to affected customers |
 | Network monitoring | Sites, SNMP metrics, richer router pages |
-| Messaging | WhatsApp and email on the same templates |
+| Messaging | WhatsApp and email on the same templates; a fair-use warning SMS at 80% of the allowance, on or off per tenant (decisions.md 2026-10-21) |
 | Billing | Credit notes and refunds with approval; cards and PesaLink via a gateway |
 
 **Gate 2:** three paying ISPs on the platform, a passed RADIUS failover drill, and support tickets per 100 subscribers trending down for two months.

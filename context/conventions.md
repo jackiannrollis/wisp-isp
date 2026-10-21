@@ -32,7 +32,7 @@ context/            this folder
 - **Money.** `Money` value object wrapping `long minorUnits` and `Currency`; arithmetic through the value object only; rounding rules live there (proration rounds up to the shilling).
 - **Time.** `Instant` in code and `timestamptz` in the database; `Clock` injected so tests control time; tenant `ZoneId` only for display and day boundaries.
 - **Commands and queries.** One command handler per use case, transactional, writes the outbox row before returning; queries are separate read models and may use the replica.
-- **Events.** Java records in the module's `api` package; past-tense names; carry IDs, `tenantId`, `eventId` (UUID), `occurredAt`, `version`. Consumers are `@Transactional` and idempotent by `eventId`.
+- **Events.** Java records in the module's `api` package; past-tense names; carry IDs, `tenantId`, `eventId` (UUID), `occurredAt`, `version`. Consumers are `@Transactional` and idempotent by `eventId`. Versioning: adding a field does not bump the version (consumers ignore unknown fields and get null for missing ones); removing or renaming a field, or changing its meaning, does, and the old version keeps its routing key until its consumers move.
 - **Validation.** Bean Validation on request DTOs at the boundary; domain invariants enforced again in the domain layer (`domain-rules.md` IDs in the exception message).
 - **Mapping.** MapStruct for DTO ↔ domain; no entity leaves a module.
 - **Errors.** RFC 9457 problem details; stable `type` URIs per error; never leak stack traces or SQL.

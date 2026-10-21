@@ -133,6 +133,44 @@ class AccessPolicyTest {
     }
 
     @Test
+    void S1_aLineNeverShowsActiveWhileThrottledOrCapped_andSaysWhy() {
+        final AccessPolicy.Facts throttled = new AccessPolicy.Facts(SubscriptionState.ACTIVE, NOW.plus(days(10)), 2, null, null)
+                .withUsage(FairUse.limits(1_000L, 5_000L, 1_000));
+        final AccessPolicy.Decision t = AccessPolicy.evaluate(throttled, GraceMode.FULL_SPEED, NOW);
+        assertThat(DisplayStatus.of(throttled, t, NOW)).isEqualTo(DisplayStatus.THROTTLED);
+        assertThat(AccessReason.of(throttled, t, NOW)).isEqualTo(AccessReason.FAIR_USE);
+
+        final AccessPolicy.Facts capped = throttled.withUsage(FairUse.limits(1_000L, 5_000L, 5_000));
+        final AccessPolicy.Decision c = AccessPolicy.evaluate(capped, GraceMode.FULL_SPEED, NOW);
+        assertThat(DisplayStatus.of(capped, c, NOW)).isEqualTo(DisplayStatus.CAPPED);
+        assertThat(AccessReason.of(capped, c, NOW)).isEqualTo(AccessReason.DATA_CAP);
+
+        // Capped inside grace still shows CAPPED; past grace the dates restrict it as EXPIRED.
+        final AccessPolicy.Facts cappedInGrace = new AccessPolicy.Facts(SubscriptionState.ACTIVE, NOW.minus(days(1)), 2, null, null)
+                .withUsage(FairUse.limits(1_000L, 5_000L, 5_000));
+        assertThat(DisplayStatus.of(cappedInGrace, AccessPolicy.evaluate(cappedInGrace, GraceMode.FULL_SPEED, NOW), NOW))
+                .isEqualTo(DisplayStatus.CAPPED);
+        final AccessPolicy.Facts cappedPastGrace = cappedInGrace.withExpiresAt(NOW.minus(days(3)));
+        final AccessPolicy.Decision p = AccessPolicy.evaluate(cappedPastGrace, GraceMode.FULL_SPEED, NOW);
+        assertThat(DisplayStatus.of(cappedPastGrace, p, NOW)).isEqualTo(DisplayStatus.RESTRICTED);
+        assertThat(AccessReason.of(cappedPastGrace, p, NOW)).isEqualTo(AccessReason.EXPIRED);
+    }
+
+    @Test
+    void S1_reasonsForGraceThrottleAndPause_noneForFullOrRejected() {
+        final AccessPolicy.Facts grace = new AccessPolicy.Facts(SubscriptionState.ACTIVE, NOW.minus(Duration.ofHours(1)), 2, null, null);
+        assertThat(AccessReason.of(grace, AccessPolicy.evaluate(grace, GraceMode.THROTTLED, NOW), NOW))
+                .isEqualTo(AccessReason.GRACE_THROTTLE);
+        assertThat(AccessReason.of(grace, AccessPolicy.evaluate(grace, GraceMode.FULL_SPEED, NOW), NOW)).isNull();
+        final AccessPolicy.Facts paused = new AccessPolicy.Facts(
+                SubscriptionState.PAUSED, NOW.plus(days(5)), 2, NOW.minus(days(1)), NOW.plus(days(1)));
+        assertThat(AccessReason.of(paused, AccessPolicy.evaluate(paused, GraceMode.FULL_SPEED, NOW), NOW))
+                .isEqualTo(AccessReason.PAUSED);
+        final AccessPolicy.Facts suspended = new AccessPolicy.Facts(SubscriptionState.SUSPENDED, NOW.plus(days(5)), 2, null, null);
+        assertThat(AccessReason.of(suspended, AccessPolicy.evaluate(suspended, GraceMode.FULL_SPEED, NOW), NOW)).isNull();
+    }
+
+    @Test
     void unlimitedPackagesAreNeverThrottledByUsage() {
         assertThat(FairUse.limits(null, null, Long.MAX_VALUE)).isEqualTo(FairUse.Limits.NONE);
     }

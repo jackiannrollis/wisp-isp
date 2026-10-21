@@ -11,9 +11,9 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 ## Subscriptions (docs/04)
 
-- **S1** Only `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` are stored. `EXPIRING`, `GRACE`, `RESTRICTED` and the access profile are derived from dates and cycle usage at read time, never persisted.
+- **S1** Only `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` are stored. `EXPIRING`, `GRACE`, `RESTRICTED`, `THROTTLED`, `CAPPED`, the access profile and the access reason (`EXPIRED`, `PAUSED`, `GRACE_THROTTLE`, `FAIR_USE`, `DATA_CAP`) are derived from dates and cycle usage at read time, never persisted. A line never shows `ACTIVE` while it is throttled or restricted.
 - **S2** Access profile logic, in this order: `PENDING`/`SUSPENDED`/`TERMINATED` → `REJECT`; `PAUSED` → `RESTRICTED`; before the end of grace, cycle usage at or past the package's `data_cap_bytes` → `RESTRICTED`, at or past its `fup_bytes` → `THROTTLED` (N9); `now < expires_at` → `FULL`; `now < expires_at + grace_days` → `FULL` or `THROTTLED` by tenant `grace_mode`; otherwise `RESTRICTED`.
-- **S3** The same logic exists in the SQL function `subscription_access_v2()` (used by the `v_radius_auth` view, and through `subscription_line_access()` by the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus`; a test proves they agree for the same inputs, cycle usage included, on profile, next change and display status. Change both or neither.
+- **S3** The same logic exists in the SQL function `subscription_access_v2()` (used by the `v_radius_auth` view, and through `subscription_access_v3()` and `subscription_line_access()` by the staff list view `v_subscription_status`) and in `AccessPolicy` / `DisplayStatus` / `AccessReason`; a test proves they agree for the same inputs, cycle usage included, on profile, next change, display status and access reason. Change both or neither.
 - **S4** Every accepted login carries `Session-Timeout` = seconds until the next profile change, capped at 86400.
 - **S5** A renewal extends from the current `expires_at` when the line is not yet past grace, and from the moment of payment when it is. The clock time of `expires_at` is preserved.
 - **S6** `grace_days` is copied onto the subscription at each renewal; a policy change never shortens a cycle already paid for.

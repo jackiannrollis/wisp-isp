@@ -6,6 +6,7 @@ import com.corebalt.isp.subscriptions.api.LineUsage;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
 import com.corebalt.isp.subscriptions.domain.AccessProfile;
+import com.corebalt.isp.subscriptions.domain.AccessReason;
 import com.corebalt.isp.subscriptions.domain.DisplayStatus;
 import com.corebalt.isp.subscriptions.domain.FairUse;
 import com.corebalt.isp.subscriptions.domain.GraceMode;
@@ -69,6 +70,14 @@ class SubscriptionViews {
                 .profile();
     }
 
+    /** The profile at {@code at} without the limit just crossed: see SubscriptionDirectory#accessProfileBeforeLimit. */
+    AccessProfile profileBeforeLimit(final Subscription line, final Instant at, final boolean dataCap) {
+        final Mapper mapper = mapper(List.of(line));
+        final AccessPolicy.Facts facts = mapper.facts(line);
+        final FairUse.Limits before = new FairUse.Limits(dataCap && facts.fairUseExceeded(), false);
+        return AccessPolicy.evaluate(facts.withUsage(before), mapper.graceMode(), at).profile();
+    }
+
     final class Mapper {
 
         private final GraceMode graceMode;
@@ -88,6 +97,11 @@ class SubscriptionViews {
             return graceMode;
         }
 
+        /** The one instant every line of this mapper is judged at. */
+        Instant now() {
+            return now;
+        }
+
         AccessPolicy.Facts facts(final Subscription line) {
             return line.facts().withUsage(limitsReached(line));
         }
@@ -105,6 +119,7 @@ class SubscriptionViews {
                     line.getState().name(),
                     decision.profile().name(),
                     DisplayStatus.of(facts, decision, now).name(),
+                    reason(facts, decision),
                     line.getExpiresAt(),
                     line.getGraceDays(),
                     line.getPausedAt(),
@@ -116,6 +131,11 @@ class SubscriptionViews {
                     new SubscriptionDto.CycleUsage(line.getCycleStartedAt(), usedBytes(line),
                             packageLimits.fairUseBytes(), packageLimits.dataCapBytes(), facts.fairUseExceeded(),
                             facts.dataCapReached()));
+        }
+
+        private String reason(final AccessPolicy.Facts facts, final AccessPolicy.Decision decision) {
+            final AccessReason reason = AccessReason.of(facts, decision, now);
+            return reason == null ? null : reason.name();
         }
 
         private FairUse.Limits limitsReached(final Subscription line) {

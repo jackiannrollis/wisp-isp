@@ -182,6 +182,12 @@ public class LineService implements SubscriptionDirectory {
         return lines.findById(subscriptionId).map(l -> views.profile(l, at, expiresAt).name());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> accessProfileBeforeLimit(final UUID subscriptionId, final Instant at, final boolean dataCap) {
+        return lines.findById(subscriptionId).map(l -> views.profileBeforeLimit(l, at, dataCap).name());
+    }
+
     private Subscription load(final UUID subscriptionId) {
         return lines.findById(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
     }

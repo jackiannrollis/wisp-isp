@@ -5,7 +5,9 @@ import java.time.Instant;
 
 /**
  * The status shown on screens and in SMS (docs/04 States), derived at read time from the same
- * inputs as {@link AccessPolicy} and never stored (S1).
+ * inputs as {@link AccessPolicy} and never stored (S1). A line never shows ACTIVE while it is
+ * throttled or restricted: fair use shows THROTTLED and a reached data cap CAPPED. The SQL copy is
+ * {@code subscription_access_v3()} (S3).
  */
 public enum DisplayStatus {
     PENDING,
@@ -13,6 +15,8 @@ public enum DisplayStatus {
     EXPIRING,
     GRACE,
     RESTRICTED,
+    THROTTLED,
+    CAPPED,
     PAUSED,
     SUSPENDED,
     TERMINATED;
@@ -28,13 +32,19 @@ public enum DisplayStatus {
             case TERMINATED -> TERMINATED;
             case ACTIVE -> {
                 final Instant expiresAt = decision.effectiveExpiresAt();
-                if (now.isBefore(expiresAt.minus(EXPIRING_WINDOW))) {
-                    yield ACTIVE;
-                }
                 if (now.isBefore(expiresAt)) {
-                    yield EXPIRING;
+                    if (line.dataCapReached()) {
+                        yield CAPPED;
+                    }
+                    if (line.fairUseExceeded()) {
+                        yield THROTTLED;
+                    }
+                    yield now.isBefore(expiresAt.minus(EXPIRING_WINDOW)) ? ACTIVE : EXPIRING;
                 }
-                yield decision.profile() == AccessProfile.RESTRICTED ? RESTRICTED : GRACE;
+                if (decision.profile() == AccessProfile.RESTRICTED) {
+                    yield AccessReason.of(line, decision, now) == AccessReason.DATA_CAP ? CAPPED : RESTRICTED;
+                }
+                yield GRACE;
             }
         };
     }

@@ -125,6 +125,9 @@ public class LineStatisticsService implements LineStatistics {
     /** Display statuses whose line needs paying for now: not yet active, about to expire, or expired. */
     static final Set<String> DUE = Set.of("PENDING", "EXPIRING", "GRACE", "RESTRICTED");
 
+    /** Limited by usage (N9): offered early renewal, and due like any line once its expiry is near. */
+    static final Set<String> USAGE_LIMITED = Set.of("THROTTLED", "CAPPED");
+
     /**
      * The customer's lines, earliest opened first (terminated lines left out), the wallet balance, and
      * "pay all": what the wallet lacks to renew every due line at once, max(0, sum of their renewal
@@ -138,21 +141,26 @@ public class LineStatisticsService implements LineStatistics {
                 .toList();
         final SubscriptionViews.Mapper mapper = views.mapper(open);
         final List<PortalLineDto> mine = open.stream()
-                .map(line -> portalLine(line, mapper.toDto(line), balance))
+                .map(line -> portalLine(line, mapper.toDto(line), balance, mapper.now()))
                 .toList();
         Money dueTotal = Money.zero(Money.KES);
         for (final PortalLineDto line : mine) {
-            dueTotal = line.due() ? dueTotal.plus(line.renewalPrice().toMoney()) : dueTotal;
+            dueTotal = line.due() || line.earlyRenewal() ? dueTotal.plus(line.renewalPrice().toMoney()) : dueTotal;
         }
         final Money payAll = dueTotal.minus(balance);
         return new PortalLinesDto(mine, MoneyDto.of(balance), MoneyDto.of(payAll.isPositive() ? payAll : Money.zero(Money.KES)));
     }
 
-    private PortalLineDto portalLine(final Subscription line, final SubscriptionDto view, final Money balance) {
+    private PortalLineDto portalLine(final Subscription line, final SubscriptionDto view, final Money balance,
+                                     final Instant now) {
         final PackageTerms current = packages.terms(line.getPackageId()).orElseThrow();
         final PackageSpeeds speeds = packages.speeds(line.getPackageId()).orElseThrow();
         final PackageTerms next = packages.terms(line.packageForNextRenewal()).orElse(current);
         final Money shortfall = next.price().minus(balance);
+        final boolean usageLimited = USAGE_LIMITED.contains(view.displayStatus());
+        final boolean nearExpiry = line.getExpiresAt() != null
+                && !now.isBefore(line.getExpiresAt().minus(DisplayStatus.EXPIRING_WINDOW));
+        final boolean due = DUE.contains(view.displayStatus()) || (usageLimited && nearExpiry);
         return new PortalLineDto(
                 line.getId(),
                 line.getPppoeUsername(),
@@ -164,10 +172,13 @@ public class LineStatisticsService implements LineStatistics {
                 MoneyDto.of(shortfall.isPositive() ? shortfall : Money.zero(next.price().currency())),
                 view.state(),
                 view.displayStatus(),
-                DUE.contains(view.displayStatus()),
+                due,
                 view.accessProfile(),
                 line.getExpiresAt(),
-                line.getPauseUntil());
+                line.getPauseUntil(),
+                view.accessReason(),
+                usageLimited && !due,
+                view.usage());
     }
 
     private static Map<String, Long> zeros(final Enum<?>[] names) {

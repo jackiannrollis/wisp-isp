@@ -4,8 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A line as staff see it. {@code accessProfile} and {@code displayStatus} are derived at read time
- * (S1) and shown as returned; the frontend never computes them. Never carries the PPPoE password
+ * A line as staff see it. {@code accessProfile}, {@code displayStatus} and {@code accessReason} (why
+ * access is limited; null when it is not) are derived at read time (S1) and shown as returned; the
+ * frontend never computes them. Never carries the PPPoE password
  * (T4, ADR 0009). {@code usage} is the line's current cycle against its package's limits (docs/09
  * step 8b).
  */
@@ -18,6 +19,7 @@ public record SubscriptionDto(
         String state,
         String accessProfile,
         String displayStatus,
+        String accessReason,
         Instant expiresAt,
         int graceDays,
         Instant pausedAt,

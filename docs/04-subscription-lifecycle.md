@@ -8,9 +8,11 @@ Store only the states people set by hand; derive everything else from dates. RAD
 |---|---|---|---|
 | `PENDING` | Stored | Signed up, awaiting installation or first payment | `REJECT` |
 | `ACTIVE` | Stored | Service in force; access depends on `expires_at` and grace | see below |
-| `EXPIRING` | Derived: `expires_at` within 3 days | Reminder window | `FULL` |
+| `EXPIRING` | Derived: `expires_at` within 3 days | Reminder window | `FULL` (a throttled or capped line shows `THROTTLED` or `CAPPED` instead) |
 | `GRACE` | Derived: past `expires_at`, inside `grace_days` | Final warnings | `FULL`, or `THROTTLED` when the tenant's `grace_mode` is `THROTTLED` |
 | `RESTRICTED` | Derived: past grace | Unpaid | `RESTRICTED`: walled garden with portal and pay page only |
+| `THROTTLED` | Derived: before expiry, past the cycle's fair-use allowance (N9) | Renew early to restore full speed; not yet due | `THROTTLED` |
+| `CAPPED` | Derived: before the end of grace, the cycle's data cap used up (N9) | Renew to reconnect; counted with restricted lines by staff | `RESTRICTED` |
 | `PAUSED` | Stored | Customer-requested pause; the expiry clock is frozen | `RESTRICTED` |
 | `SUSPENDED` | Stored | Admin hold for fraud, abuse or equipment recovery | `REJECT` |
 | `TERMINATED` | Stored | Account closed | removed from RADIUS |

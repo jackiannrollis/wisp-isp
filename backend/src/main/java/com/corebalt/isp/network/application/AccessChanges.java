@@ -43,6 +43,7 @@ import org.springframework.stereotype.Service;
  *       at the old boundary and the redial gets the new expiry.
  *   <li>UsageThresholdReached: Disconnect, so the session redials into THROTTLED (fair use) or
  *       RESTRICTED (data cap); the address list changes, so a CoA is not enough (docs/09 step 8b).
+ *       Nothing when the profile is the same before and after (a line already throttled by grace).
  * </ul>
  */
 @Service
@@ -97,13 +98,21 @@ public class AccessChanges {
     }
 
     /**
-     * A crossing changes the address list (throttled or restricted), so the session is disconnected and
-     * redials into the profile the view now gives it. A line already throttled by grace gets one
-     * reconnect it did not strictly need; that is rarer and cheaper than a second copy of the rules.
+     * A crossing usually changes the address list (throttled or restricted), so the session is
+     * disconnected and redials into the profile the view now gives it. When the profile is the same
+     * before and after (a line already throttled by grace passing fair use) nothing is sent, as for an
+     * auto-resume the view already applied (decisions.md 2026-10-21).
      */
     public int usageThresholdReached(final UsageThresholdReached event) {
+        final boolean dataCap = event.kind() == UsageThresholdReached.Kind.DATA_CAP;
+        final Instant now = clock.instant();
+        final Optional<String> before = lines.accessProfileBeforeLimit(event.subscriptionId(), now, dataCap);
+        final Optional<String> after = lines.accessProfile(event.subscriptionId(), now, null);
+        if (before.isEmpty() || before.equals(after)) {
+            return 0;
+        }
         return request(event.subscriptionId(), Action.DISCONNECT, null,
-                event.kind() == UsageThresholdReached.Kind.FAIR_USE ? "fair-use allowance reached" : "data cap reached");
+                (dataCap ? "data cap reached: " : "fair-use allowance reached: ") + before.get() + " to " + after.orElse("?"));
     }
 
     public int packageChanged(final SubscriptionPackageChanged event) {

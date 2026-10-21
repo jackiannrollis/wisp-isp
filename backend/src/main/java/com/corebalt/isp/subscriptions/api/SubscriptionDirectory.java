@@ -18,6 +18,13 @@ public interface SubscriptionDirectory {
     Optional<String> accessProfile(UUID subscriptionId, Instant at, Instant expiresAt);
 
     /**
+     * The profile at {@code at} as it was just before a usage limit was crossed (N9): before the
+     * data cap ({@code dataCap} true) fair use still counts; before fair use no limit does. The network
+     * module compares it with {@link #accessProfile} to skip a Disconnect that would change nothing.
+     */
+    Optional<String> accessProfileBeforeLimit(UUID subscriptionId, Instant at, boolean dataCap);
+
+    /**
      * {@code nextPackageId} is what the next renewal sells (a pending change, else the current package);
      * {@code cycleStartedAt} is when the current cycle began, null while unknown (docs/09 step 8b).
      */

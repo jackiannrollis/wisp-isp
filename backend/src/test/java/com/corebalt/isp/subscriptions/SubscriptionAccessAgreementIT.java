@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.corebalt.isp.subscriptions.domain.AccessPolicy;
 import com.corebalt.isp.subscriptions.domain.AccessProfile;
+import com.corebalt.isp.subscriptions.domain.AccessReason;
 import com.corebalt.isp.subscriptions.domain.DisplayStatus;
 import com.corebalt.isp.subscriptions.domain.FairUse;
 import com.corebalt.isp.subscriptions.domain.GraceMode;
@@ -28,7 +29,8 @@ import org.junit.jupiter.api.Test;
  * S3: {@code AccessPolicy} and {@code v_radius_auth_v6} return the same profile and the same
  * Session-Timeout for the same inputs at the same instant, and {@code DisplayStatus} and the SQL
  * function {@code subscription_line_access()} (which {@code v_subscription_status} uses, on top of
- * {@code subscription_access_v2()}, as v6 does) the same profile, next change and display status (S1).
+ * {@code subscription_access_v3()}, itself on top of the {@code subscription_access_v2()} that v6 uses) the
+ * same profile, next change, display status and access reason (S1).
  * The inputs include each line's cycle usage against its package's fair-use allowance and data cap
  * (docs/09 step 8b): below, at the allowance, at the cap, a counter left from an older cycle, and a line
  * whose cycle start is unknown. Java derives the two usage flags with {@link FairUse}, as the
@@ -108,6 +110,9 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                             .isEqualTo(DisplayStatus.of(line.getValue(), decision, now).name());
                     assertThat(sql[2]).as("function next change of %s %s", username, line.getValue())
                             .isEqualTo(decision.nextChangeAt() == null ? null : decision.nextChangeAt().toString());
+                    final AccessReason reason = AccessReason.of(line.getValue(), decision, now);
+                    assertThat(sql[3]).as("function access reason of %s %s", username, line.getValue())
+                            .isEqualTo(reason == null ? null : reason.name());
                     final String listed = viewStatus.get(username);
                     assertThat(listed).as("v_subscription_status of %s", username).isEqualTo(sql[1]);
                     compared++;
@@ -123,6 +128,9 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                     assertThat(profileOf(view.get(probe(code, Usage.STALE)))).isEqualTo(AccessProfile.FULL);
                     assertThat(profileOf(view.get(probe(code, Usage.UNKNOWN)))).isEqualTo(AccessProfile.FULL);
                     assertThat(profileOf(view.get(probe(code, Usage.NONE)))).isEqualTo(AccessProfile.FULL);
+                    assertThat(viewStatus.get(probe(code, Usage.FAIR_USE))).isEqualTo("THROTTLED");
+                    assertThat(viewStatus.get(probe(code, Usage.DATA_CAP))).isEqualTo("CAPPED");
+                    assertThat(viewStatus.get(probe(code, Usage.NONE))).isEqualTo("ACTIVE");
                 }
 
                 // The three forms of one pause agree with each other too: paused with pause_until
@@ -310,7 +318,7 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
     private static Map<String, String[]> readFunction(final Connection db, final Instant now) throws Exception {
         final Map<String, String[]> rows = new HashMap<>();
         try (PreparedStatement statement = db.prepareStatement("""
-                select s.pppoe_username, a.profile, a.display_status, a.next_change_at
+                select s.pppoe_username, a.profile, a.display_status, a.next_change_at, a.access_reason
                 from subscriptions_subscription s
                 cross join lateral subscription_line_access(s.id, ?) a
                 where s.pppoe_username like 'ZQ%'
@@ -320,7 +328,7 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                 while (rs.next()) {
                     final Timestamp next = rs.getTimestamp(4);
                     rows.put(rs.getString(1), new String[] {
-                        rs.getString(2), rs.getString(3), next == null ? null : next.toInstant().toString()});
+                        rs.getString(2), rs.getString(3), next == null ? null : next.toInstant().toString(), rs.getString(5)});
                 }
             }
         }
