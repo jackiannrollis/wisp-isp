@@ -167,6 +167,10 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          # The only non-Debian artifact is upstream's gosu, the helper the official entrypoint uses to
+          # drop from root to postgres; Trivy reports its Go standard library (net/http, crypto/tls),
+          # which gosu never calls. The Debian packages, pgBackRest included, are scanned in full.
+          skip-files: /usr/local/bin/gosu
 
   ansible:
     name: Ansible (lint, converge on a throwaway Debian 13)
