@@ -137,7 +137,8 @@ fi
 
 echo "== deploy again: the same release changes nothing"
 release stacktest-1
-./stackctl deploy images.env.new | grep -q 'already deployed' && echo "   ok   already deployed" || { echo "   FAIL"; fail=1; }
+# Outputs are captured before grep: with pipefail, grep -q closing the pipe early would fail the pipeline.
+out=$(./stackctl deploy images.env.new); echo "$out" | grep -q 'already deployed' && echo "   ok   already deployed" || { echo "   FAIL"; echo "$out"; fail=1; }
 
 echo "== a release whose API never gets healthy is rolled back (the other instance kept serving)"
 release stacktest-2 alpine:3.22
@@ -152,9 +153,9 @@ rm -f deploy.log
 echo "== a good release (the same backend under a new reference, so it is a real rollout), then stackctl rollback"
 docker tag corebalt-stacktest/backend corebalt-stacktest/backend:release-3
 release stacktest-3 corebalt-stacktest/backend:release-3
-./stackctl deploy images.env.new | grep -q 'stacktest-3 deployed' && echo "   ok   stacktest-3 deployed" || { echo "   FAIL deploy"; fail=1; }
-./stackctl rollback | grep -q 'back on release stacktest-1' && echo "   ok   back on stacktest-1" || { echo "   FAIL rollback"; fail=1; }
-./stackctl status | grep -q 'release stacktest-1 (previous: stacktest-3)' && echo "   ok   status: stacktest-1, previous stacktest-3" || { echo "   FAIL status"; ./stackctl status; fail=1; }
+out=$(./stackctl deploy images.env.new); echo "$out" | grep -q 'stacktest-3 deployed' && echo "   ok   stacktest-3 deployed" || { echo "   FAIL deploy"; echo "$out"; fail=1; }
+out=$(./stackctl rollback); echo "$out" | grep -q 'back on release stacktest-1' && echo "   ok   back on stacktest-1" || { echo "   FAIL rollback"; echo "$out"; fail=1; }
+out=$(./stackctl status); echo "$out" | grep -q 'release stacktest-1 (previous: stacktest-3)' && echo "   ok   status: stacktest-1, previous stacktest-3" || { echo "   FAIL status"; echo "$out"; fail=1; }
 
 echo "== services"
 ./stackctl status
