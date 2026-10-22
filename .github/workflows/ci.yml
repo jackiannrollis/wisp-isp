@@ -152,6 +152,21 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+      - name: Build PostgreSQL image (official plus pgBackRest)
+        uses: docker/build-push-action@v7
+        with:
+          context: infra/postgres
+          load: true
+          tags: corebalt/isp-postgres:${{ github.sha }}
+          cache-from: type=gha,scope=postgres
+          cache-to: type=gha,mode=max,scope=postgres
+      - name: Scan PostgreSQL image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: corebalt/isp-postgres:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
 
   ansible:
     name: Ansible (lint, converge on a throwaway Debian 13)
@@ -176,7 +191,7 @@ jobs:
         run: bash infra/ansible/tests/converge.sh
 
   stack:
-    name: Stack (staging/production compose, local TLS, routing checks)
+    name: Stack (staging/production compose, local TLS, routing, backups)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -206,6 +221,14 @@ jobs:
           tags: corebalt-stacktest/web
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
+      - name: PostgreSQL image (official plus pgBackRest)
+        uses: docker/build-push-action@v7
+        with:
+          context: infra/postgres
+          load: true
+          tags: corebalt-stacktest/postgres
+          cache-from: type=gha,scope=postgres
+          cache-to: type=gha,mode=max,scope=postgres
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
@@ -214,12 +237,12 @@ jobs:
       - name: Frontend dependencies (Playwright, for the browser smoke through the front)
         working-directory: frontend
         run: npm ci
-      - name: Start the stack, load the lab seed, check the routing and both apps from outside
+      - name: Start the stack, load the lab seed, check the routing and both apps from outside, back up, drill, restore
         run: STACKTEST_SKIP_BUILD=1 bash infra/stack/test.sh
       - name: Logs on failure
         if: failure()
         working-directory: infra/stack
-        run: docker compose -f compose.yml -f compose.override.yml --env-file .env --env-file images.env logs --no-color --tail 150 web api-1 api-2 postgres freeradius
+        run: docker compose -f compose.yml -f compose.override.yml --env-file .env --env-file images.env logs --no-color --tail 150 web api-1 api-2 postgres freeradius s3
 
   # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
   # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key
@@ -249,6 +272,9 @@ jobs:
             context: .
             file: infra/web/Dockerfile
             cache: web
+          - name: postgres
+            context: infra/postgres
+            cache: postgres
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4

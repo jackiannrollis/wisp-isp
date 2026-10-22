@@ -38,3 +38,9 @@ all:
     vault_ghcr_token: ""
     vault_ghcr_tag_token: ""
     ghcr_owner: converge
+    backup_s3_endpoint: s3.converge.test
+    backup_s3_bucket: converge-backups
+    backup_s3_region: converge
+    vault_backup_s3_key: converge-fake-s3-key
+    vault_backup_s3_key_secret: converge-fake-s3-secret
+    vault_backup_cipher_pass: converge-fake-cipher-passphrase

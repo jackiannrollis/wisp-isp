@@ -1,0 +1,47 @@
+# Backup alerts (docs/08 Monitoring: a backup older than 26 hours; decisions.md 2026-10-22). The
+# metrics are text files written by backupctl on each stack host (/srv/corebalt/metrics, read by
+# node_exporter's textfile collector); the monitoring stack's Prometheus evaluates these rules.
+# Unit tests: infra/monitoring/tests/backups.yml (promtool test rules), run by infra/stack/test.sh.
+groups:
+  - name: corebalt-backups
+    rules:
+      - alert: CorebaltBackupStale
+        expr: time() - corebalt_backup_last_good_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No good database backup for over 26 hours"
+          description: "The newest successful pgBackRest backup on this host is more than 26 hours old. backupctl status on the host; infra/ops/runbooks/backups.md."
+      - alert: CorebaltBackupFailed
+        expr: corebalt_backup_last_run_success == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The last database backup run failed"
+          description: "backupctl backup failed on its last run (journalctl -u corebalt-backup on the host). CorebaltBackupStale follows if it keeps failing."
+      - alert: CorebaltBackupMetricsMissing
+        expr: absent(corebalt_backup_last_good_timestamp_seconds)
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "No backup metrics at all"
+          description: "No backup has ever run, the data disk is locked, or node_exporter does not read /srv/corebalt/metrics."
+      - alert: CorebaltRestoreDrillFailed
+        expr: corebalt_backup_drill_success == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The last restore drill failed"
+          description: "The monthly restore of the newest backup failed a step or a check (schema, row counts, ledger). journalctl -u corebalt-restore-drill on the host; infra/ops/runbooks/backups.md."
+      - alert: CorebaltRestoreDrillOverdue
+        expr: time() - corebalt_backup_drill_last_run_timestamp_seconds > 40 * 86400 or absent(corebalt_backup_drill_last_run_timestamp_seconds)
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No restore drill in 40 days"
+          description: "The restore drill has not run for 40 days, or never: ops drill <inventory> runs it now."

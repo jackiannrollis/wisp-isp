@@ -11,6 +11,7 @@
 #                              its health gate; a failure rolls the previous release back
 #   stackctl rollback          roll the previous release (images.env.previous) back
 #   stackctl status            what is deployed and running
+# Backups, the restore drill and disaster recovery: backupctl, beside this script.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
@@ -28,9 +29,18 @@ compose() { compose_with images.env "$@"; }
 release() { sed -n 's/^RELEASE=//p' "${1:-images.env}" 2>/dev/null | head -1; }
 
 roll() { # each service in order, recreated only when its image changed; stops at the first unhealthy one
-    local svc
-    # The foundation is never part of a release; on a first deploy it is not running yet.
+    local svc out
+    # The foundation first: on a first deploy it is not running yet. rabbitmq and redis are pinned in
+    # compose.yml; postgres comes from images.env like the application images, so a release that
+    # changes it restarts the database here (seconds; the APIs reconnect).
     compose up -d --wait --wait-timeout "$WAIT" postgres rabbitmq redis >/dev/null 2>&1         || { echo "   postgres, rabbitmq or redis FAILED to come up" >&2; return 1; }
+    echo "   postgres, rabbitmq, redis ok"
+    # The backup repository's stanza, created on the first deploy and a no-op afterwards. Best effort:
+    # a backup problem must not block a release; the nightly backup and its alert report it.
+    if [ -x ./backupctl ] && [ -s pgbackrest.conf ]; then
+        if out=$(./backupctl stanza 2>&1); then echo "   backups ok (stanza present, archiving checked)"
+        else echo "   backups WARNING: $(echo "$out" | grep -v '^ *$' | tail -1) (backupctl stanza)" >&2; fi
+    fi
     for svc in $ROLL_ORDER; do
         if compose up -d --no-deps --wait --wait-timeout "$WAIT" "$svc" >/dev/null 2>&1; then
             echo "   $svc ok"
@@ -64,7 +74,7 @@ case "${1:-}" in
         echo "== pulling release $(release "$new")"
         # Before anything changes. A local-only image (the test) cannot be pulled, so a pull failure is
         # not final here: a missing image fails the service's health gate below and is rolled back.
-        compose_with "$new" pull --quiet --ignore-pull-failures api-1 api-2 tunnel-worker freeradius web 2>&1 \
+        compose_with "$new" pull --quiet --ignore-pull-failures postgres api-1 api-2 tunnel-worker freeradius web 2>&1 \
             | grep -v '^$' | sed 's/^/   /' || true
         [ -f images.env ] && cp images.env images.env.previous
         mv "$new" images.env

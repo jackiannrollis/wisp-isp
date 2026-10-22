@@ -33,8 +33,12 @@ ask admin_password "First platform admin's temporary password (changed at first 
 ask ghcr_user "GitHub user the hosts pull images as"
 ask ghcr_token "GHCR token with read:packages only (the hosts pull with it)" secret
 read -r -s -p "Optional: a GHCR token with write:packages, for marking deployed images (Enter to skip): " ghcr_tag_token; echo
+ask backup_s3_key "Backup bucket (S3-compatible Object Storage) access key, for this inventory's bucket only"
+ask backup_s3_key_secret "Backup bucket secret key" secret
 
 kid="k$(date -u +%Y%m%d%H%M)"
+# The repository cipher passphrase: every backup is unreadable without it (key escrow).
+backup_cipher_pass=$(openssl rand -hex 32)
 jwt_key=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 2>/dev/null \
     | openssl pkcs8 -topk8 -nocrypt -outform DER | openssl base64 -A)
 master_key=$(openssl rand -base64 32)
@@ -61,7 +65,10 @@ vault_bootstrap_admin_password: $admin_password
 vault_ghcr_user: $ghcr_user
 vault_ghcr_token: $ghcr_token
 vault_ghcr_tag_token: $ghcr_tag_token
+vault_backup_s3_key: $backup_s3_key
+vault_backup_s3_key_secret: $backup_s3_key_secret
+vault_backup_cipher_pass: $backup_cipher_pass
 EOF
 echo "Choose the vault password (it goes into the password manager; it is asked for on every provision and deploy):"
 ansible-vault encrypt --output "$target" "$tmp"
-echo "Written: infra/ansible/$target (encrypted). Put the vault password, the master key and the signing key into escrow now: infra/ops/runbooks/key-escrow.md."
+echo "Written: infra/ansible/$target (encrypted). Put the vault password, the master key, the signing key and the backup cipher passphrase into escrow now: infra/ops/runbooks/key-escrow.md."

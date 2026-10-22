@@ -13,7 +13,7 @@
   gather_facts: false
   tags: [resolve]
   vars:
-    deploy_images: [backend, freeradius, web]
+    deploy_images: [backend, freeradius, web, postgres]
   tasks:
     - name: A release is named
       ansible.builtin.assert:
@@ -106,6 +106,7 @@
           BACKEND_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['backend'] }}
           FREERADIUS_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['freeradius'] }}
           WEB_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['web'] }}
+          POSTGRES_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['postgres'] }}
           RELEASE={{ release }}
           DEPLOYED_AT={{ '%Y-%m-%dT%H:%M:%SZ' | strftime(utc=true) }}
 
@@ -151,7 +152,7 @@
             crane tag {{ item }} previous-{{ inventory_dir | basename }}
           loop: >-
             {{ (deploy_previous_env.content | default('') | b64decode).splitlines()
-               | select('match', '^(BACKEND|FREERADIUS|WEB)_IMAGE=.*@sha256:')
+               | select('match', '^(BACKEND|FREERADIUS|WEB|POSTGRES)_IMAGE=.*@sha256:')
                | map('regex_replace', '^[A-Z_]+=', '') | list }}
           changed_when: true
 

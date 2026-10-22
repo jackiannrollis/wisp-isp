@@ -1,0 +1,14 @@
+# Managed by Ansible (roles/stack). The nightly database backup (infra/ops/runbooks/backups.md),
+# started by corebalt-backup.timer; skipped, not failed, while the data disk is locked or nothing is
+# deployed. No WorkingDirectory: see corebalt-stack.service.
+[Unit]
+Description=Corebalt nightly database backup (pgBackRest)
+Requires=docker.service
+After=docker.service network-online.target corebalt-stack.service
+ConditionPathIsMountPoint={{ stack_data_dir }}
+ConditionPathExists={{ stack_dir }}/images.env
+
+[Service]
+Type=oneshot
+ExecStart={{ stack_dir }}/backupctl backup
+TimeoutStartSec=4h

@@ -46,9 +46,22 @@
           - vault_acme_dns_api_token is defined
           - vault_ghcr_user is defined
           - vault_ghcr_token is defined
+          - vault_backup_s3_key is defined
+          - vault_backup_s3_key_secret is defined
+          - vault_backup_cipher_pass is defined
         fail_msg: >-
           The inventory's vault is incomplete: create it with
           infra/ops/ops.ps1 secrets <inventory> (infra/ops/README.md, Secrets).
+
+    - name: Backup repository settings are present
+      ansible.builtin.assert:
+        that:
+          - backup_s3_endpoint is defined
+          - backup_s3_bucket is defined
+          - backup_s3_region is defined
+        fail_msg: >-
+          backup_s3_endpoint, backup_s3_bucket and backup_s3_region name the inventory's backup bucket
+          (inventories/example/group_vars/all/main.yml; infra/ops/runbooks/backups.md).
 
     - name: Stack directory
       ansible.builtin.file:
@@ -68,6 +81,13 @@
         - { name: rabbitmq, uid: "{{ stack_rabbitmq_uid }}" }
         - { name: caddy/data, uid: "{{ stack_caddy_uid }}" }
         - { name: caddy/config, uid: "{{ stack_caddy_uid }}" }
+        - { name: drill, uid: "{{ stack_postgres_uid }}" }
+
+    - name: Metrics directory (backup results as text files, read by node_exporter)
+      ansible.builtin.file:
+        path: "{{ stack_metrics_dir }}"
+        state: directory
+        mode: "0755"
 
     - name: Compose file
       ansible.builtin.copy:
@@ -87,6 +107,44 @@
         src: "{{ playbook_dir }}/../postgres/init/01-roles.sh"
         dest: "{{ stack_dir }}/postgres-init/01-roles.sh"
         mode: "0755"
+
+    - name: Backup control script (the timers, the backup playbook and disaster recovery go through it)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../stack/backupctl.sh"
+        dest: "{{ stack_dir }}/backupctl"
+        mode: "0750"
+
+    - name: Configuration of pgBackRest (the repository, its credentials and the cipher passphrase; root and the postgres uid only)
+      ansible.builtin.template:
+        src: pgbackrest.conf.j2
+        dest: "{{ stack_dir }}/pgbackrest.conf"
+        owner: "{{ stack_postgres_uid }}"
+        group: "{{ stack_postgres_uid }}"
+        mode: "0400"
+      no_log: true
+      notify: Restart stack
+
+    - name: Backup and restore-drill units and timers
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: "0644"
+      loop:
+        - corebalt-backup.service
+        - corebalt-backup.timer
+        - corebalt-restore-drill.service
+        - corebalt-restore-drill.timer
+      register: stack_backup_units
+
+    - name: Backup and restore-drill timers running
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: "{{ 'restarted' if stack_backup_units.changed else 'started' }}"
+        daemon_reload: true
+      loop:
+        - corebalt-backup.timer
+        - corebalt-restore-drill.timer
 
     - name: Environment (secrets from the vault; root only)
       ansible.builtin.template:

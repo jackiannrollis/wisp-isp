@@ -1,0 +1,12 @@
+# Managed by Ansible (roles/stack). A missed run (host off) is made up at boot, where the service's
+# conditions skip it until the disk is unlocked; the next night's run then reports as usual.
+[Unit]
+Description=Corebalt nightly database backup
+
+[Timer]
+OnCalendar={{ stack_backup_on_calendar }}
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

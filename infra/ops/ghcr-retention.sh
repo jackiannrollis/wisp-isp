@@ -8,7 +8,7 @@
 set -euo pipefail
 
 OWNER="${OWNER:?set OWNER, the GHCR namespace (a GitHub user)}"
-PACKAGES="${PACKAGES:-corebalt-isp-backend corebalt-isp-freeradius corebalt-isp-wireguard corebalt-isp-web}"
+PACKAGES="${PACKAGES:-corebalt-isp-backend corebalt-isp-freeradius corebalt-isp-wireguard corebalt-isp-web corebalt-isp-postgres}"
 KEEP="${KEEP:-30}"
 APPLY="${APPLY:-false}"
 

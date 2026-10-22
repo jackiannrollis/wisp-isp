@@ -1,0 +1,40 @@
+---
+# Backups on an inventory's stack hosts, through backupctl (infra/ops/runbooks/backups.md):
+#   ops.ps1 backup staging          a full backup now (backup_action=backup); the first one after a
+#                                   deploy, or before risky work
+#   ops.ps1 drill staging           the restore drill now (backup_action=drill)
+#   ops.ps1 backup-status staging   the repository and the last results (backup_action=status)
+# The timers on the host run the same commands nightly and monthly.
+- name: Backups
+  hosts: stack_hosts
+  become: true
+  serial: 1
+  vars:
+    stack_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/stack"
+    backup_action: status
+  tasks:
+    - name: A known action
+      ansible.builtin.assert:
+        that: backup_action in ['backup', 'drill', 'status']
+        fail_msg: "backup_action must be backup, drill or status"
+
+    - name: Run backupctl {{ backup_action }}
+      ansible.builtin.command: "{{ stack_dir }}/backupctl {{ backup_action }}"
+      register: backup_run
+      changed_when: backup_action != 'status'
+      failed_when: backup_run.rc != 0
+
+    - name: What backupctl said
+      ansible.builtin.debug:
+        msg: "{{ (backup_run.stdout_lines + backup_run.stderr_lines) | select | list }}"
+
+    - name: Status afterwards
+      ansible.builtin.command: "{{ stack_dir }}/backupctl status"
+      register: backup_status
+      changed_when: false
+      when: backup_action != 'status'
+
+    - name: Repository and results
+      ansible.builtin.debug:
+        msg: "{{ backup_status.stdout_lines | select | list }}"
+      when: backup_action != 'status'

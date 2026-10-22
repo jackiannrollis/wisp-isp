@@ -1,0 +1,15 @@
+# Managed by Ansible (roles/stack). The monthly restore drill (docs/08; infra/ops/runbooks/backups.md):
+# the newest backup restored into a scratch instance on the data disk and checked, pass or fail
+# written for Prometheus. Started by corebalt-restore-drill.timer; skipped while the data disk is
+# locked or nothing is deployed.
+[Unit]
+Description=Corebalt monthly restore drill (pgBackRest)
+Requires=docker.service
+After=docker.service network-online.target corebalt-stack.service
+ConditionPathIsMountPoint={{ stack_data_dir }}
+ConditionPathExists={{ stack_dir }}/images.env
+
+[Service]
+Type=oneshot
+ExecStart={{ stack_dir }}/backupctl drill
+TimeoutStartSec=6h

@@ -1,0 +1,94 @@
+# promtool unit tests for rules/backups.yml. Test time starts at the epoch; "fresh" series carry the
+# evaluation time as their value (a backup or drill finishing every minute), "stale" ones stay at 0.
+rule_files:
+  - ../rules/backups.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'corebalt_backup_last_good_timestamp_seconds{instance="fresh"}'
+        values: "0+60x1700"
+      - series: 'corebalt_backup_last_run_success{instance="fresh"}'
+        values: "1+0x1700"
+      - series: 'corebalt_backup_last_good_timestamp_seconds{instance="stale"}'
+        values: "0+0x1700"
+      - series: 'corebalt_backup_last_run_success{instance="stale"}'
+        values: "0+0x1700"
+      - series: 'corebalt_backup_drill_success{instance="fresh"}'
+        values: "1+0x1700"
+      - series: 'corebalt_backup_drill_last_run_timestamp_seconds{instance="fresh"}'
+        values: "0+60x1700"
+      - series: 'corebalt_backup_drill_success{instance="stale"}'
+        values: "0+0x1700"
+      - series: 'corebalt_backup_drill_last_run_timestamp_seconds{instance="stale"}'
+        values: "0+0x1700"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: CorebaltBackupStale
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: CorebaltBackupStale
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: stale }
+            exp_annotations:
+              summary: "No good database backup for over 26 hours"
+              description: "The newest successful pgBackRest backup on this host is more than 26 hours old. backupctl status on the host; infra/ops/runbooks/backups.md."
+      - eval_time: 1h
+        alertname: CorebaltBackupFailed
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: stale }
+            exp_annotations:
+              summary: "The last database backup run failed"
+              description: "backupctl backup failed on its last run (journalctl -u corebalt-backup on the host). CorebaltBackupStale follows if it keeps failing."
+      - eval_time: 2h
+        alertname: CorebaltBackupMetricsMissing
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: CorebaltRestoreDrillFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: stale }
+            exp_annotations:
+              summary: "The last restore drill failed"
+              description: "The monthly restore of the newest backup failed a step or a check (schema, row counts, ledger). journalctl -u corebalt-restore-drill on the host; infra/ops/runbooks/backups.md."
+      - eval_time: 20h
+        alertname: CorebaltRestoreDrillOverdue
+        exp_alerts: []
+  # A host with no backup metrics at all (never backed up, disk locked, exporter not reading the files).
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CorebaltBackupMetricsMissing
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: CorebaltBackupMetricsMissing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "No backup metrics at all"
+              description: "No backup has ever run, the data disk is locked, or node_exporter does not read /srv/corebalt/metrics."
+      - eval_time: 7h
+        alertname: CorebaltRestoreDrillOverdue
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "No restore drill in 40 days"
+              description: "The restore drill has not run for 40 days, or never: ops drill <inventory> runs it now."
+  # A drill that last ran at the epoch: overdue after 40 days (plus the 6-hour grace), not before.
+  - interval: 1h
+    input_series:
+      - series: "corebalt_backup_drill_last_run_timestamp_seconds"
+        values: "0+0x1100"
+      - series: "corebalt_backup_drill_success"
+        values: "1+0x1100"
+    alert_rule_test:
+      - eval_time: 39d
+        alertname: CorebaltRestoreDrillOverdue
+        exp_alerts: []
+      - eval_time: 41d
+        alertname: CorebaltRestoreDrillOverdue
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "No restore drill in 40 days"
+              description: "The restore drill has not run for 40 days, or never: ops drill <inventory> runs it now."

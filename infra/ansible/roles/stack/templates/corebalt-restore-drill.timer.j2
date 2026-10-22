@@ -1,0 +1,11 @@
+# Managed by Ansible (roles/stack). The first Sunday of the month by default; a run missed because
+# the host was off is made up at boot (and skipped while the disk is locked: run ops drill then).
+[Unit]
+Description=Corebalt monthly restore drill
+
+[Timer]
+OnCalendar={{ stack_drill_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

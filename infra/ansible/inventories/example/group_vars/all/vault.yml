@@ -11,8 +11,8 @@ vault_redis_password: example-not-a-secret
 # M-Pesa and SMS credentials: it is in key escrow (infra/ops/runbooks/key-escrow.md).
 vault_master_key: ZXhhbXBsZS1ub3QtYS1zZWNyZXQtZXhhbXBsZS1ub3QtYS1zZWM=
 # Token signing key (ADR 0010): kid and the PKCS#8 private key, base64; retired public keys stay
-# listed until their tokens expire (infra/scripts/jwt-key rotates the local one; secrets --rotate-jwt
-# the inventory's).
+# listed until their tokens expire (infra/scripts/jwt-key rotates the local one; an inventory's is
+# rotated by hand with ansible-vault edit, infra/ops/README.md Secrets).
 vault_jwt_kid: kexample
 vault_jwt_private_key: example-not-a-secret
 vault_jwt_retired_keys: ""
@@ -29,3 +29,10 @@ vault_ghcr_token: example-not-a-secret
 # in the registry (the retention keeps those). Empty: deployed images are kept only while they are
 # among the last 30 releases.
 vault_ghcr_tag_token: ""
+# Backups: the bucket's S3 credentials (a key pair for this inventory's bucket only) and the pgBackRest
+# cipher passphrase. Every backup and WAL segment is unreadable without the passphrase, so it is in key
+# escrow (infra/ops/runbooks/key-escrow.md); the host keeps a copy in pgbackrest.conf, root and the
+# postgres uid only.
+vault_backup_s3_key: example-not-a-secret
+vault_backup_s3_key_secret: example-not-a-secret
+vault_backup_cipher_pass: example-not-a-secret

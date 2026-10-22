@@ -20,7 +20,7 @@ A Corebalt outage takes every tenant's customers offline, so reliability is part
 - Two FreeRADIUS nodes, one in a Nairobi data centre, every router configured with both.
 - PostgreSQL primary with a streaming replica in Nairobi; each RADIUS node reads the nearest database; replication lag alerted above 30 seconds.
 - RabbitMQ cluster with durable quorum queues and persistent messages; dead-letter queues alerted.
-- Nightly full backups plus continuous WAL archiving for point-in-time recovery, encrypted at rest and in transit to storage; a restore drill every month; a RADIUS failover drill every quarter.
+- Nightly full backups plus continuous WAL archiving for point-in-time recovery, encrypted at rest and in transit to storage; a restore drill every month; a RADIUS failover drill every quarter. In place: pgBackRest from the database container to Object Storage in the EU, WAL within five minutes, 30 days kept, the drill restoring the newest backup into a scratch instance and checking the schema, the row counts and the ledger (`infra/ops/runbooks/backups.md`).
 - Capacity: FreeRADIUS and PostgreSQL sized for 10× the current subscriber count; `radacct` partitions dropped after 13 months, roll-ups kept.
 - Deployments roll one API instance at a time with health checks; schema migrations are backwards compatible for one release.
 
@@ -36,7 +36,7 @@ A Corebalt outage takes every tenant's customers offline, so reliability is part
 | RabbitMQ | Queue depth growing for 10 minutes, or any dead-letter message |
 | Routers | WireGuard handshake older than 5 minutes |
 | Wallet drift | Nightly recompute differs from cached balance |
-| Certificates, disk, backups | Standard host alerts; backup older than 26 hours |
+| Certificates, disk, backups | Standard host alerts; the newest good backup older than 26 hours, a failed backup run, the monthly restore drill failed or not run for 40 days (`infra/monitoring/rules/backups.yml`) |
 
 Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant_id` and `correlation_id` on every line.
 
@@ -61,6 +61,7 @@ Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant
 - Tenant ISPs are data controllers; Corebalt is their data processor. Corebalt registers with the Office of the Data Protection Commissioner (ODPC) and signs a data processing agreement with every tenant before customer data is imported.
 - Customer records include the purpose of processing and retention: active data for the life of the subscription, accounting and ledger history for 7 years for tax and lawful-request reasons, then deletion.
 - Hosting the core outside Kenya requires documented cross-border transfer safeguards; the Nairobi replica and in-country RADIUS also support an all-Kenya hosting option if a tenant requires it.
+- Backups are part of that transfer. The pgBackRest repository in Hetzner Object Storage (the EU, the host's region) holds every table, so personal data and, inside the encrypted archive, the RADIUS credentials that ADR 0009 keeps in clear. The safeguard recorded for it: every backup and WAL segment is encrypted on the host before it leaves (AES-256-CBC, pgBackRest repository encryption) with a passphrase held in the inventory's vault and in key escrow, never by the storage provider; transport is TLS; the bucket's credentials belong to one environment; backups are kept 30 days; the monthly restore drill runs on the encrypted data disk and wipes its copy; no copy leaves the EU. Staging holds no production data (docs/02), so its backups carry none. The record of processing and each tenant's processing agreement name Hetzner (data centre and Object Storage) as the sub-processor and this safeguard (`infra/ops/runbooks/backups.md`).
 - Customers can request their data and its deletion through the tenant; the platform provides export and anonymisation tools per customer.
 
 ### Lawful requests

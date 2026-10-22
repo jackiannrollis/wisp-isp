@@ -1,10 +1,13 @@
 # Local test only (test.sh): named volumes instead of /srv/corebalt (new bind-mounted folders hang on
-# Docker Desktop), and the repository's database init scripts.
+# Docker Desktop), the repository's database init scripts, and an S3 server for the backups: versitygw
+# with a self-signed certificate, which the test's pgbackrest.conf accepts (repo1-storage-verify-tls=n).
 services:
   postgres:
     volumes:
       - pg:/var/lib/postgresql/data
       - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    depends_on:
+      s3: { condition: service_healthy }
   rabbitmq:
     volumes:
       - rabbit:/var/lib/rabbitmq
@@ -13,8 +16,38 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+  # The certificate and the bucket (a directory, for versitygw's posix backend), made once.
+  s3-init:
+    image: corebalt-stacktest/postgres
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        test -s /certs/cert.pem || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+          -days 30 -subj /CN=s3 -addext subjectAltName=DNS:s3 -keyout /certs/key.pem -out /certs/cert.pem 2>/dev/null
+        mkdir -p /data/corebalt-stacktest
+    volumes:
+      - s3-certs:/certs
+      - s3-data:/data
+  s3:
+    image: versity/versitygw:v1.9.0
+    command: ["--cert", "/certs/cert.pem", "--key", "/certs/key.pem", "posix", "/data"]
+    environment:
+      ROOT_ACCESS_KEY: stacktest-access-key
+      ROOT_SECRET_KEY: stacktest-secret-key-not-a-secret
+    volumes:
+      - s3-certs:/certs:ro
+      - s3-data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7070"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    depends_on:
+      s3-init: { condition: service_completed_successfully }
 volumes:
   pg:
   rabbit:
   caddy-data:
   caddy-config:
+  s3-certs:
+  s3-data:

@@ -4,4 +4,7 @@
 images.env*
 compose.override.yml
 stackctl
+backupctl
+pgbackrest.conf
+metrics/
 deploy.log

@@ -38,9 +38,11 @@ containerised Ansible (`infra/ops`) with host hardening, the LUKS data disk and 
 converged in CI on a throwaway Debian; the staging/production compose stack with the web front
 (wildcard certificate by DNS-01, both apps, `pay.<domain>`), tested locally and in CI
 (`infra/stack/test.sh`); deploys by digest with signature checks, one service at a time behind
-health gates, rollback on failure (`ops deploy`, `ops rollback`, `stackctl`). Not yet: pgBackRest
-backups and the restore drill, monitoring and alerts, the key-escrow, failover-drill and onboarding
-runbooks, the Nairobi node (pending Q2).
+health gates, rollback on failure (`ops deploy`, `ops rollback`, `stackctl`); pgBackRest backups
+(encrypted repository on S3, nightly full plus WAL, the monthly restore drill with schema, row-count
+and ledger checks, textfile metrics and alert rules; `backupctl`, `ops backup|drill|backup-status`)
+with the backups and key-escrow runbooks. Not yet: monitoring and alerts (the backup rules exist,
+nothing evaluates them yet), the failover-drill and onboarding runbooks, the Nairobi node (pending Q2).
 
 ## Commands
 
@@ -96,8 +98,8 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
 | Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
 | Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
-| Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|secrets\|bootstrap\|provision\|init-disk\|unlock\|deploy\|rollback <inventory> [-Limit host] [-Release sha]` | `infra/ops/ops.sh …` |
-| Test the staging/production compose stack locally (local TLS, lab seed, routing checks) | `bash infra/stack/test.sh` (Git Bash); `… down` removes it | `infra/stack/test.sh` |
+| Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|secrets\|bootstrap\|provision\|init-disk\|unlock\|deploy\|rollback\|backup\|drill\|backup-status <inventory> [-Limit host] [-Release sha]` | `infra/ops/ops.sh …` |
+| Test the staging/production compose stack locally (local TLS, lab seed, routing checks, deploys, backups against a local S3, restore drill and disaster recovery, alert rule tests) | `bash infra/stack/test.sh` (Git Bash); `… down` removes it | `infra/stack/test.sh` |
 | Test the playbooks against a throwaway Debian 13 container | `bash infra/ansible/tests/converge.sh` (Git Bash) | `infra/ansible/tests/converge.sh` |
 | All checks (what CI runs, except the end-to-end suite) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 

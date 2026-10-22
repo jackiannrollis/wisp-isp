@@ -97,7 +97,7 @@ Naming: events are past tense, `<Aggregate><Verb>` (`PaymentReceived`), carry ID
 
 | Location | Runs |
 |---|---|
-| Hetzner (core) | Two API instances behind Caddy, PostgreSQL primary, RabbitMQ cluster, Redis, FreeRADIUS node A, WireGuard hub A, Prometheus, Grafana, Loki |
+| Hetzner (core) | Two API instances behind Caddy, PostgreSQL primary (pgBackRest backups to Hetzner Object Storage), RabbitMQ cluster, Redis, FreeRADIUS node A, WireGuard hub A, Prometheus, Grafana, Loki |
 | Nairobi data centre | PostgreSQL streaming replica, FreeRADIUS node B (reads the replica), WireGuard hub B |
 | Tenant sites | MikroTik routers with WireGuard peers to both hubs |
 

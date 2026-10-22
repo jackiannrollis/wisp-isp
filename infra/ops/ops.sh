@@ -4,11 +4,12 @@
 #   infra/ops/ops.sh secrets <inventory>
 #   infra/ops/ops.sh bootstrap|provision|init-disk|unlock <inventory> [--limit host] [--check]
 #   infra/ops/ops.sh deploy <inventory> [--release <sha>] | rollback <inventory>
+#   infra/ops/ops.sh backup|drill|backup-status <inventory>
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 IMAGE=corebalt-ops:local
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
-cmd="${1:?usage: ops.sh <lint|build|shell|secrets|bootstrap|provision|init-disk|unlock|deploy|rollback> [inventory] [--limit host] [--check] [--release sha]}"
+cmd="${1:?usage: ops.sh <lint|build|shell|secrets|bootstrap|provision|init-disk|unlock|deploy|rollback|backup|drill|backup-status> [inventory] [--limit host] [--check] [--release sha]}"
 shift
 build() { docker build -t "$IMAGE" -f "$REPO/infra/ops/Dockerfile" "$REPO/infra"; }
 [ "$cmd" = build ] && { build; exit 0; }
@@ -42,15 +43,20 @@ playbook() {
         [ -n "$release" ] || release=$(git -C "$REPO" rev-parse HEAD)
         [[ "$release" =~ ^[0-9a-f]{40}$ ]] || { echo "--release must be a full commit SHA" >&2; exit 2; }
         extra+=(-e "release=$release")
-    elif [ "$book" != site.yml ] || [ "$cmd" = bootstrap ]; then
+    elif [ "$book" = data-volume-init.yml ] || [ "$book" = unlock.yml ] || [ "$cmd" = bootstrap ]; then
         [ -n "$limit" ] || { echo "$cmd one host at a time: --limit <host>" >&2; exit 2; }
     fi
     [ "$cmd" = bootstrap ] && extra+=(-e ansible_user=root)
+    case "$cmd" in
+        backup) extra+=(-e backup_action=backup) ;;
+        drill) extra+=(-e backup_action=drill) ;;
+        backup-status) extra+=(-e backup_action=status) ;;
+    esac
     "${run[@]}" ansible-playbook -i "inventories/$inventory" "$book" "${extra[@]}"
 }
 
 case "$cmd" in
-    lint) "${run[@]}" sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml deploy.yml rollback.yml --syntax-check -e release=0000000000000000000000000000000000000000" ;;
+    lint) "${run[@]}" sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml deploy.yml rollback.yml backup.yml --syntax-check -e release=0000000000000000000000000000000000000000" ;;
     shell) "${run[@]}" bash ;;
     secrets) require_inventory "${1:-}"; "${run[@]}" bash /repo/infra/ops/secrets-init.sh "$1" ;;
     bootstrap|provision) playbook site.yml "$@" ;;
@@ -58,5 +64,6 @@ case "$cmd" in
     unlock) playbook unlock.yml "$@" ;;
     deploy) playbook deploy.yml "$@" ;;
     rollback) playbook rollback.yml "$@" ;;
+    backup|drill|backup-status) playbook backup.yml "$@" ;;
     *) echo "unknown command $cmd" >&2; exit 2 ;;
 esac

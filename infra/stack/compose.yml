@@ -39,9 +39,21 @@ x-backend-health: &backend-health
   retries: 6
 
 services:
+  # The official image plus pgBackRest (infra/postgres/Dockerfile), part of the release like the
+  # application images: a release that changes it restarts the database (seconds; the APIs
+  # reconnect). WAL goes to the encrypted repository within archive_timeout; the nightly backup, the
+  # monthly restore drill and disaster recovery go through backupctl (infra/ops/runbooks/backups.md).
   postgres:
-    image: postgres:17.11
+    image: ${POSTGRES_IMAGE:?}
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=main archive-push %p
+      - -c
+      - archive_timeout=300
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
@@ -53,6 +65,8 @@ services:
     volumes:
       - ${DATA_DIR:-/srv/corebalt}/postgres:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
+      # The repository, its credentials and the cipher passphrase (roles/stack: root and uid 999 only).
+      - ./pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
     shm_size: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d isp"]

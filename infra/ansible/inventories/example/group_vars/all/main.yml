@@ -21,4 +21,12 @@ ghcr_owner: example
 # Wildcard certificate by ACME DNS-01: cloudflare or hetzner (decisions.md 2026-10-21); the API
 # token is vault_acme_dns_api_token.
 stack_acme_dns_provider: cloudflare
+# Backups (docs/08; infra/ops/runbooks/backups.md): an S3-compatible bucket in the EU, one per
+# inventory, e.g. Hetzner Object Storage in the host's region (fsn1.your-objectstorage.com); its
+# credentials are in vault.yml, and the repository is encrypted with vault_backup_cipher_pass.
+backup_s3_endpoint: fsn1.your-objectstorage.com
+backup_s3_bucket: corebalt-example-backups
+backup_s3_region: fsn1
+stack_backup_uri_style: host       # bucket.endpoint; "path" when the provider wants endpoint/bucket
+stack_backup_retention_full: 30    # nightly full backups kept with their WAL: 30 days of point-in-time recovery
 ansible_user: "{{ operator_user }}"

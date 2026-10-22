@@ -6,7 +6,7 @@ operator, never by an automated session.
 
 ## Images
 
-CI publishes four images to the GitHub Container Registry on every push to `main`, after every check
+CI publishes five images to the GitHub Container Registry on every push to `main`, after every check
 passed (`.github/workflows/ci.yml`, job `publish`):
 
 | Image | Built from |
@@ -15,6 +15,7 @@ passed (`.github/workflows/ci.yml`, job `publish`):
 | `ghcr.io/<owner>/corebalt-isp-freeradius` | `radius/` |
 | `ghcr.io/<owner>/corebalt-isp-wireguard` | `infra/wireguard/` (local development only; hosts run the same script as a service) |
 | `ghcr.io/<owner>/corebalt-isp-web` | `infra/web/` from the repository root: both Angular apps and Caddy with the DNS plugins |
+| `ghcr.io/<owner>/corebalt-isp-postgres` | `infra/postgres/`: the official PostgreSQL 17 image plus pgBackRest (backups) |
 
 - **Tags.** Each image is tagged `sha-<full commit SHA>`, never `latest`. The job summary lists each digest.
 - **Deploys go by digest, not by tag.** The deploy playbook resolves `sha-<commit>` to its digest once, checks the signature of that digest, and writes `image@sha256:…` on the host. A tag that is later moved can't change what runs.
@@ -68,6 +69,7 @@ git ignores every inventory except the example. Fill in:
 - `ssh_allowed_cidrs`: the addresses you connect from. SSH is closed to everything else.
 - `data_volume_device`: the data disk, e.g. `/dev/disk/by-id/scsi-0HC_Volume_<id>` for a Hetzner Volume.
 - `data_volume_unlock`: see "Data disk" below.
+- `backup_s3_endpoint`, `backup_s3_bucket`, `backup_s3_region`: the inventory's backup bucket (see Backups).
 
 Leave the `nairobi` group out of a real inventory until the data centre is chosen (Q2); the example shows its shape.
 
@@ -75,17 +77,17 @@ Leave the `nairobi` group out of a real inventory until the data centre is chose
 
 Each inventory keeps its secrets in `group_vars/all/vault.yml`, encrypted with ansible-vault. `infra\ops\ops.ps1 secrets staging` creates it:
 
-- it generates the database, RabbitMQ and Redis passwords, the tenant-secret master key and the token signing key;
-- it asks you for the values only you have: the DNS provider's API token (zone DNS edit scope, for the wildcard certificate), the first platform admin's email and temporary password, and a GHCR token with `read:packages` the hosts pull images with;
+- it generates the database, RabbitMQ and Redis passwords, the tenant-secret master key, the token signing key and the backup repository's cipher passphrase;
+- it asks you for the values only you have: the DNS provider's API token (zone DNS edit scope, for the wildcard certificate), the first platform admin's email and temporary password, a GHCR token with `read:packages` the hosts pull images with, and the S3 key pair of the inventory's backup bucket;
 - it asks for a new vault password, twice, and writes the file encrypted. Nothing is printed or logged.
 
-Keep the vault password in the password manager: every `provision` and `deploy` asks for it. The master key, the signing key and the vault password belong in key escrow (`runbooks/key-escrow.md`). To change one value later: `infra\ops\ops.ps1 shell`, then `ansible-vault edit inventories/staging/group_vars/all/vault.yml`.
+Keep the vault password in the password manager: every `provision` and `deploy` asks for it. The master key, the signing key, the backup cipher passphrase and the vault password belong in key escrow (`runbooks/key-escrow.md`). To change one value later: `infra\ops\ops.ps1 shell`, then `ansible-vault edit inventories/staging/group_vars/all/vault.yml`.
 
 The example inventory's `vault.yml` is plain text with obvious placeholders, so the syntax check and the converge test can run without a password.
 
 ### Order on a new server
 
-1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it). Point the DNS records at it: `<domain>`, `admin.<domain>`, `pay.<domain>` and `*.<domain>`.
+1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it), and an Object Storage bucket for the backups in the same region, with its own S3 key pair. Point the DNS records at the server: `<domain>`, `admin.<domain>`, `pay.<domain>` and `*.<domain>`.
 2. `infra\ops\ops.ps1 secrets staging` (once per inventory, see above).
 3. `infra\ops\ops.ps1 bootstrap staging -Limit staging-1`. This first run connects as root. It:
    - creates the operator account and installs your keys;
@@ -98,6 +100,7 @@ The example inventory's `vault.yml` is plain text with obvious placeholders, so 
 4. `infra\ops\ops.ps1 init-disk staging -Limit staging-1`. It asks you to type the disk path back, refuses a disk that already holds anything, and asks for the new LUKS passphrase twice. Put the passphrase into key escrow first.
 5. `infra\ops\ops.ps1 provision staging`. From now on every run is this one, as the operator. It installs the stack (below) now that the disk is mounted. It is safe to repeat; a second run changes nothing.
 6. Deploy a release (`deploy`, see Deploying). The stack stays down until then.
+7. `infra\ops\ops.ps1 backup staging`, then `infra\ops\ops.ps1 drill staging`: the first backup and the first restore drill, so the host starts from a known-good state (see Backups).
 
 `-Check` shows what a run would change without changing it.
 
@@ -144,6 +147,18 @@ Migrations are applied by `api-1` of the new release and are backwards compatibl
 
 What the stack test proves about this (`infra/stack/test.sh`, also in CI): a first deploy, a repeat that changes nothing, a release whose API never gets healthy being rolled back while the API keeps answering, and a rollback. What it cannot: pulling from GHCR by digest and the signature check, which run only in the real deploy.
 
+## Backups
+
+PostgreSQL is backed up with pgBackRest from inside the `postgres` container to an S3-compatible bucket in the EU (Hetzner Object Storage in the host's region), one bucket per inventory. WAL segments reach it within five minutes, a full backup runs every night at 01:00 UTC, and the last 30 nightly backups are kept with their WAL, which gives 30 days of point-in-time recovery. Everything is encrypted on the host before it leaves, with the vault's cipher passphrase: the storage provider sees ciphertext only, and a backup is unreadable without the passphrase, which is why it is in key escrow. On the first Sunday of every month the host restores the newest backup into a scratch instance on the data disk, replays the archived WAL, checks the schema version, the row counts and the ledger, and writes pass or fail as metrics; a backup older than 26 hours, a failed run and a failed or overdue drill alert once the monitoring stack is up (`infra/monitoring/rules/backups.yml`). RabbitMQ and Redis are not backed up, on purpose. The runbook with the restore procedures: `runbooks/backups.md`.
+
+| Command | Does |
+|---|---|
+| `infra\ops\ops.ps1 backup staging` | a full backup now; once after the first deploy, and before risky work |
+| `infra\ops\ops.ps1 drill staging` | the restore drill now |
+| `infra\ops\ops.ps1 backup-status staging` | the repository and the last backup and drill results |
+
+On the host, `backupctl` beside `stackctl` does the same (`backup`, `drill`, `status`), plus `stanza` (run by every deploy) and `restore` for disaster recovery; the timers `corebalt-backup` and `corebalt-restore-drill` run the nightly backup and the monthly drill, and skip, like the stack unit, while the data disk is locked.
+
 ## The stack
 
 `infra/stack/compose.yml` is the application stack of a core or staging host, installed by the `stack` role into `/srv/corebalt/stack` on the encrypted disk together with `.env` (the inventory's values and vault, root only) and `images.env` (the deployed image digests, written by `deploy`). A systemd unit, `corebalt-stack`, runs `docker compose up --wait` with both files; it is skipped, not failed, while the data disk is locked or nothing is deployed.
@@ -154,7 +169,8 @@ What the stack test proves about this (`infra/stack/test.sh`, also in CI): a fir
 | `api-1`, `api-2` | `corebalt-isp-backend` | `web` only. `api-1` runs the migrations, the scheduled jobs and the outbox relay; `api-2` serves requests and consumes events, so no job runs twice |
 | `tunnel-worker` | `corebalt-isp-backend`, profile `worker` (ADR 0011) | nothing; it reaches routers through the host's hub |
 | `freeradius` | `corebalt-isp-freeradius` | routers, on the hub's tunnel address only (1812/1813 UDP) |
-| `postgres`, `rabbitmq`, `redis` | official images, pinned | the stack's network only; the RabbitMQ UI on 127.0.0.1:15672 for an SSH tunnel |
+| `postgres` | `corebalt-isp-postgres`: the official image plus pgBackRest, part of the release (a release that changes it restarts the database for seconds) | the stack's network only |
+| `rabbitmq`, `redis` | official images, pinned in the compose file | the stack's network only; the RabbitMQ UI on 127.0.0.1:15672 for an SSH tunnel |
 
 Docker's published ports bypass ufw, so the rule is: `web` publishes 80 and 443, FreeRADIUS binds the tunnel address, everything else stays internal.
 
@@ -174,6 +190,6 @@ The web front also sets the security headers (HSTS, CSP, no framing) and hides `
 
 ### Testing the stack locally
 
-`bash infra/stack/test.sh` builds the three images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside. It leaves the stack running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
+`bash infra/stack/test.sh` builds the four images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside. Then the deploy scenarios, and the backups against a local S3 server (versitygw with a self-signed certificate): a full backup, the restore drill, a disaster recovery (the database volume removed and restored from the repository, the data checked), and the alert rules' unit tests with promtool. It leaves the stack running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
 
-What it cannot prove: a real certificate from Let's Encrypt through your DNS provider, and callbacks arriving from Safaricom's addresses.
+What it cannot prove: a real certificate from Let's Encrypt through your DNS provider, callbacks arriving from Safaricom's addresses, and a real Object Storage endpoint (the URI style and region of the provider).

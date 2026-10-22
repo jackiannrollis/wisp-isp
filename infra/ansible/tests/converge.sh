@@ -75,6 +75,11 @@ docker exec "$TARGET" sh -c 'umount /srv/corebalt 2>/dev/null; cryptsetup close 
 docker exec "$TARGET" systemctl start corebalt-stack     || { docker exec "$TARGET" sh -c 'systemctl status corebalt-stack --no-pager; journalctl -u corebalt-stack --no-pager | tail -20'; echo "FAIL: starting the stack unit while locked must be a skip, not an error"; exit 1; }
 state=$(docker exec "$TARGET" systemctl is-active corebalt-stack || true)
 [ "$state" = inactive ] || { echo "FAIL: the stack unit is '$state' while the disk is locked"; exit 1; }
+# The backup service too: its timer fires, the service's conditions skip it.
+docker exec "$TARGET" systemctl start corebalt-backup.service \
+    || { docker exec "$TARGET" journalctl -u corebalt-backup --no-pager | tail -10; echo "FAIL: the backup service while locked must be a skip, not an error"; exit 1; }
+state=$(docker exec "$TARGET" systemctl is-active corebalt-backup.service || true)
+[ "$state" = inactive ] || { echo "FAIL: the backup service is '$state' while the disk is locked"; exit 1; }
 if docker exec "$TARGET" sh -c 'lsattr -d /srv/corebalt 2>/dev/null | cut -d" " -f1 | grep -q i'; then
     docker exec "$TARGET" mkdir /srv/corebalt/postgres 2>/dev/null && { echo "FAIL: the locked mount point is writable"; exit 1; }
     echo "   locked: stack unit skipped, mount point immutable"
@@ -101,6 +106,11 @@ docker exec "$TARGET" systemctl is-active corebalt-wg-hub docker
 docker exec "$TARGET" sh -c 'test -f /srv/corebalt/stack/compose.yml && test "$(stat -c %a /srv/corebalt/stack/.env)" = 600 && grep -q "^ISP_MASTER_KEY=" /srv/corebalt/stack/.env && echo "   stack installed, .env root-only"'
 docker exec "$TARGET" systemctl is-enabled corebalt-stack
 docker exec "$TARGET" /srv/corebalt/stack/stackctl status | grep -q 'not deployed' && echo "   stackctl installed; nothing deployed yet"
+docker exec "$TARGET" sh -c 'test -x /srv/corebalt/stack/backupctl && test "$(stat -c %a:%u /srv/corebalt/stack/pgbackrest.conf)" = 400:999 \
+    && grep -q "^repo1-cipher-pass=" /srv/corebalt/stack/pgbackrest.conf && echo "   backupctl installed; pgbackrest.conf for the postgres uid only"'
+docker exec "$TARGET" sh -c 'test "$(stat -c %a:%u /srv/corebalt/drill)" = 700:999 && test -d /srv/corebalt/metrics && echo "   drill and metrics directories on the data disk"'
+docker exec "$TARGET" systemctl is-active corebalt-backup.timer corebalt-restore-drill.timer | tr '\n' ' ' && echo "(backup and drill timers)"
+docker exec "$TARGET" /srv/corebalt/stack/backupctl status | grep -q 'not deployed' && echo "   backupctl: nothing deployed yet"
 root_login=$(docker run --rm --network "$NET" -v "$KEYS:/run/secrets:ro" --entrypoint sh "$OPS_IMAGE" -c \
     'cp /run/secrets/ssh_key /tmp/k && chmod 600 /tmp/k && ssh -i /tmp/k -o BatchMode=yes -o StrictHostKeyChecking=no root@172.31.250.10 true 2>&1; echo "exit $?"' | tail -1)
 [ "$root_login" != "exit 0" ] || { echo "FAIL: root can still log in"; exit 1; }

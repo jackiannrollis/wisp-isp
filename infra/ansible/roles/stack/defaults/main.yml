@@ -11,3 +11,15 @@ stack_worker_hub: A
 stack_postgres_uid: 999
 stack_rabbitmq_uid: 999
 stack_caddy_uid: 1000
+# Backups (docs/08; infra/ops/runbooks/backups.md): pgBackRest from the postgres container to an
+# S3-compatible bucket (Hetzner Object Storage in the host's region), encrypted with the vault's
+# passphrase. backup_s3_endpoint, backup_s3_bucket and backup_s3_region come from the inventory.
+stack_backup_uri_style: host    # host: bucket.endpoint (pgBackRest's default); path: endpoint/bucket
+stack_backup_repo_path: "corebalt-{{ inventory_dir | basename }}"    # one repository per inventory in the bucket
+stack_backup_retention_full: 30    # nightly full backups kept, with their WAL: 30 days of point-in-time recovery
+stack_backup_on_calendar: "*-*-* 01:00:00 UTC"            # nightly; 04:00 in Nairobi
+stack_drill_on_calendar: "Sun *-*-01..07 03:00:00 UTC"     # the first Sunday of every month
+# The drill's scratch instance (a restore holds the RADIUS credentials in clear, ADR 0009) and the
+# backup metrics (text files for node_exporter), both on the data disk.
+stack_drill_dir: "{{ stack_data_dir }}/drill"
+stack_metrics_dir: "{{ stack_data_dir }}/metrics"

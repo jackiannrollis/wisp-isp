@@ -1,0 +1,28 @@
+# Managed by Ansible (roles/stack) from the inventory and its vault. Read by pgBackRest inside the
+# postgres container (uid {{ stack_postgres_uid }}) and by the restore drill's scratch instance;
+# root and that uid only: the repository credentials and the cipher passphrase are in here. The
+# passphrase's copies of record are the vault and key escrow (infra/ops/runbooks/key-escrow.md).
+[global]
+repo1-type=s3
+repo1-s3-endpoint={{ backup_s3_endpoint }}
+repo1-s3-bucket={{ backup_s3_bucket }}
+repo1-s3-region={{ backup_s3_region }}
+repo1-s3-uri-style={{ stack_backup_uri_style }}
+repo1-s3-key={{ vault_backup_s3_key }}
+repo1-s3-key-secret={{ vault_backup_s3_key_secret }}
+repo1-path=/{{ stack_backup_repo_path }}
+# Every file in the repository, WAL included, is encrypted before it leaves the host (docs/08).
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass={{ vault_backup_cipher_pass }}
+repo1-retention-full={{ stack_backup_retention_full }}
+repo1-bundle=y
+repo1-block=y
+compress-type=zst
+process-max=2
+start-fast=y
+log-level-console=info
+log-level-file=off
+
+[main]
+pg1-path=/var/lib/postgresql/data
+pg1-socket-path=/var/run/postgresql
