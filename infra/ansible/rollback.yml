@@ -1,0 +1,19 @@
+---
+# Roll the previous release back on an inventory's stack hosts: ops.ps1 rollback staging. The host
+# swaps images.env and images.env.previous and rolls the services one at a time (stackctl rollback);
+# images already on the host need no registry access.
+- name: Roll the previous release back
+  hosts: stack_hosts
+  become: true
+  serial: 1
+  vars:
+    stack_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/stack"
+  tasks:
+    - name: Roll back
+      ansible.builtin.command: "{{ stack_dir }}/stackctl rollback"
+      register: rollback_roll
+      changed_when: "'back on release' in rollback_roll.stdout"
+
+    - name: What stackctl said
+      ansible.builtin.debug:
+        msg: "{{ (rollback_roll.stdout_lines + rollback_roll.stderr_lines) | select | list }}"

@@ -31,7 +31,8 @@ ask acme_token "DNS provider API token for the wildcard certificate (zone DNS ed
 ask admin_email "First platform admin's email"
 ask admin_password "First platform admin's temporary password (changed at first sign-in)" secret
 ask ghcr_user "GitHub user the hosts pull images as"
-ask ghcr_token "GHCR token with read:packages only" secret
+ask ghcr_token "GHCR token with read:packages only (the hosts pull with it)" secret
+read -r -s -p "Optional: a GHCR token with write:packages, for marking deployed images (Enter to skip): " ghcr_tag_token; echo
 
 kid="k$(date -u +%Y%m%d%H%M)"
 jwt_key=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 2>/dev/null \
@@ -59,6 +60,7 @@ vault_bootstrap_admin_email: $admin_email
 vault_bootstrap_admin_password: $admin_password
 vault_ghcr_user: $ghcr_user
 vault_ghcr_token: $ghcr_token
+vault_ghcr_tag_token: $ghcr_tag_token
 EOF
 echo "Choose the vault password (it goes into the password manager; it is asked for on every provision and deploy):"
 ansible-vault encrypt --output "$target" "$tmp"

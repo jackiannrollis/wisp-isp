@@ -12,8 +12,8 @@ ConditionPathExists={{ stack_dir }}/images.env
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/docker compose --project-directory {{ stack_dir }} --env-file {{ stack_dir }}/.env --env-file {{ stack_dir }}/images.env up -d --wait --wait-timeout 300 --remove-orphans
-ExecStop=/usr/bin/docker compose --project-directory {{ stack_dir }} --env-file {{ stack_dir }}/.env --env-file {{ stack_dir }}/images.env stop
+ExecStart={{ stack_dir }}/stackctl up
+ExecStop={{ stack_dir }}/stackctl stop
 TimeoutStartSec=400
 
 [Install]

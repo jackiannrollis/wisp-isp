@@ -76,6 +76,12 @@
         mode: "0640"
       notify: Restart stack
 
+    - name: Stack control script (the unit, deploy and rollback go through it)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../stack/stackctl.sh"
+        dest: "{{ stack_dir }}/stackctl"
+        mode: "0750"
+
     - name: Database init script (first start only; roles and the database)
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../postgres/init/01-roles.sh"

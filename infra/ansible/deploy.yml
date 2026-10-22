@@ -1,0 +1,164 @@
+---
+# Deploy a release to an inventory's stack hosts (decisions.md 2026-10-21, 2026-10-22; docs/02):
+#   ops.ps1 deploy staging [-Release <commit sha>]
+# 1. In the ops container: the release's sha-<commit> tags are resolved to digests with crane and,
+#    once infra/ops/cosign.pub exists, every digest's signature is checked with cosign. A tag that was
+#    moved later changes nothing on a host.
+# 2. On each host, one at a time: images.env.new is written and stackctl rolls it out (pull, then one
+#    service at a time behind its health gate; a failure rolls the previous release back).
+# 3. When the vault holds a write token, the deployed digests are tagged deployed-<inventory> and the
+#    previous ones previous-<inventory>, which the registry retention keeps.
+- name: Resolve and verify the release
+  hosts: stack_hosts[0]
+  gather_facts: false
+  tags: [resolve]
+  vars:
+    deploy_images: [backend, freeradius, web]
+  tasks:
+    - name: A release is named
+      ansible.builtin.assert:
+        that: release is defined and release is match('^[0-9a-f]{40}$')
+        fail_msg: "release must be a full commit SHA (ops.ps1 deploy <inventory> [-Release <sha>])"
+
+    - name: Registry login (local crane; the token on stdin)
+      ansible.builtin.command:
+        cmd: crane auth login {{ ghcr_registry | default('ghcr.io') }} --username {{ vault_ghcr_user | quote }} --password-stdin
+        stdin: "{{ vault_ghcr_token }}"
+      delegate_to: localhost
+      no_log: true
+      changed_when: false
+
+    - name: Digest of each image of the release
+      ansible.builtin.command: >-
+        crane {{ '--insecure' if deploy_registry_insecure | default(false) else '' }}
+        digest {{ ghcr_registry | default('ghcr.io') }}/{{ ghcr_owner }}/corebalt-isp-{{ item }}:sha-{{ release }}
+      loop: "{{ deploy_images }}"
+      delegate_to: localhost
+      register: deploy_digest
+      changed_when: false
+      failed_when: deploy_digest.rc != 0
+      ignore_errors: true
+
+    - name: Every image of the release exists
+      ansible.builtin.assert:
+        that: deploy_digest.results | map(attribute='rc') | select('ne', 0) | list | length == 0
+        fail_msg: >-
+          No published image for commit {{ release }}: CI publishes a release only after every check
+          passed on main (.github/workflows/ci.yml, publish). Push it, wait for the run, or name an
+          earlier commit with -Release.
+
+    - name: Signing key present?
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../ops/cosign.pub"
+      delegate_to: localhost
+      register: deploy_cosign_pub
+
+    - name: Signatures (no transparency log; the key from infra/ops/cosign.pub)
+      ansible.builtin.command: >-
+        cosign verify --key {{ playbook_dir }}/../ops/cosign.pub --insecure-ignore-tlog=true
+        {{ '--allow-insecure-registry' if deploy_registry_insecure | default(false) else '' }}
+        {{ ghcr_registry | default('ghcr.io') }}/{{ ghcr_owner }}/corebalt-isp-{{ item.item }}@{{ item.stdout }}
+      loop: "{{ deploy_digest.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      delegate_to: localhost
+      changed_when: false
+      when: deploy_cosign_pub.stat.exists
+
+    - name: Unsigned release (no infra/ops/cosign.pub yet)
+      ansible.builtin.debug:
+        msg: "infra/ops/cosign.pub is not there: deploying without a signature check (infra/ops/README.md, Signing)."
+      when: not deploy_cosign_pub.stat.exists
+
+    - name: Images of this release
+      ansible.builtin.set_fact:
+        deploy_image: >-
+          {{ deploy_image | default({})
+             | combine({item.item: ghcr_registry | default('ghcr.io') ~ '/' ~ ghcr_owner ~ '/corebalt-isp-' ~ item.item ~ '@' ~ item.stdout}) }}
+      loop: "{{ deploy_digest.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+- name: Roll the release out, one host at a time
+  hosts: stack_hosts
+  become: true
+  serial: 1
+  vars:
+    stack_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/stack"
+  tasks:
+    - name: The stack is installed and the data disk mounted
+      ansible.builtin.stat:
+        path: "{{ stack_dir }}/stackctl"
+      register: deploy_stackctl
+      failed_when: not deploy_stackctl.stat.exists
+
+    - name: The previous release, for the registry tags
+      ansible.builtin.slurp:
+        src: "{{ stack_dir }}/images.env"
+      register: deploy_previous_env
+      failed_when: false
+
+    - name: Write images.env.new
+      ansible.builtin.copy:
+        dest: "{{ stack_dir }}/images.env.new"
+        mode: "0640"
+        content: |
+          BACKEND_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['backend'] }}
+          FREERADIUS_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['freeradius'] }}
+          WEB_IMAGE={{ hostvars[groups['stack_hosts'][0]]['deploy_image']['web'] }}
+          RELEASE={{ release }}
+          DEPLOYED_AT={{ '%Y-%m-%dT%H:%M:%SZ' | strftime(utc=true) }}
+
+    - name: Roll out with stackctl deploy (pull, then one service at a time; rollback on failure)
+      ansible.builtin.command: "{{ stack_dir }}/stackctl deploy {{ stack_dir }}/images.env.new"
+      register: deploy_roll
+      changed_when: "'deployed' in deploy_roll.stdout"
+      failed_when: deploy_roll.rc != 0
+
+    - name: What stackctl said
+      ansible.builtin.debug:
+        msg: "{{ (deploy_roll.stdout_lines + deploy_roll.stderr_lines) | select | list }}"
+
+    - name: Stack unit running (so a reboot after unlock brings this release back)
+      ansible.builtin.systemd_service:
+        name: corebalt-stack
+        state: started
+
+- name: Mark the deployed images in the registry (retention keeps them)
+  hosts: stack_hosts[0]
+  gather_facts: false
+  tasks:
+    - name: No write token in the vault
+      ansible.builtin.debug:
+        msg: >-
+          vault_ghcr_tag_token is empty: the deployed images are not tagged deployed-{{ inventory_dir | basename }}
+          and are kept only while they are among the last 30 releases (infra/ops/README.md, Retention).
+      when: vault_ghcr_tag_token | default('') | length == 0
+
+    - name: Tag deployed and previous
+      when: vault_ghcr_tag_token | default('') | length > 0
+      delegate_to: localhost
+      block:
+        - name: Registry login with the write token
+          ansible.builtin.command:
+            cmd: crane auth login {{ ghcr_registry | default('ghcr.io') }} --username {{ vault_ghcr_user | quote }} --password-stdin
+            stdin: "{{ vault_ghcr_tag_token }}"
+          no_log: true
+          changed_when: false
+
+        - name: Tag what ran before as previous-<inventory>
+          ansible.builtin.command: >-
+            crane tag {{ item }} previous-{{ inventory_dir | basename }}
+          loop: >-
+            {{ (deploy_previous_env.content | default('') | b64decode).splitlines()
+               | select('match', '^(BACKEND|FREERADIUS|WEB)_IMAGE=.*@sha256:')
+               | map('regex_replace', '^[A-Z_]+=', '') | list }}
+          changed_when: true
+
+        - name: Tag this release as deployed-<inventory>
+          ansible.builtin.command: >-
+            crane tag {{ item.value }} deployed-{{ inventory_dir | basename }}
+          loop: "{{ deploy_image | dict2items }}"
+          loop_control:
+            label: "{{ item.key }}"
+          changed_when: true

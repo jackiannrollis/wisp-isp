@@ -9,18 +9,21 @@
 #   infra\ops\ops.ps1 provision staging [-Limit host] [-Check]   hardening, data disk, hub, stack (site.yml)
 #   infra\ops\ops.ps1 init-disk staging -Limit host              encrypt the data disk (erases it, asks twice)
 #   infra\ops\ops.ps1 unlock staging -Limit host                 open the LUKS data disk after a reboot
+#   infra\ops\ops.ps1 deploy staging [-Release <sha>]            roll a release out (the checkout's commit by default)
+#   infra\ops\ops.ps1 rollback staging                           roll the previous release back
 #   infra\ops\ops.ps1 shell                                      a shell in the toolbox
 #
 # Inventories live in infra/ansible/inventories/<name>/ (only "example" is committed). Secrets are
 # never arguments: the vault password and passphrases are prompted for.
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet("lint", "secrets", "bootstrap", "provision", "init-disk", "unlock", "shell", "build")]
+    [ValidateSet("lint", "secrets", "bootstrap", "provision", "init-disk", "unlock", "deploy", "rollback", "shell", "build")]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Inventory,
     [string]$Limit,
     [switch]$Check,
+    [string]$Release,
     [string]$SshKey = (Join-Path $HOME ".ssh\id_ed25519")
 )
 $ErrorActionPreference = "Stop"
@@ -62,7 +65,7 @@ function Playbook([string]$playbook) {
 }
 
 switch ($Command) {
-    "lint" { docker @run sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml --syntax-check" }
+    "lint" { docker @run sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml deploy.yml rollback.yml --syntax-check -e release=0000000000000000000000000000000000000000" }
     "secrets" {
         Require-Inventory
         docker @run bash /repo/infra/ops/secrets-init.sh $Inventory
@@ -82,6 +85,14 @@ switch ($Command) {
         if (-not $Limit) { throw "unlock one host at a time: -Limit <host>" }
         docker @run @(Playbook "unlock.yml")
     }
+    "deploy" {
+        # The release is a commit on main whose images CI published; by default the commit this
+        # checkout is at, so pull first to deploy the newest.
+        if (-not $Release) { $Release = (git -C $Repo rev-parse HEAD).Trim() }
+        if ($Release -notmatch '^[0-9a-f]{40}$') { throw "-Release must be a full commit SHA" }
+        docker @run @((Playbook "deploy.yml") + @("-e", "release=$Release"))
+    }
+    "rollback" { docker @run @(Playbook "rollback.yml") }
     "shell" { docker @run bash }
 }
 exit $LASTEXITCODE

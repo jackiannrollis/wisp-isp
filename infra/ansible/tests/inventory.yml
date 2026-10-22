@@ -36,3 +36,5 @@ all:
     vault_acme_dns_api_token: converge-fake-dns-token
     vault_ghcr_user: converge
     vault_ghcr_token: ""
+    vault_ghcr_tag_token: ""
+    ghcr_owner: converge

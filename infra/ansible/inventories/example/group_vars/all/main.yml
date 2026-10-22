@@ -16,6 +16,8 @@ data_volume_device: /dev/disk/by-id/scsi-0HC_Volume_EXAMPLE
 data_volume_unlock: manual
 # WireGuard hub port, public on hubs (base opens it, wireguard_hub listens on it).
 wireguard_port: 51820
+# The GHCR namespace the images are published under (the GitHub user or organisation).
+ghcr_owner: example
 # Wildcard certificate by ACME DNS-01: cloudflare or hetzner (decisions.md 2026-10-21); the API
 # token is vault_acme_dns_api_token.
 stack_acme_dns_provider: cloudflare

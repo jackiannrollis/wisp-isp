@@ -128,6 +128,22 @@ hub's tunnel address. A new published port must follow that rule.
 
 CI runs it on every push. It cannot prove what only a real server shows: the Hetzner image, the cloud firewall, a real reboot, or kernel upgrades.
 
+## Deploying
+
+A release is a commit on `main` whose images CI published (every check passed). `infra\ops\ops.ps1 deploy staging` deploys the commit your checkout is at, so pull first; `-Release <sha>` names any other, including an older one.
+
+What the deploy does:
+
+1. In the ops container, `crane` resolves each image's `sha-<commit>` tag to its digest, and once `infra/ops/cosign.pub` exists `cosign` checks every digest's signature. A missing image means CI has not published that commit yet; an unsigned one is refused once the key is in place.
+2. On each host, one at a time, it writes `images.env.new` with the digests and runs `stackctl deploy`, which pulls the images first, then recreates the services one at a time, each behind its health gate: `api-1` (runs the migrations), `api-2`, the tunnel worker, FreeRADIUS, the web front. While one API instance restarts the other keeps serving. If a service never gets healthy, `stackctl` rolls the previous release back and the deploy fails with the service's logs; the failed `images.env` is kept as `images.env.failed`.
+3. With a write token in the vault, the deployed digests are tagged `deployed-<inventory>` and the previous ones `previous-<inventory>` in the registry, which the retention job keeps. Without one, a deployed image is kept only while it is among the last 30 releases.
+
+`infra\ops\ops.ps1 rollback staging` swaps the previous release back the same way (`stackctl rollback`); the images are already on the host. `stackctl status` on a host shows the release, the previous one and every service.
+
+Migrations are applied by `api-1` of the new release and are backwards compatible for one release (docs/02), so the previous API runs on the migrated schema; a rollback never undoes a migration.
+
+What the stack test proves about this (`infra/stack/test.sh`, also in CI): a first deploy, a repeat that changes nothing, a release whose API never gets healthy being rolled back while the API keeps answering, and a rollback. What it cannot: pulling from GHCR by digest and the signature check, which run only in the real deploy.
+
 ## The stack
 
 `infra/stack/compose.yml` is the application stack of a core or staging host, installed by the `stack` role into `/srv/corebalt/stack` on the encrypted disk together with `.env` (the inventory's values and vault, root only) and `images.env` (the deployed image digests, written by `deploy`). A systemd unit, `corebalt-stack`, runs `docker compose up --wait` with both files; it is skipped, not failed, while the data disk is locked or nothing is deployed.

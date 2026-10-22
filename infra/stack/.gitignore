@@ -1,2 +1,7 @@
+# Test files written by test.sh (a host gets its own from Ansible).
 .env
 .env.*
+images.env*
+compose.override.yml
+stackctl
+deploy.log

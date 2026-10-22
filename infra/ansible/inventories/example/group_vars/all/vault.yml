@@ -25,3 +25,7 @@ vault_bootstrap_admin_password: example-not-a-secret
 # GHCR read-only token (read:packages) the host pulls images with.
 vault_ghcr_user: example
 vault_ghcr_token: example-not-a-secret
+# Optional: a token with write:packages, so deploy can tag deployed-<inventory> and previous-<inventory>
+# in the registry (the retention keeps those). Empty: deployed images are kept only while they are
+# among the last 30 releases.
+vault_ghcr_tag_token: ""

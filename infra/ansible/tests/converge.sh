@@ -100,6 +100,7 @@ docker exec "$TARGET" cryptsetup luksDump "$DISK" | grep -E '^Version|PBKDF' | h
 docker exec "$TARGET" systemctl is-active corebalt-wg-hub docker
 docker exec "$TARGET" sh -c 'test -f /srv/corebalt/stack/compose.yml && test "$(stat -c %a /srv/corebalt/stack/.env)" = 600 && grep -q "^ISP_MASTER_KEY=" /srv/corebalt/stack/.env && echo "   stack installed, .env root-only"'
 docker exec "$TARGET" systemctl is-enabled corebalt-stack
+docker exec "$TARGET" /srv/corebalt/stack/stackctl status | grep -q 'not deployed' && echo "   stackctl installed; nothing deployed yet"
 root_login=$(docker run --rm --network "$NET" -v "$KEYS:/run/secrets:ro" --entrypoint sh "$OPS_IMAGE" -c \
     'cp /run/secrets/ssh_key /tmp/k && chmod 600 /tmp/k && ssh -i /tmp/k -o BatchMode=yes -o StrictHostKeyChecking=no root@172.31.250.10 true 2>&1; echo "exit $?"' | tail -1)
 [ "$root_login" != "exit 0" ] || { echo "FAIL: root can still log in"; exit 1; }

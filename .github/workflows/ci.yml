@@ -219,7 +219,7 @@ jobs:
       - name: Logs on failure
         if: failure()
         working-directory: infra/stack
-        run: docker compose -p corebalt-stacktest -f compose.yml -f test.override.yml --env-file .env.test logs --no-color --tail 150 web api-1 api-2 postgres freeradius
+        run: docker compose -f compose.yml -f compose.override.yml --env-file .env --env-file images.env logs --no-color --tail 150 web api-1 api-2 postgres freeradius
 
   # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
   # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key
