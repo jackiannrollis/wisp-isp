@@ -9,6 +9,14 @@ misconfigurations:
       mounts the root filesystem read-only and sets no-new-privileges. Local stack only.
   - id: AVD-DS-0002
     paths:
+      - "infra/postgres/Dockerfile"
+    statement: >-
+      The official PostgreSQL image's entrypoint starts as root to fix the data directory's ownership
+      and drops to the postgres user with gosu before the server runs; pgBackRest runs as postgres
+      too (backupctl passes -u postgres). A USER line would break that entrypoint, as in the upstream
+      image this one only adds a package to.
+  - id: AVD-DS-0002
+    paths:
       - "infra/ansible/tests/Dockerfile.target"
     statement: >-
       A throwaway stand-in for a fresh Debian server in the playbook converge test: systemd must run as

@@ -283,7 +283,7 @@ cmd_status() {
     [ -s pgbackrest.conf ] || { echo "backups not configured (no pgbackrest.conf)"; return 0; }
     local f
     echo "== repository"
-    pgbr info 2>&1 | sed 's/^/   /'
+    pgbr info 2>&1 | sed 's/^/   /' || echo "   (pgbackrest info failed: is the stack running? stackctl status)"
     for f in corebalt_backup corebalt_backup_drill; do
         [ -f "$METRICS_DIR/$f.prom" ] || continue
         echo "== $f (metrics)"
