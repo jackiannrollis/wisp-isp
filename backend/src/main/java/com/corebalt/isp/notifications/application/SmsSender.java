@@ -39,6 +39,7 @@ public class SmsSender {
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
     private final SmsSettings settings;
+    private final SmsAllowlist allowlist;
     private final AfricasTalkingClient provider;
     private final OutboxPublisher outbox;
     private final TenantIterator tenants;
@@ -50,6 +51,7 @@ public class SmsSender {
             final JdbcClient jdbc,
             final TransactionTemplate tx,
             final SmsSettings settings,
+            final SmsAllowlist allowlist,
             final AfricasTalkingClient provider,
             final OutboxPublisher outbox,
             final TenantIterator tenants,
@@ -58,6 +60,7 @@ public class SmsSender {
         this.jdbc = jdbc;
         this.tx = tx;
         this.settings = settings;
+        this.allowlist = allowlist;
         this.provider = provider;
         this.outbox = outbox;
         this.tenants = tenants;
@@ -105,6 +108,11 @@ public class SmsSender {
         }
         final Optional<SmsSettings.Account> account = tx.execute(s -> settings.account());
         for (final Claimed message : claimed) {
+            if (!allowlist.permits(message.recipient())) {
+                tx.executeWithoutResult(s -> update(message.id(), "SUPPRESSED", now, message.attempts(), null,
+                        SmsAllowlist.REASON, null, null));
+                continue;
+            }
             final SendOutcome outcome = account.isEmpty()
                     ? new SendOutcome.TenantProblem(null, "SMS is not configured for this tenant")
                     : send(account.get(), message);

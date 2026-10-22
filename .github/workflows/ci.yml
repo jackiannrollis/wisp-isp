@@ -175,6 +175,52 @@ jobs:
       - name: Converge (bootstrap, init-disk, provision, unlock, idempotence, hardening checks)
         run: bash infra/ansible/tests/converge.sh
 
+  stack:
+    name: Stack (staging/production compose, local TLS, routing checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          load: true
+          tags: corebalt-stacktest/backend
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: FreeRADIUS image
+        uses: docker/build-push-action@v7
+        with:
+          context: radius
+          load: true
+          tags: corebalt-stacktest/freeradius
+          cache-from: type=gha,scope=freeradius
+          cache-to: type=gha,mode=max,scope=freeradius
+      - name: Web image (both Angular apps, Caddy with the DNS plugins)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/web/Dockerfile
+          load: true
+          tags: corebalt-stacktest/web
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend dependencies (Playwright, for the browser smoke through the front)
+        working-directory: frontend
+        run: npm ci
+      - name: Start the stack, load the lab seed, check the routing and both apps from outside
+        run: STACKTEST_SKIP_BUILD=1 bash infra/stack/test.sh
+      - name: Logs on failure
+        if: failure()
+        working-directory: infra/stack
+        run: docker compose -p corebalt-stacktest -f compose.yml -f test.override.yml --env-file .env.test logs --no-color --tail 150 web api-1 api-2 postgres freeradius
+
   # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
   # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key
   # when the COSIGN_PRIVATE_KEY and COSIGN_PASSWORD secrets exist; no upload to the public
@@ -182,7 +228,7 @@ jobs:
   publish:
     name: Publish images to GHCR
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend, e2e, compose, ansible, dependencies]
+    needs: [backend, frontend, e2e, compose, ansible, stack, dependencies]
     runs-on: ubuntu-latest
     permissions:
       contents: read

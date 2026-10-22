@@ -70,10 +70,23 @@ git ignores every inventory except the example. Fill in:
 
 Leave the `nairobi` group out of a real inventory until the data centre is chosen (Q2); the example shows its shape.
 
+### Secrets
+
+Each inventory keeps its secrets in `group_vars/all/vault.yml`, encrypted with ansible-vault. `infra\ops\ops.ps1 secrets staging` creates it:
+
+- it generates the database, RabbitMQ and Redis passwords, the tenant-secret master key and the token signing key;
+- it asks you for the values only you have: the DNS provider's API token (zone DNS edit scope, for the wildcard certificate), the first platform admin's email and temporary password, and a GHCR token with `read:packages` the hosts pull images with;
+- it asks for a new vault password, twice, and writes the file encrypted. Nothing is printed or logged.
+
+Keep the vault password in the password manager: every `provision` and `deploy` asks for it. The master key, the signing key and the vault password belong in key escrow (`runbooks/key-escrow.md`). To change one value later: `infra\ops\ops.ps1 shell`, then `ansible-vault edit inventories/staging/group_vars/all/vault.yml`.
+
+The example inventory's `vault.yml` is plain text with obvious placeholders, so the syntax check and the converge test can run without a password.
+
 ### Order on a new server
 
-1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it).
-2. `infra\ops\ops.ps1 bootstrap staging -Limit staging-1`. This first run connects as root. It:
+1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it). Point the DNS records at it: `<domain>`, `admin.<domain>`, `pay.<domain>` and `*.<domain>`.
+2. `infra\ops\ops.ps1 secrets staging` (once per inventory, see above).
+3. `infra\ops\ops.ps1 bootstrap staging -Limit staging-1`. This first run connects as root. It:
    - creates the operator account and installs your keys;
    - turns off password and root login;
    - sets the firewall: 80/443 and the WireGuard port public, SSH only from `ssh_allowed_cidrs`;
@@ -81,8 +94,9 @@ Leave the `nairobi` group out of a real inventory until the data centre is chose
    - starts the WireGuard hub.
 
    It refuses to turn the firewall on if your own address isn't in `ssh_allowed_cidrs`. It reports that the data disk isn't encrypted yet.
-3. `infra\ops\ops.ps1 init-disk staging -Limit staging-1`. It asks you to type the disk path back, refuses a disk that already holds anything, and asks for the new LUKS passphrase twice. Put the passphrase into key escrow first.
-4. `infra\ops\ops.ps1 provision staging`. From now on every run is this one, as the operator. It is safe to repeat; a second run changes nothing.
+4. `infra\ops\ops.ps1 init-disk staging -Limit staging-1`. It asks you to type the disk path back, refuses a disk that already holds anything, and asks for the new LUKS passphrase twice. Put the passphrase into key escrow first.
+5. `infra\ops\ops.ps1 provision staging`. From now on every run is this one, as the operator. It installs the stack (below) now that the disk is mounted. It is safe to repeat; a second run changes nothing.
+6. Deploy a release (`deploy`, see Deploying). The stack stays down until then.
 
 `-Check` shows what a run would change without changing it.
 
@@ -112,3 +126,37 @@ hub's tunnel address. A new published port must follow that rule.
 - then it checks from outside that root login is refused, sshd is key-only, the firewall rules, the LUKS2 header, and that the hub and Docker are running.
 
 CI runs it on every push. It cannot prove what only a real server shows: the Hetzner image, the cloud firewall, a real reboot, or kernel upgrades.
+
+## The stack
+
+`infra/stack/compose.yml` is the application stack of a core or staging host, installed by the `stack` role into `/srv/corebalt/stack` on the encrypted disk together with `.env` (the inventory's values and vault, root only) and `images.env` (the deployed image digests, written by `deploy`). A systemd unit, `corebalt-stack`, runs `docker compose up --wait` with both files; it is skipped, not failed, while the data disk is locked or nothing is deployed.
+
+| Service | Image | Reachable from |
+|---|---|---|
+| `web` | `corebalt-isp-web`: Caddy with the Cloudflare and Hetzner DNS plugins, serving both Angular apps and proxying the API | the internet, 80 and 443 |
+| `api-1`, `api-2` | `corebalt-isp-backend` | `web` only. `api-1` runs the migrations, the scheduled jobs and the outbox relay; `api-2` serves requests and consumes events, so no job runs twice |
+| `tunnel-worker` | `corebalt-isp-backend`, profile `worker` (ADR 0011) | nothing; it reaches routers through the host's hub |
+| `freeradius` | `corebalt-isp-freeradius` | routers, on the hub's tunnel address only (1812/1813 UDP) |
+| `postgres`, `rabbitmq`, `redis` | official images, pinned | the stack's network only; the RabbitMQ UI on 127.0.0.1:15672 for an SSH tunnel |
+
+Docker's published ports bypass ufw, so the rule is: `web` publishes 80 and 443, FreeRADIUS binds the tunnel address, everything else stays internal.
+
+### Names and certificates
+
+| Name | Serves |
+|---|---|
+| `<domain>` | M-Pesa and SMS callbacks (`/callbacks/*`); anything else redirects to the admin app |
+| `admin.<domain>` | the admin app and its API |
+| `pay.<domain>` | the portal for any provider: the pay page restricted customers reach (sign-in takes the provider from the account number) |
+| `<tenant>.<domain>` | a tenant's portal, under the wildcard certificate |
+| any other name over plain HTTP | a restricted customer's redirected browsing: sent to `pay.<domain>` |
+
+Certificates come from Let's Encrypt through the ACME DNS-01 challenge, which the wildcard needs; `stack_acme_dns_provider` (cloudflare or hetzner) and the vault's API token drive it. The main domain, `admin` and `pay` get their own certificates. Caddy keeps them in `/srv/corebalt/caddy`.
+
+The web front also sets the security headers (HSTS, CSP, no framing) and hides `/actuator`, so metrics stay internal.
+
+### Testing the stack locally
+
+`bash infra/stack/test.sh` builds the three images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside. It leaves the stack running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
+
+What it cannot prove: a real certificate from Let's Encrypt through your DNS provider, and callbacks arriving from Safaricom's addresses.

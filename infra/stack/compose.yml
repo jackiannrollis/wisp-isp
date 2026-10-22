@@ -1,0 +1,184 @@
+# Staging and production stack on one core host (docs/02 Infrastructure topology; decisions.md
+# 2026-10-21). Installed by Ansible (roles/stack) into /srv/corebalt/stack with its .env; images are
+# pinned by digest there by the deploy playbook. Nothing is published to the internet but the web
+# front (80, 443); FreeRADIUS listens on the hub's tunnel address only; everything else stays on the
+# internal network. Docker's published ports bypass ufw, so a new published port must follow this rule
+# (infra/ops/README.md, Firewall and Docker).
+#
+# Local test of this exact file: infra/stack/test.sh (internal TLS, *.localhost names, fake secrets).
+
+name: corebalt
+
+x-backend-env: &backend-env
+  ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
+  ISP_DB_OWNER_USER: isp_owner
+  ISP_DB_OWNER_PASSWORD: ${ISP_DB_OWNER_PASSWORD:?}
+  ISP_DB_APP_USER: isp_app
+  ISP_DB_APP_PASSWORD: ${ISP_DB_APP_PASSWORD:?}
+  ISP_RABBITMQ_HOST: rabbitmq
+  ISP_RABBITMQ_USER: isp
+  ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
+  ISP_REDIS_HOST: redis
+  ISP_REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+  ISP_MASTER_KEY: ${ISP_MASTER_KEY:?}
+  ISP_JWT_KID: ${ISP_JWT_KID:?}
+  ISP_JWT_PRIVATE_KEY: ${ISP_JWT_PRIVATE_KEY:?}
+  ISP_JWT_RETIRED_KEYS: ${ISP_JWT_RETIRED_KEYS:-}
+  # The admin app, the provider-neutral pay page and every tenant portal (ADR 0010 Origin check).
+  ISP_ALLOWED_ORIGINS: https://admin.${PLATFORM_DOMAIN:?},https://pay.${PLATFORM_DOMAIN},https://*.${PLATFORM_DOMAIN}
+  CALLBACK_BASE_URL: https://${PLATFORM_DOMAIN}
+  # Staging only: SMS to these test numbers alone; empty in production.
+  ISP_SMS_ALLOWLIST: ${SMS_ALLOWLIST:-}
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+
+x-backend-health: &backend-health
+  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
+  interval: 10s
+  timeout: 5s
+  start_period: 120s
+  retries: 6
+
+services:
+  postgres:
+    image: postgres:17.11
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      POSTGRES_DB: postgres
+      ISP_DB_OWNER_PASSWORD: ${ISP_DB_OWNER_PASSWORD}
+      ISP_DB_APP_PASSWORD: ${ISP_DB_APP_PASSWORD}
+      RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD:?}
+      ISP_DB_WORKER_PASSWORD: ${ISP_DB_WORKER_PASSWORD:?}
+    volumes:
+      - ${DATA_DIR:-/srv/corebalt}/postgres:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d isp"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    restart: unless-stopped
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: isp
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ${DATA_DIR:-/srv/corebalt}/rabbitmq:/var/lib/rabbitmq
+    # The management UI only through an SSH tunnel (ssh -L 15672:127.0.0.1:15672).
+    ports:
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  # Cache, token versions and sign-in limits; nothing to back up (infra/ops/runbooks/backups.md).
+  redis:
+    image: redis:8.8
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --appendonly no --save '' --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Two API instances behind the web front (docs/08). api-1 runs migrations first on a deploy, the
+  # scheduled jobs and the outbox relay; api-2 serves requests and consumes events only, so a job
+  # never runs twice. Access never depends on either job (E4).
+  api-1:
+    image: ${BACKEND_IMAGE:?}
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      ISP_BOOTSTRAP_ADMIN_EMAIL: ${ISP_BOOTSTRAP_ADMIN_EMAIL:-}
+      ISP_BOOTSTRAP_ADMIN_PASSWORD: ${ISP_BOOTSTRAP_ADMIN_PASSWORD:-}
+    healthcheck: *backend-health
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  api-2:
+    image: ${BACKEND_IMAGE:?}
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      ISP_SCHEDULING_ENABLED: "false"
+      ISP_OUTBOX_RELAY_ENABLED: "false"
+      ISP_BOOTSTRAP_ENABLED: "false"
+    healthcheck: *backend-health
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  # Tunnel worker (ADR 0011): routers are reached through the host's wg0; leaving the compose network
+  # its packets are masqueraded to the hub address, which is where routers accept CoA and REST from.
+  tunnel-worker:
+    image: ${BACKEND_IMAGE:?}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: worker
+      SERVER_PORT: "8090"
+      ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
+      ISP_DB_APP_USER: isp_worker
+      ISP_DB_APP_PASSWORD: ${ISP_DB_WORKER_PASSWORD}
+      ISP_RABBITMQ_HOST: rabbitmq
+      ISP_RABBITMQ_USER: isp
+      ISP_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      ISP_REDIS_HOST: redis
+      ISP_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      ISP_MASTER_KEY: ${ISP_MASTER_KEY}
+      ISP_WORKER_HUB: ${WORKER_HUB:-A}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=50
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8090 && printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  # RADIUS for the routers, on the hub's tunnel address only (N6). userland-proxy is off (roles/base),
+  # so FreeRADIUS sees each router's own tunnel address, which is how it knows the router (T3).
+  freeradius:
+    image: ${FREERADIUS_IMAGE:?}
+    restart: unless-stopped
+    command: ["freeradius", "-f", "-l", "stdout"]
+    environment:
+      RADIUS_DB_HOST: postgres
+      RADIUS_DB_PORT: "5432"
+      RADIUS_DB_NAME: isp
+      RADIUS_DB_USER: isp_radius
+      RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD}
+    ports:
+      - "${WG_HUB_IP:?}:${RADIUS_AUTH_PORT:-1812}:1812/udp"
+      - "${WG_HUB_IP}:${RADIUS_ACCT_PORT:-1813}:1813/udp"
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  web:
+    image: ${WEB_IMAGE:?}
+    restart: unless-stopped
+    environment:
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN}
+      TLS_MODE: ${TLS_MODE:-dns}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      ACME_DNS_PROVIDER: ${ACME_DNS_PROVIDER:-cloudflare}
+      ACME_DNS_API_TOKEN: ${ACME_DNS_API_TOKEN:-}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ${DATA_DIR:-/srv/corebalt}/caddy/data:/data
+      - ${DATA_DIR:-/srv/corebalt}/caddy/config:/config
+    # No depends_on: the front stays up through an API restart and answers 502 until it is back.

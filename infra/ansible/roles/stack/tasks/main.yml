@@ -1,0 +1,112 @@
+---
+# The application stack on a core or staging host (infra/stack/compose.yml): the compose file, the
+# database init script, the environment (secrets from the inventory's vault), the data directories on
+# the encrypted disk and a systemd unit. It never chooses images: images.env is written by the deploy
+# playbook, and the unit stays down until it exists.
+- name: The data disk is mounted (the stack lives on it)
+  ansible.builtin.command: findmnt -n {{ stack_data_dir }}
+  changed_when: false
+  failed_when: false
+  register: stack_mount
+
+- name: Say so when the data disk is not mounted yet
+  ansible.builtin.debug:
+    msg: >-
+      {{ stack_data_dir }} is not mounted: the stack is installed after init-disk and unlock
+      (infra/ops/README.md, Data disk). Skipping.
+  when: stack_mount.rc != 0
+
+- name: Is a deploy in place, and is the stack running? (the handler restarts only then)
+  ansible.builtin.stat:
+    path: "{{ stack_dir }}/images.env"
+  register: stack_images
+
+- name: Stack unit state  # noqa: command-instead-of-module (the systemd module changes state, it cannot ask for it)
+  ansible.builtin.command: systemctl is-active corebalt-stack
+  register: stack_active
+  changed_when: false
+  failed_when: false
+
+- name: Install the stack
+  when: stack_mount.rc == 0
+  block:
+    - name: Vault values are present
+      ansible.builtin.assert:
+        that:
+          - vault_postgres_superuser_password is defined
+          - vault_db_owner_password is defined
+          - vault_db_app_password is defined
+          - vault_db_worker_password is defined
+          - vault_radius_db_password is defined
+          - vault_rabbitmq_password is defined
+          - vault_redis_password is defined
+          - vault_master_key is defined
+          - vault_jwt_kid is defined
+          - vault_jwt_private_key is defined
+          - vault_acme_dns_api_token is defined
+          - vault_ghcr_user is defined
+          - vault_ghcr_token is defined
+        fail_msg: >-
+          The inventory's vault is incomplete: create it with
+          infra/ops/ops.ps1 secrets <inventory> (infra/ops/README.md, Secrets).
+
+    - name: Stack directory
+      ansible.builtin.file:
+        path: "{{ stack_dir }}/postgres-init"
+        state: directory
+        mode: "0750"
+
+    - name: Data directories, owned as the images expect
+      ansible.builtin.file:
+        path: "{{ stack_data_dir }}/{{ item.name }}"
+        state: directory
+        owner: "{{ item.uid }}"
+        group: "{{ item.uid }}"
+        mode: "0700"
+      loop:
+        - { name: postgres, uid: "{{ stack_postgres_uid }}" }
+        - { name: rabbitmq, uid: "{{ stack_rabbitmq_uid }}" }
+        - { name: caddy/data, uid: "{{ stack_caddy_uid }}" }
+        - { name: caddy/config, uid: "{{ stack_caddy_uid }}" }
+
+    - name: Compose file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../stack/compose.yml"
+        dest: "{{ stack_dir }}/compose.yml"
+        mode: "0640"
+      notify: Restart stack
+
+    - name: Database init script (first start only; roles and the database)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../postgres/init/01-roles.sh"
+        dest: "{{ stack_dir }}/postgres-init/01-roles.sh"
+        mode: "0755"
+
+    - name: Environment (secrets from the vault; root only)
+      ansible.builtin.template:
+        src: stack.env.j2
+        dest: "{{ stack_dir }}/.env"
+        mode: "0600"
+      no_log: true
+      notify: Restart stack
+
+    - name: Pull from the private registry with a read-only token (the token on stdin, never an argument)
+      ansible.builtin.command:
+        cmd: docker login ghcr.io --username {{ vault_ghcr_user | quote }} --password-stdin
+        stdin: "{{ vault_ghcr_token }}"
+      no_log: true
+      changed_when: false
+      when: vault_ghcr_token | length > 0
+
+    - name: Stack unit
+      ansible.builtin.template:
+        src: corebalt-stack.service.j2
+        dest: /etc/systemd/system/corebalt-stack.service
+        mode: "0644"
+      notify: Restart stack
+
+    - name: Stack unit enabled (starts after unlock, once images.env exists)
+      ansible.builtin.systemd_service:
+        name: corebalt-stack
+        enabled: true
+        daemon_reload: true

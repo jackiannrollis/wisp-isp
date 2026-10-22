@@ -1,5 +1,7 @@
-# Settings every host shares. Placeholders: replace in the real inventory.
+# Settings every host shares. Placeholders: replace in the real inventory. Secrets go in vault.yml
+# beside this file, encrypted with ansible-vault (infra/ops/ops.ps1 secrets <inventory>).
 platform_domain: example.test          # the operator's domain; tenants get <subdomain>.<platform_domain>
+acme_email: ops@example.test           # Let's Encrypt account; expiry warnings go here
 operator_user: corebalt                # the only login account; key only, sudo without password
 operator_ssh_public_keys:
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE operator@example"
@@ -14,4 +16,7 @@ data_volume_device: /dev/disk/by-id/scsi-0HC_Volume_EXAMPLE
 data_volume_unlock: manual
 # WireGuard hub port, public on hubs (base opens it, wireguard_hub listens on it).
 wireguard_port: 51820
+# Wildcard certificate by ACME DNS-01: cloudflare or hetzner (decisions.md 2026-10-21); the API
+# token is vault_acme_dns_api_token.
+stack_acme_dns_provider: cloudflare
 ansible_user: "{{ operator_user }}"

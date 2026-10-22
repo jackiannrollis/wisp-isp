@@ -1,2 +1,5 @@
 # Hosts that serve the web (Caddy): 80 and 443 public.
 base_public_tcp_ports: [80, 443]
+# Staging never receives production data (Data Protection Act): it runs on the lab seed, the Daraja
+# sandbox and this SMS allowlist of test numbers (E.164, comma-separated). Required on staging.
+stack_sms_allowlist: "+254700000001,+254700000002"

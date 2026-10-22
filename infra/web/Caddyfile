@@ -1,0 +1,116 @@
+# Staging and production front (decisions.md 2026-10-21; docs/07 Branding; docs/06 Restricted mode).
+# Everything comes from the environment of the web container (infra/stack/compose.yml):
+#   PLATFORM_DOMAIN     e.g. corebalt.app
+#   TLS_MODE            dns (staging, production: ACME DNS-01, wildcard certificate) or internal
+#                       (the local stack test: Caddy's own CA)
+#   ACME_EMAIL, ACME_DNS_PROVIDER (cloudflare or hetzner), ACME_DNS_API_TOKEN
+#
+#   https://<PLATFORM_DOMAIN>/callbacks/*   M-Pesa and SMS callbacks (the main domain only)
+#   https://admin.<PLATFORM_DOMAIN>         the admin app and its API
+#   https://pay.<PLATFORM_DOMAIN>           the portal for any provider: the pay page restricted
+#                                           customers reach (sign-in takes the provider from the
+#                                           account number, T2)
+#   https://<tenant>.<PLATFORM_DOMAIN>      a tenant's portal (wildcard certificate)
+#   http://<anything else>                  a restricted customer's redirected HTTP: to the pay page
+{
+	admin off
+	email {$ACME_EMAIL}
+}
+
+(tls_dns) {
+	tls {
+		dns {$ACME_DNS_PROVIDER} {$ACME_DNS_API_TOKEN}
+	}
+}
+
+(tls_internal) {
+	tls internal
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	# Metrics and the rest of the actuator are for Prometheus on the internal network only. Only
+	# /api/* and /callbacks/* are ever proxied; this handle comes first, so the answer is a plain 404.
+	@actuator path /actuator /actuator/*
+	handle @actuator {
+		respond 404
+	}
+}
+
+(api) {
+	handle /api/* {
+		reverse_proxy api-1:8080 api-2:8080 {
+			lb_policy round_robin
+			lb_try_duration 5s
+			health_uri /actuator/health/readiness
+			health_interval 5s
+			fail_duration 30s
+		}
+	}
+}
+
+(spa) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		X-Frame-Options DENY
+	}
+	handle {
+		root * {args[0]}
+		# Hashed bundles never change; everything else (index.html, deep links) is revalidated on
+		# every load, so a deploy reaches browsers at once.
+		@hashed path_regexp [-.][0-9A-Za-z_]{8,}\.(js|css)$
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		# "?": set only when the bundle rule has not already; Caddy runs matched header directives first.
+		header ?Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$PLATFORM_DOMAIN} {
+	import tls_{$TLS_MODE}
+	import common
+	handle /callbacks/* {
+		reverse_proxy api-1:8080 api-2:8080 {
+			lb_try_duration 5s
+			health_uri /actuator/health/readiness
+			health_interval 5s
+		}
+	}
+	handle {
+		redir https://admin.{$PLATFORM_DOMAIN}{uri} 302
+	}
+}
+
+admin.{$PLATFORM_DOMAIN} {
+	import tls_{$TLS_MODE}
+	import common
+	import api
+	import spa /srv/admin
+}
+
+pay.{$PLATFORM_DOMAIN} {
+	import tls_{$TLS_MODE}
+	import common
+	import api
+	import spa /srv/portal
+}
+
+*.{$PLATFORM_DOMAIN} {
+	import tls_{$TLS_MODE}
+	import common
+	import api
+	import spa /srv/portal
+}
+
+# The router sends a restricted customer's plain HTTP here, whatever site they asked for (docs/06).
+http:// {
+	redir https://pay.{$PLATFORM_DOMAIN}/ 302
+}

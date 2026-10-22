@@ -1,0 +1,13 @@
+# Where the stack lives on the data disk (data_volume_mount) and what it publishes.
+stack_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/stack"
+stack_data_dir: "{{ data_volume_mount | default('/srv/corebalt') }}"
+stack_tls_mode: dns
+stack_acme_dns_provider: cloudflare
+# Staging only: SMS goes to these E.164 numbers alone; empty means no restriction (production).
+stack_sms_allowlist: ""
+# A (Hetzner core) or B (Nairobi): which hub this host's tunnel worker serves.
+stack_worker_hub: A
+# Image uids of the official images, for the bind-mounted data directories.
+stack_postgres_uid: 999
+stack_rabbitmq_uid: 999
+stack_caddy_uid: 1000

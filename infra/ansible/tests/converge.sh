@@ -71,6 +71,16 @@ ops site.yml
 
 echo "== 4. lock as after a reboot, then unlock"
 docker exec "$TARGET" sh -c 'umount /srv/corebalt 2>/dev/null; cryptsetup close corebalt-data'
+# Locked: the stack unit is skipped, not failed, and nothing can be created under the mount point.
+docker exec "$TARGET" systemctl start corebalt-stack     || { docker exec "$TARGET" sh -c 'systemctl status corebalt-stack --no-pager; journalctl -u corebalt-stack --no-pager | tail -20'; echo "FAIL: starting the stack unit while locked must be a skip, not an error"; exit 1; }
+state=$(docker exec "$TARGET" systemctl is-active corebalt-stack || true)
+[ "$state" = inactive ] || { echo "FAIL: the stack unit is '$state' while the disk is locked"; exit 1; }
+if docker exec "$TARGET" sh -c 'lsattr -d /srv/corebalt 2>/dev/null | cut -d" " -f1 | grep -q i'; then
+    docker exec "$TARGET" mkdir /srv/corebalt/postgres 2>/dev/null && { echo "FAIL: the locked mount point is writable"; exit 1; }
+    echo "   locked: stack unit skipped, mount point immutable"
+else
+    echo "   locked: stack unit skipped (immutable flag unsupported on this container's overlay root; ext4 hosts have it)"
+fi
 ops unlock.yml -e "luks_passphrase=$PASSPHRASE"
 docker exec "$TARGET" findmnt -n -o SOURCE /srv/corebalt | grep -q '/dev/mapper/corebalt-data'
 
@@ -88,6 +98,8 @@ docker exec "$TARGET" ufw status verbose | sed -n '1,20p'
 docker exec "$TARGET" grep -h 'Automatic-Reboot "' /etc/apt/apt.conf.d/52corebalt-unattended-upgrades
 docker exec "$TARGET" cryptsetup luksDump "$DISK" | grep -E '^Version|PBKDF' | head -2
 docker exec "$TARGET" systemctl is-active corebalt-wg-hub docker
+docker exec "$TARGET" sh -c 'test -f /srv/corebalt/stack/compose.yml && test "$(stat -c %a /srv/corebalt/stack/.env)" = 600 && grep -q "^ISP_MASTER_KEY=" /srv/corebalt/stack/.env && echo "   stack installed, .env root-only"'
+docker exec "$TARGET" systemctl is-enabled corebalt-stack
 root_login=$(docker run --rm --network "$NET" -v "$KEYS:/run/secrets:ro" --entrypoint sh "$OPS_IMAGE" -c \
     'cp /run/secrets/ssh_key /tmp/k && chmod 600 /tmp/k && ssh -i /tmp/k -o BatchMode=yes -o StrictHostKeyChecking=no root@172.31.250.10 true 2>&1; echo "exit $?"' | tail -1)
 [ "$root_login" != "exit 0" ] || { echo "FAIL: root can still log in"; exit 1; }

@@ -57,6 +57,22 @@
         dev: "/dev/mapper/{{ data_volume_name | default('corebalt-data') }}"
         fstype: ext4
 
+    # While the disk is locked, nothing may write under the mount point on the root disk: a container
+    # with restart=unless-stopped would otherwise start a fresh, empty database there after a reboot.
+    # An immutable directory makes Docker's bind-mount creation fail instead.
+    - name: Mount point immutable while unmounted
+      ansible.builtin.command: chattr +i {{ data_volume_mount | default('/srv/corebalt') }}
+      register: data_volume_chattr
+      changed_when: data_volume_chattr.rc == 0
+      # Required on a real host (ext4 root); tolerated only in the converge test's container, whose
+      # overlay root filesystem has no immutable flag.
+      failed_when: data_volume_chattr.rc != 0 and ansible_facts['virtualization_type'] != 'docker'
+
+    - name: Say so where the root filesystem cannot make it immutable
+      ansible.builtin.debug:
+        msg: "{{ data_volume_mount | default('/srv/corebalt') }} could not be made immutable on this filesystem; a real host's ext4 root can."
+      when: data_volume_chattr.rc != 0
+
     - name: Mount it
       ansible.posix.mount:
         path: "{{ data_volume_mount | default('/srv/corebalt') }}"

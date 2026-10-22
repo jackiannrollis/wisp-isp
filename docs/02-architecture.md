@@ -108,7 +108,7 @@ Write traffic (payments, renewals, staff actions) needs the Hetzner core. Logins
 | Environment | Purpose | Notes |
 |---|---|---|
 | Local | Development | Docker Compose: PostgreSQL, RabbitMQ, Redis, FreeRADIUS, a MikroTik CHR virtual router for PPPoE tests, Daraja sandbox |
-| Staging | Integration and tenant demos | Mirrors production on smaller machines; Daraja sandbox; real SMS to a test number only |
-| Production | Tenants | Hetzner core plus the Nairobi node |
+| Staging | Integration and tenant demos | Mirrors production on one smaller machine (`infra/stack/compose.yml`, the same file); the lab seed, never a copy of production data (Data Protection Act); Daraja sandbox; SMS only to an allowlist of test numbers (`isp.sms.allowlist`) |
+| Production | Tenants | Hetzner core plus the Nairobi node (pending Q2); hosts provisioned by Ansible from `infra/ansible`, the stack by `infra/stack/compose.yml` (`infra/ops/README.md`) |
 
 Deployments are Docker images tagged by git SHA, published to a private GitHub Container Registry only after every CI check passes, signed with the project's cosign key, and deployed by digest (`infra/ops/README.md`); they roll one API instance at a time. Flyway migrations run before the new version starts and must be backwards compatible with the previous version for one release.

@@ -1,5 +1,5 @@
 # Fake Daraja for the end-to-end suite only (ADR 0012); never part of the normal stack.
-FROM node:24.11.1-alpine3.22
+FROM node:24.16.0-alpine3.22
 WORKDIR /app
 COPY server.mjs .
 USER node

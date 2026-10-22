@@ -1,0 +1,27 @@
+# The shape of the secrets file. In a real inventory this file is written and encrypted by
+# infra/ops/ops.ps1 secrets <inventory> (ansible-vault); these are placeholders for the example only.
+vault_postgres_superuser_password: example-not-a-secret
+vault_db_owner_password: example-not-a-secret
+vault_db_app_password: example-not-a-secret
+vault_db_worker_password: example-not-a-secret
+vault_radius_db_password: example-not-a-secret
+vault_rabbitmq_password: example-not-a-secret
+vault_redis_password: example-not-a-secret
+# Tenant-secret master key (docs/07; 32 random bytes, base64). Losing it loses every tenant's
+# M-Pesa and SMS credentials: it is in key escrow (infra/ops/runbooks/key-escrow.md).
+vault_master_key: ZXhhbXBsZS1ub3QtYS1zZWNyZXQtZXhhbXBsZS1ub3QtYS1zZWM=
+# Token signing key (ADR 0010): kid and the PKCS#8 private key, base64; retired public keys stay
+# listed until their tokens expire (infra/scripts/jwt-key rotates the local one; secrets --rotate-jwt
+# the inventory's).
+vault_jwt_kid: kexample
+vault_jwt_private_key: example-not-a-secret
+vault_jwt_retired_keys: ""
+# DNS provider API token for the wildcard certificate (scoped to this zone's DNS records).
+vault_acme_dns_api_token: example-not-a-secret
+# The first platform admin, created at the first start while no admin exists (ADR 0010); blank
+# afterwards.
+vault_bootstrap_admin_email: admin@example.test
+vault_bootstrap_admin_password: example-not-a-secret
+# GHCR read-only token (read:packages) the host pulls images with.
+vault_ghcr_user: example
+vault_ghcr_token: example-not-a-secret

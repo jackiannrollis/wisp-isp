@@ -30,6 +30,7 @@ class OneTimeCodeSender implements OneTimeCodes {
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
     private final SmsSettings settings;
+    private final SmsAllowlist allowlist;
     private final AfricasTalkingClient provider;
     private final TenantRegistry tenants;
     private final Clock clock;
@@ -38,12 +39,14 @@ class OneTimeCodeSender implements OneTimeCodes {
             final JdbcClient jdbc,
             final TransactionTemplate tx,
             final SmsSettings settings,
+            final SmsAllowlist allowlist,
             final AfricasTalkingClient provider,
             final TenantRegistry tenants,
             final Clock clock) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.settings = settings;
+        this.allowlist = allowlist;
         this.provider = provider;
         this.tenants = tenants;
         this.clock = clock;
@@ -72,6 +75,10 @@ class OneTimeCodeSender implements OneTimeCodes {
         final Optional<SmsSettings.Account> account = tx.execute(s -> settings.account());
         if (account.isEmpty()) {
             log(customerId, e164, template, masked, "SUPPRESSED", "SMS is not configured for this tenant", null);
+            return Delivery.NOT_CONFIGURED;
+        }
+        if (!allowlist.permits(e164)) {
+            log(customerId, e164, template, masked, "SUPPRESSED", SmsAllowlist.REASON, null);
             return Delivery.NOT_CONFIGURED;
         }
         SendOutcome outcome;

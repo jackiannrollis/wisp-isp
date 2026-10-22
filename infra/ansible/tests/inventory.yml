@@ -9,6 +9,9 @@ all:
     wireguard_hubs:
       children:
         staging:
+    stack_hosts:
+      children:
+        staging:
   vars:
     platform_domain: example.test
     operator_user: corebalt
@@ -17,3 +20,19 @@ all:
     base_public_tcp_ports: [80, 443]
     wireguard_port: 51820
     data_volume_unlock: manual
+    acme_email: ops@example.test
+    stack_sms_allowlist: "+254700000001"
+    # The converge test's stand-in for the vault: obvious fakes.
+    vault_postgres_superuser_password: converge-fake-superuser
+    vault_db_owner_password: converge-fake-owner
+    vault_db_app_password: converge-fake-app
+    vault_db_worker_password: converge-fake-worker
+    vault_radius_db_password: converge-fake-radius
+    vault_rabbitmq_password: converge-fake-rabbit
+    vault_redis_password: converge-fake-redis
+    vault_master_key: Y29udmVyZ2UtZmFrZS1tYXN0ZXIta2V5LW5vdC1yZWFsLTEyMw==
+    vault_jwt_kid: kconverge
+    vault_jwt_private_key: converge-fake-jwt-key-not-a-real-key
+    vault_acme_dns_api_token: converge-fake-dns-token
+    vault_ghcr_user: converge
+    vault_ghcr_token: ""

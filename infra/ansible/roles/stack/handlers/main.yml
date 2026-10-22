@@ -1,0 +1,9 @@
+---
+# Applies a changed compose file, environment or unit, but only to a stack that is deployed
+# (images.env) and running; a first install stays down until the deploy playbook runs.
+- name: Restart stack
+  ansible.builtin.systemd_service:
+    name: corebalt-stack
+    state: restarted
+    daemon_reload: true
+  when: stack_images.stat.exists | default(false) and stack_active.rc | default(1) == 0

@@ -13,3 +13,9 @@
   become: true
   roles:
     - wireguard_hub
+
+- name: The application stack (core and staging hosts)
+  hosts: stack_hosts
+  become: true
+  roles:
+    - stack

@@ -1,0 +1,9 @@
+# Only the frontend sources and this folder reach the build (docker build -f infra/web/Dockerfile .).
+*
+!frontend/
+!infra/web/Caddyfile
+frontend/node_modules
+frontend/dist
+frontend/.angular
+frontend/test-results
+frontend/playwright-report

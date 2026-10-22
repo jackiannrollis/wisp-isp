@@ -32,6 +32,14 @@ the 90-second router fallback, payments, receipts and the wallet statement. Its 
 live STK payment are covered by tests only (no Africa's Talking or Daraja account locally). The
 Playwright suite (ADR 0012: sign-in, customer search, Pay Now through a fake Daraja to "Internet
 restored") runs against the real stack in its own CI job.
+Step 9 (production) is in progress; nothing has run on a real host yet. Done: cancel before
+activation (S9); release images to private GHCR by commit SHA, signed once the cosign secrets exist;
+containerised Ansible (`infra/ops`) with host hardening, the LUKS data disk and the WireGuard hub,
+converged in CI on a throwaway Debian; the staging/production compose stack with the web front
+(wildcard certificate by DNS-01, both apps, `pay.<domain>`), tested locally and in CI
+(`infra/stack/test.sh`). Not yet: pgBackRest backups and the restore drill, monitoring and alerts,
+the deploy-by-digest playbook, the key-escrow, failover-drill and onboarding runbooks, the Nairobi
+node (pending Q2).
 
 ## Commands
 
@@ -87,7 +95,8 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
 | Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
 | Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
-| Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|bootstrap\|provision\|init-disk\|unlock <inventory> [-Limit host]` | `infra/ops/ops.sh …` |
+| Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|secrets\|bootstrap\|provision\|init-disk\|unlock <inventory> [-Limit host]` | `infra/ops/ops.sh …` |
+| Test the staging/production compose stack locally (local TLS, lab seed, routing checks) | `bash infra/stack/test.sh` (Git Bash); `… down` removes it | `infra/stack/test.sh` |
 | Test the playbooks against a throwaway Debian 13 container | `bash infra/ansible/tests/converge.sh` (Git Bash) | `infra/ansible/tests/converge.sh` |
 | All checks (what CI runs, except the end-to-end suite) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 

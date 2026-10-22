@@ -46,7 +46,7 @@ class SessionCookies {
     /** The cookie's token after the Origin check; a missing or foreign Origin is refused. */
     Optional<String> read(final HttpServletRequest request) {
         final String origin = request.getHeader(HttpHeaders.ORIGIN);
-        if (origin == null || !allowedOrigins.contains(origin)) {
+        if (origin == null || !allowed(origin)) {
             throw new AuthException("This request did not come from a Corebalt page.");
         }
         return Optional.ofNullable(request.getCookies()).stream().flatMap(Arrays::stream)
@@ -55,6 +55,33 @@ class SessionCookies {
                 .filter(v -> !v.isBlank())
                 .findFirst();
     }
+
+    /**
+     * An exact origin, or a wildcard entry {@code https://*.example.com} for the tenant portals on their
+     * subdomains (docs/07): it matches exactly one DNS label in place of the star, never a deeper name,
+     * the bare domain or another scheme.
+     */
+    boolean allowed(final String origin) {
+        for (final String entry : allowedOrigins) {
+            if (entry.equals(origin)) {
+                return true;
+            }
+            final int star = entry.indexOf("://*.");
+            if (star > 0) {
+                final String prefix = entry.substring(0, star + 3);
+                final String suffix = entry.substring(star + 4);
+                if (origin.startsWith(prefix) && origin.endsWith(suffix)) {
+                    final String label = origin.substring(prefix.length(), origin.length() - suffix.length());
+                    if (LABEL.matcher(label).matches()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.regex.Pattern LABEL = java.util.regex.Pattern.compile("[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?");
 
     private static ResponseCookie cookie(final String path, final String value, final Duration maxAge) {
         return ResponseCookie.from(NAME, value)

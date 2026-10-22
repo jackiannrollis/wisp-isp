@@ -1,0 +1,20 @@
+# Managed by Ansible (roles/stack). Runs only when the data disk is mounted (manual unlock mode: after
+# ops unlock) and a deploy has written images.env; otherwise it is skipped, not failed. No
+# WorkingDirectory on purpose: systemd would add a mount dependency for it, and starting the unit
+# while the disk is locked would then ask for the LUKS passphrase and fail (or stall a reboot).
+[Unit]
+Description=Corebalt stack (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+ConditionPathIsMountPoint={{ stack_data_dir }}
+ConditionPathExists={{ stack_dir }}/images.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/docker compose --project-directory {{ stack_dir }} --env-file {{ stack_dir }}/.env --env-file {{ stack_dir }}/images.env up -d --wait --wait-timeout 300 --remove-orphans
+ExecStop=/usr/bin/docker compose --project-directory {{ stack_dir }} --env-file {{ stack_dir }}/.env --env-file {{ stack_dir }}/images.env stop
+TimeoutStartSec=400
+
+[Install]
+WantedBy=multi-user.target

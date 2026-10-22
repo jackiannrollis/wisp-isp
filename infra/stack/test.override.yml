@@ -1,0 +1,20 @@
+# Local test only (test.sh): named volumes instead of /srv/corebalt (new bind-mounted folders hang on
+# Docker Desktop), and the repository's database init scripts.
+services:
+  postgres:
+    volumes:
+      - pg:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+  rabbitmq:
+    volumes:
+      - rabbit:/var/lib/rabbitmq
+    ports: !reset []
+  web:
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  pg:
+  rabbit:
+  caddy-data:
+  caddy-config:
