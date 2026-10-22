@@ -245,6 +245,10 @@ jobs:
           - name: wireguard
             context: infra/wireguard
             cache: wireguard
+          - name: web
+            context: .
+            file: infra/web/Dockerfile
+            cache: web
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -258,6 +262,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file || '' }}
           push: true
           # One manifest per image: no attestation children for the retention job to orphan.
           provenance: false

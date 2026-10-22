@@ -6,14 +6,15 @@ operator, never by an automated session.
 
 ## Images
 
-CI publishes three images to the GitHub Container Registry on every push to `main`, after every check
+CI publishes four images to the GitHub Container Registry on every push to `main`, after every check
 passed (`.github/workflows/ci.yml`, job `publish`):
 
 | Image | Built from |
 |---|---|
 | `ghcr.io/<owner>/corebalt-isp-backend` | `backend/` (API and tunnel worker) |
 | `ghcr.io/<owner>/corebalt-isp-freeradius` | `radius/` |
-| `ghcr.io/<owner>/corebalt-isp-wireguard` | `infra/wireguard/` (local development only; hosts run wg-quick) |
+| `ghcr.io/<owner>/corebalt-isp-wireguard` | `infra/wireguard/` (local development only; hosts run the same script as a service) |
+| `ghcr.io/<owner>/corebalt-isp-web` | `infra/web/` from the repository root: both Angular apps and Caddy with the DNS plugins |
 
 - **Tags.** Each image is tagged `sha-<full commit SHA>`, never `latest`. The job summary lists each digest.
 - **Deploys go by digest, not by tag.** The deploy playbook resolves `sha-<commit>` to its digest once, checks the signature of that digest, and writes `image@sha256:…` on the host. A tag that is later moved can't change what runs.
