@@ -109,7 +109,9 @@ docker exec "$TARGET" /srv/corebalt/stack/stackctl status | grep -q 'not deploye
 docker exec "$TARGET" sh -c 'test -x /srv/corebalt/stack/backupctl && test "$(stat -c %a:%u /srv/corebalt/stack/pgbackrest.conf)" = 400:999 \
     && grep -q "^repo1-cipher-pass=" /srv/corebalt/stack/pgbackrest.conf && echo "   backupctl installed; pgbackrest.conf for the postgres uid only"'
 docker exec "$TARGET" sh -c 'test "$(stat -c %a:%u /srv/corebalt/drill)" = 700:999 && test -d /srv/corebalt/metrics && echo "   drill and metrics directories on the data disk"'
-docker exec "$TARGET" systemctl is-active corebalt-backup.timer corebalt-restore-drill.timer | tr '\n' ' ' && echo "(backup and drill timers)"
+docker exec "$TARGET" systemctl is-active corebalt-backup.timer corebalt-restore-drill.timer corebalt-routersync.timer | tr '\n' ' ' && echo "(backup, drill and router sync timers)"
+docker exec "$TARGET" sh -c 'test -x /srv/corebalt/stack/routersync && /srv/corebalt/stack/routersync' | grep -q 'nothing deployed' \
+    && echo "   routersync installed; nothing deployed yet" || { echo "FAIL: routersync"; exit 1; }
 docker exec "$TARGET" /srv/corebalt/stack/backupctl status | grep -q 'not deployed' && echo "   backupctl: nothing deployed yet"
 docker exec "$TARGET" sh -c 'test -x /srv/corebalt/monitoring/monitorctl && test -x /srv/corebalt/monitoring/probes \
     && test "$(stat -c %a /srv/corebalt/monitoring/.env)" = 600 && grep -q "^GRAFANA_ADMIN_PASSWORD=" /srv/corebalt/monitoring/.env \

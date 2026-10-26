@@ -6,7 +6,7 @@ How a tenant ISP goes from a signed agreement to customers paying and getting on
 
 | Role | Where | Does |
 |---|---|---|
-| Corebalt operator | the host (SSH), the platform console (API only, `/api/platform`), the key escrow | creates the tenant, allocates tunnel addresses, renders onboarding scripts, adds hub peers, reloads FreeRADIUS, watches Grafana |
+| Corebalt operator | the host (SSH), the platform console (API only, `/api/platform`), the key escrow | creates the tenant, allocates tunnel addresses, watches Grafana and the router sync's journal; the hub's peers and FreeRADIUS's clients follow the database by themselves |
 | ISP Owner | the admin app, `https://admin.<domain>` | settings, secrets, staff, packages; the account's own policy (`settings.write`, docs/07) |
 | ISP technician | the admin app (Network), the routers' terminals | registers routers, runs the onboarding script, configures customer routers |
 | ISP finance | the admin app (Payments) | manual payments until Daraja go-live, suspense queue, reconciliation |
@@ -79,15 +79,15 @@ Packages screen, one per plan: name, download and upload speed, duration (a 30-d
 
 Every router joins the platform over WireGuard with a per-router RADIUS secret (ADR 0006, N6); the script the admin app generates configures it (docs/06; ADR 0013) and no customer is ever written into it (N1). The technician registers the router and generates its script; the operator adds the peer on the hub by hand. Per router:
 
-1. **Tunnel address (operator).** Hub A is `wg_hub_address` of the inventory (`10.200.0.1/24` in the example); routers take `/32` addresses from `.11` upward, unique across every tenant. The register of record is the hub itself: `sudo corebalt-wg-hub export-peers` lists every address in use; take the lowest free one. (The platform refuses a duplicate at registration too.)
+1. **Tunnel address (operator).** Hub A is `wg_hub_address` of the inventory (`10.200.0.1/24` in the example); routers take `/32` addresses from `.11` upward, unique across every tenant. The platform refuses a duplicate at registration; `sudo corebalt-wg-hub export-peers` on the host lists every address in use across tenants, so take the lowest free one.
 2. **Register (technician, Network screen).** Name and tunnel address. The answer shows a RADIUS secret once (ADR 0009); it is replaced by the one in the onboarding script, so nothing needs to be noted. Name the router `<site>-<n>` in lower-case letters, digits and hyphens: the hub's peer is named after the tenant code and this name.
 3. **Generate the script (technician, router page, "Onboarding script").** The dialog asks for the ISP's addressing on this router: the interface customers dial on, the PPPoE server's own address, the pools FULL and RESTRICTED sessions get addresses from (two different ranges: the restricted-mode rules match the `restricted` list, docs/06) and the ISP's own management network. The platform fills in the rest: the hub (its public key read from the host, `hub-a.<domain>` as the endpoint, so a replacement host is one record change, `failover-drill.md` drill C; that RouterOS re-resolves the name after a change is expected, not yet proven on a real router), the router's tunnel address, where restricted customers may go (the public address `pay.<domain>` resolves to), NTP, and **fresh secrets: a WireGuard key pair generated for the router (the platform keeps the public key), a new RADIUS secret, a new REST password and SNMP community**. The script is shown once with Copy and Download and never stored; treat the file as a secret and delete it once the router has run it. The previous RADIUS secret and REST login stop working when the router runs the script, so generate it when the technician is ready to paste it.
 
 4. **Run it (technician).** Paste the script into the router's terminal once; it is safe to re-run: pools and the profile are updated in place. On a router already serving customers the script keeps the existing PPPoE server (RouterOS allows one per interface) and logs a warning; its `default-profile` is switched to `corebalt-radius` at the cutover (step 6). Nothing has to be read back from the router: the platform already knows its WireGuard public key.
-5. **Peer it (operator, core host).** The router's WireGuard public key is on its page: `sudo corebalt-wg-hub add-peer <tenant code>-<router name> <public key> <tunnel address>/32`, then `sudo /srv/corebalt/stack/stackctl reload-radius` so FreeRADIUS loads the new secret (it reads `radius_client_v3` at start only; existing sessions are unaffected). Then refresh the escrowed peer list: `sudo corebalt-wg-hub export-peers` into the password manager item of the hub (`failover-drill.md`, drill C).
+5. **Peer it: nothing to do.** Within a minute the host's router sync (`corebalt-routersync.timer`, every minute) adds the router's public key as a peer of the hub, named `<tenant code>-<router name>-<id tail>`, and restarts FreeRADIUS so it loads the new secret (existing sessions are unaffected; a login during those seconds is retried by the router). `journalctl -u corebalt-routersync -n 3` on the host shows what it did; `sudo corebalt-wg-hub export-peers` lists the peers. By hand, if ever needed: `sudo corebalt-wg-hub add-peer …` and `sudo /srv/corebalt/stack/stackctl reload-radius`.
 6. **Check the tunnel.** Within a minute: `sudo wg show wg0 latest-handshakes` has the router with a fresh handshake; Grafana's `Network: RADIUS and tunnels` dashboard shows the peer; `CorebaltRouterNeverConnected` would fire after 24 hours without one.
 7. **Monitor it (router page).** The REST login the script set (`corebalt-api`) is already stored: the tunnel worker polls the router every minute and the page shows `ONLINE` with the RouterOS version within a minute of the tunnel coming up. Whether the script's read-only user may read `/ppp/active` on a real router is unproven until the network lab has run (docs/06).
-8. **First login.** The first customer line on this router (step 6) is the login check: the router's `/ppp active` and the platform's Sessions screen show the session, the auth log in Loki shows the accept (`failover-drill.md`, The login check). A reject with "Account not yet active" means the line is still `PENDING`; no reply at all means FreeRADIUS does not know the router: `stackctl reload-radius` again, and compare the secret.
+8. **First login.** The first customer line on this router (step 6) is the login check: the router's `/ppp active` and the platform's Sessions screen show the session, the auth log in Loki shows the accept (`failover-drill.md`, The login check). A reject with "Account not yet active" means the line is still `PENDING`; no reply at all means FreeRADIUS does not know the router yet: `journalctl -u corebalt-routersync -n 5` on the host shows whether the sync reloaded it after the script was generated (by hand: `stackctl reload-radius`).
 9. **CoA.** The first restore proves it: a line restricted for non-payment, then paid, must be back within a minute without anyone touching the router (docs/06 CoA and Disconnect). Until the network lab has run on real routers, CoA and Disconnect are proven only against a fake router (`infra/lab/README.md`), so the first real restore is watched by the technician with a customer on the phone.
 
 Node B: the script carries the place for the second hub peer and the second RADIUS entry; both are added when the Nairobi node exists (Q2), by re-running an updated script on every router.
@@ -160,11 +160,11 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 
 ## Not built yet, and open items
 
-- The onboarding-script generator in the admin app (docs/06) and a screen for the platform console; both are API and template work by hand today.
+- A screen for the platform console: creating, activating or suspending a tenant and reissuing an invitation are API calls by hand today.
 - A reason to be `ACTIVE` rather than `TRIAL`: the status changes nothing yet; it waits for the platform's own billing (Q1).
-- Hub peers are added by hand on the host, and a router's WireGuard public key lives only in the hub's peer files (hence the escrowed export).
+- A router that should leave the hub: the sync never removes a peer (routers have no delete); `wg set wg0 peer <key> remove` and the peer file by hand.
 - An import with each line's current expiry, for a lossless one-day cutover (step 6).
-- The template's PPPoE server step on a router that already has one (step 5).
+- The script's SNMP community is set on the router and not kept by the platform (docs/03 planned it encrypted): nothing reads SNMP in v1, and the next script sets a new one.
 - Whether the read-only REST user may read `/ppp/active` on a real router, and CoA and Disconnect on real routers: the network lab's Hyper-V half has not run (`infra/lab/README.md`).
 - Per-tenant dashboards follow once the API's metrics carry tenant tags (docs/08).
 
@@ -176,7 +176,7 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 | Tenant created; Owner signed in with TOTP; second administrator invited | operator, Owner | `GET /api/platform/tenants`; the audit log |
 | Account policy, branding, SMS, M-Pesa (sandbox), templates set | Owner | Settings screens |
 | Packages created | Owner | Packages screen |
-| Each router: registered, scripted, peered, `reload-radius`, `ONLINE`, peer list escrowed | technician, operator | router page; `export-peers` in the password manager |
+| Each router: registered, its script generated and run, `ONLINE` within a minute | technician | router page; `journalctl -u corebalt-routersync` on the host |
 | Customers imported; the answer kept safely, then deleted | Support, technician | the Customers screen; the audit log |
 | Cutover chosen and done; first logins and the first restore watched | Owner, technician | Sessions screen; the auth log |
 | Pilot running on manual payments; weekly reconciliation | Finance | Payments, reconciliation runs |

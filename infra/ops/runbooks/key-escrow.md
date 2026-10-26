@@ -50,6 +50,6 @@ Log the check.
 ## Using an escrowed secret
 
 - Rebuilding a lost `vault.yml`: write the values into a file shaped like `infra/ansible/inventories/example/group_vars/all/vault.yml`, then in `ops shell`: `ansible-vault encrypt --output inventories/<inventory>/group_vars/all/vault.yml <file>`, and shred the file.
-- Restoring a hub key on a replacement host: `sudo systemctl stop corebalt-wg-hub`, write the key to `/var/lib/wireguard/hub.key` (root, mode 0600), `sudo systemctl start corebalt-wg-hub`; the service recomputes the public key and prints it: check it against the escrow note. Then re-add the router peers (`sudo corebalt-wg-hub add-peer`).
+- Restoring a hub key on a replacement host: `sudo systemctl stop corebalt-wg-hub`, write the key to `/var/lib/wireguard/hub.key` (root, mode 0600), `sudo systemctl start corebalt-wg-hub`; the service recomputes the public key and prints it: check it against the escrow note. The router peers come back by themselves from the database within a minute (`corebalt-routersync.timer`, ADR 0013).
 - A restore from backups needs only the vault (the passphrase is in `pgbackrest.conf` after `ops provision`): `backups.md`.
 - The master key and the signing key reach a host through the vault and `ops provision`; they are never typed on a host.

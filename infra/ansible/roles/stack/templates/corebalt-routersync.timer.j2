@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/stack). Every minute; a missed run is simply the next minute's.
+[Unit]
+Description=Corebalt router sync
+
+[Timer]
+OnCalendar={{ stack_routersync_on_calendar }}
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

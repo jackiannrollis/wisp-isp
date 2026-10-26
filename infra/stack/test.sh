@@ -24,7 +24,7 @@ curl() { command curl --connect-to ::127.0.0.1: "$@"; }
 # the monitoring project's test files live in ../monitoring the same way.
 MON=../monitoring
 cleanup_files() {
-    rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl pgbackrest.conf metrics hub.pub
+    rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl routersync .routersync pgbackrest.conf metrics hub.pub
     rm -rf "$MON/.env" "$MON/compose.override.yml" "$MON/alertmanager.yml" "$MON/secrets" "$MON/targets.d" "$MON/monitorctl" "$MON/probes"
 }
 mon() { (cd "$MON" && docker compose -f compose.yml -f compose.override.yml --env-file .env "$@"); }
@@ -141,6 +141,7 @@ EOF
 cp test.override.yml compose.override.yml
 cp stackctl.sh stackctl && chmod +x stackctl
 cp backupctl.sh backupctl && chmod +x backupctl
+cp routersync.sh routersync && chmod +x routersync   # not run here (no hub); checked by converge
 # Every run starts with nothing deployed; the containers of an earlier run are reused or recreated.
 rm -f images.env images.env.previous images.env.failed images.env.new
 release() { # <name> [backend image]: an images.env for a release
@@ -472,7 +473,7 @@ compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) fro
 r=$(post "/api/v1/routers/$rid/onboarding-script" '{"pppoeInterface":"ether2","pppLocalAddress":"10.10.0.1","poolFull":"10.10.0.10-10.10.0.250","poolRestricted":"10.11.0.10-10.11.0.250","managementCidrs":"192.168.88.0/24"}' "${auth[@]}")
 script=$(echo "$r" | jf 'd["script"]')
 if [ -n "$script" ] && ! echo "$script" | grep -q '{{' && echo "$script" | grep -q "public-key=\"$(cat hub.pub)\"" && echo "$script" | grep -q "endpoint-address=hub-a.corebalt.localhost" \
-    && [ "$(echo "$r" | jf 'd["router"]["restUsername"]')" = corebalt-api ] && [ "$(echo "$r" | jf 'd["router"]["wgPublicKey"]' | wc -c)" -eq 45 ]; then
+    && [ "$(echo "$r" | jf 'd["router"]["restUsername"]')" = corebalt-api ] && [ "$(echo "$r" | jf 'd["router"]["wgPublicKey"]' | tr -d '\r\n' | wc -c)" -eq 44 ]; then
     echo "   ok   onboarding script generated: the hub's key from the mounted file, every placeholder filled, the router's WireGuard public key kept, the REST login set"
 else echo "   FAIL onboarding script: $(echo "$r" | head -c 300)"; fail=1; fi
 r=$(post /api/v1/packages '{"name":"Home 10","downloadKbps":10000,"uploadKbps":5000,"durationMinutes":43200,"price":{"amount":250000,"currency":"KES"}}' "${auth[@]}")

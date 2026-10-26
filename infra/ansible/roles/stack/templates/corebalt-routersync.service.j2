@@ -1,0 +1,14 @@
+# Managed by Ansible (roles/stack). Keeps the hub's peers and FreeRADIUS's clients equal to the routers
+# in the database (infra/stack/routersync.sh, ADR 0013), started by corebalt-routersync.timer every
+# minute; skipped, not failed, while the data disk is locked or nothing is deployed.
+[Unit]
+Description=Corebalt router sync (hub peers, FreeRADIUS clients)
+Requires=docker.service
+After=docker.service corebalt-stack.service corebalt-wg-hub.service
+ConditionPathIsMountPoint={{ stack_data_dir }}
+ConditionPathExists={{ stack_dir }}/images.env
+
+[Service]
+Type=oneshot
+ExecStart={{ stack_dir }}/routersync
+TimeoutStartSec=120

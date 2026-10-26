@@ -125,6 +125,12 @@
         dest: "{{ stack_dir }}/backupctl"
         mode: "0750"
 
+    - name: Router sync script (the hub's peers and FreeRADIUS's clients from the database, ADR 0013)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../stack/routersync.sh"
+        dest: "{{ stack_dir }}/routersync"
+        mode: "0750"
+
     - name: Configuration of pgBackRest (the repository, its credentials and the cipher passphrase; root and the postgres uid only)
       ansible.builtin.template:
         src: pgbackrest.conf.j2
@@ -145,9 +151,11 @@
         - corebalt-backup.timer
         - corebalt-restore-drill.service
         - corebalt-restore-drill.timer
+        - corebalt-routersync.service
+        - corebalt-routersync.timer
       register: stack_backup_units
 
-    - name: Backup and restore-drill timers running
+    - name: Backup, restore-drill and router sync timers running
       ansible.builtin.systemd_service:
         name: "{{ item }}"
         enabled: true
@@ -156,6 +164,7 @@
       loop:
         - corebalt-backup.timer
         - corebalt-restore-drill.timer
+        - corebalt-routersync.timer
 
     - name: Environment (secrets from the vault; root only)
       ansible.builtin.template:

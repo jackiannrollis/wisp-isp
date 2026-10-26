@@ -51,7 +51,12 @@ node, the drill record template; the production RADIUS drill and the replica pro
 the pilot-onboarding runbook (`pilot-onboarding.md`: the platform console by curl, the Owner's first
 sign-in, routers by the admin app's generated onboarding script (ADR 0013) plus `corebalt-wg-hub add-peer`
 and `stackctl reload-radius`, the CSV import, the cutover choices, Gate 1 queries), with the stack test
-running the onboarding recipe end to end. Not yet: the Nairobi node (pending Q2).
+running the onboarding recipe end to end. Pilot readiness (ADR 0013): the admin app generates a router's
+onboarding script with a WireGuard key pair made by the platform (the public key kept, the private key
+in the script once), a new RADIUS secret and REST login; the host timer `corebalt-routersync` keeps
+the hub's peers and FreeRADIUS's clients equal to the database, so onboarding a router needs no step on
+the host; the platform console activates, suspends and reinstates tenants and reissues an unused
+Owner invitation. Not yet: the Nairobi node (pending Q2).
 
 ## Commands
 

@@ -52,7 +52,7 @@ Every restore is run by the operator, never automated. In each, PostgreSQL repla
 4. `sudo /srv/corebalt/stack/backupctl restore` (the newest backup and every archived WAL after it), or `--target "2026-10-22 10:15:00+00"` for a point in time.
 5. `sudo systemctl start corebalt-stack`. PostgreSQL recovers (minutes at most; `docker logs corebalt-postgres-1` shows the replay), the services start behind their health checks.
 6. Check: `backupctl status`, `stackctl status`, sign in to the admin app, a customer's wallet statement. Then `ops backup`.
-7. Point the DNS records at the new host. Routers reach the hub by its public key: restore the hub's key from escrow (`key-escrow.md`) and replay the escrowed peer list, so no router is re-onboarded: `failover-drill.md`, drill C, steps 3 to 5.
+7. Point the DNS records at the new host. Routers reach the hub by its public key: restore the hub's key from escrow (`key-escrow.md`); the peers come back from the database by themselves (the router sync), so no router is re-onboarded: `failover-drill.md`, drill C, steps 3 to 5.
 
 ### B. Point-in-time recovery on the same host (a bad change at a known time)
 
