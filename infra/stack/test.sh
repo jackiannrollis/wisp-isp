@@ -483,7 +483,35 @@ r=$(curl -sk --max-time 30 -H 'Content-Type: text/csv' "${auth[@]}" --data-binar
 if [ "$(echo "$r" | jf 'd["imported"]')" = 2 ] && [ -n "$(echo "$r" | jf 'd["rows"][0]["pppoePassword"]')" ] && [ "$(echo "$r" | jf 'd["rows"][1]["subscriptionId"]')" = None ]; then
     echo "   ok   CSV import: 2 customers, one PENDING line on the router with its PPPoE password in this answer only"
 else echo "   FAIL CSV import: $(echo "$r" | head -c 300)"; fail=1; fi
-unset tmp otp ptoken stoken auth
+# The lossless cutover (ADR 0014, S11): the console opens the window, the Owner previews a file with
+# paid_until, kept credentials and an old reference, then imports it with the preview's confirmation.
+tid=$(curl -sk --max-time 30 -H "Authorization: Bearer ${ptoken:-none}" "$API/api/platform/tenants" | jf "[t['id'] for t in d if t['code'] == '$code'][0]")
+r=$(curl -sk --max-time 30 -X PUT -H 'Content-Type: application/json' -H "Authorization: Bearer ${ptoken:-none}" -d "{\"until\":\"$(date -u -d '+7 days' +%Y-%m-%dT%H:%M:%SZ)\"}" "$API/api/platform/tenants/$tid/cutover-window")
+[ -n "$(echo "$r" | jf 'd["cutoverWindowUntil"]')" ] && echo "   ok   cutover window opened by the console for 7 days" || { echo "   FAIL cutover window: $(echo "$r" | head -c 300)"; fail=1; }
+paid=$(date -u -d '+10 days' +%Y-%m-%d)
+csv=$(printf 'name,phone,package,paid_until,pppoe_username,pppoe_password,legacy_account_ref\nMoved Test,0700000004,Home 10,%s,old.user@stacktest,stacktest-kept-pw,HSE-4\n' "$paid")
+r=$(curl -sk --max-time 30 -H 'Content-Type: text/csv' "${auth[@]}" --data-binary "$csv" "$API/api/v1/customer-imports/preview?routerId=$rid&timeOfDay=09:30")
+conf=$(echo "$r" | jf 'd["confirmation"]')
+if [ "$(echo "$r" | jf 'd["activation"]["future"]')" = 1 ] && [ -n "$conf" ] && ! echo "$r" | grep -q stacktest-kept-pw; then
+    echo "   ok   preview: one line activating until $paid 09:30 tenant time, value of the time granted $(echo "$r" | jf 'd["activation"]["valueGranted"]["amount"]') cents, the kept password not echoed"
+else echo "   FAIL preview: $(echo "$r" | head -c 300)"; fail=1; fi
+[ "$(curl -sk --max-time 30 -o /dev/null -w '%{http_code}' -H 'Content-Type: text/csv' "${auth[@]}" --data-binary "$csv" "$API/api/v1/customer-imports?routerId=$rid&timeOfDay=09:30")" = 400 ] \
+    && echo "   ok   the import refuses an activating file without the preview's confirmation" || { echo "   FAIL import without confirmation was not refused"; fail=1; }
+r=$(curl -sk --max-time 30 -H 'Content-Type: text/csv' "${auth[@]}" --data-binary "$csv" "$API/api/v1/customer-imports?routerId=$rid&timeOfDay=09:30&confirmation=$conf")
+sid=$(echo "$r" | jf 'd["rows"][0]["subscriptionId"]'); bid=$(echo "$r" | jf 'd["batchId"]')
+if [ "$(echo "$r" | jf 'd["activated"]')" = 1 ] && [ "$(echo "$r" | jf 'd["rows"][0]["credentialKept"]')" = True ] && [ "$(echo "$r" | jf 'd["rows"][0]["pppoePassword"]')" = None ]; then
+    echo "   ok   cutover import: the line is active until $(echo "$r" | jf 'd["rows"][0]["activatedUntil"]'), credentials kept, nothing echoed"
+else echo "   FAIL cutover import: $(echo "$r" | head -c 300)"; fail=1; fi
+r=$(curl -sk --max-time 30 "${auth[@]}" "$API/api/v1/subscriptions/$sid")
+[ "$(echo "$r" | jf 'd["state"]')" = ACTIVE ] && [ "$(echo "$r" | jf 'd["accessProfile"]')" = FULL ] && [ "$(echo "$r" | jf 'd["usernameKept"]')" = True ] \
+    && echo "   ok   the imported line is ACTIVE and FULL with its kept username (S11)" || { echo "   FAIL imported line: $(echo "$r" | head -c 300)"; fail=1; }
+compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select value from v_radius_auth_v7 where username = 'old.user@stacktest' and nasname = '$tip' and attribute = 'Cleartext-Password'" 2>/dev/null | grep -qx stacktest-kept-pw \
+    && echo "   ok   the RADIUS view answers for the kept username through this tenant's router with the kept password (T3)" || { echo "   FAIL the RADIUS view has no row for the kept username"; fail=1; }
+compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) from billing_ledger_entry e join tenancy_tenant t on t.id = e.tenant_id where t.code = '$code'" 2>/dev/null | grep -qx 0 \
+    && echo "   ok   no ledger entry for the activation (B1)" || { echo "   FAIL a ledger entry appeared for the cutover import"; fail=1; }
+r=$(post /api/v1/notifications/moved-notices "{\"importBatchId\":\"$bid\"}" "${auth[@]}")
+[ "$(echo "$r" | jf 'd["queued"]')" = 1 ] && echo "   ok   the \"we've moved\" SMS is queued once for the batch (M1)" || { echo "   FAIL moved notice: $(echo "$r" | head -c 300)"; fail=1; }
+unset tmp otp ptoken stoken auth conf
 
 echo "== services"
 ./stackctl status

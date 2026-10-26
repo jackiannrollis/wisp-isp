@@ -11,7 +11,9 @@ import com.corebalt.isp.packages.api.PackageCatalog.PackageTerms;
 import com.corebalt.isp.payments.api.PaymentInstructions;
 import com.corebalt.isp.payments.api.PaymentUnmatched;
 import com.corebalt.isp.shared.money.Money;
+import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.subscriptions.api.CreditApplied;
+import com.corebalt.isp.subscriptions.api.CustomerImports;
 import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDirectory.LineInfo;
 import com.corebalt.isp.subscriptions.api.SubscriptionPackageChanged;
@@ -24,6 +26,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +56,7 @@ public class MessageComposer {
     private final Wallets wallets;
     private final PaymentInstructions payments;
     private final TenantProfile tenantProfile;
+    private final CustomerImports imports;
 
     MessageComposer(
             final NotificationQueue queue,
@@ -62,7 +66,8 @@ public class MessageComposer {
             final Receipts receipts,
             final Wallets wallets,
             final PaymentInstructions payments,
-            final TenantProfile tenantProfile) {
+            final TenantProfile tenantProfile,
+            final CustomerImports imports) {
         this.queue = queue;
         this.customers = customers;
         this.lines = lines;
@@ -71,6 +76,34 @@ public class MessageComposer {
         this.wallets = wallets;
         this.payments = payments;
         this.tenantProfile = tenantProfile;
+        this.imports = imports;
+    }
+
+    /** The "we've moved" notice went to an import batch (ADR 0014): how many customers it has and how many messages were queued now. */
+    public record MovedNotices(UUID importBatchId, int customers, int queued) {}
+
+    /**
+     * One "we've moved" SMS per customer of an import batch, with their new number and, when kept,
+     * their old reference; once per batch and customer (M1), in the sending window (M2). Customers
+     * without a phone, or already notified for this batch, are skipped.
+     */
+    @Transactional
+    public MovedNotices movedNotices(final UUID batchId) {
+        imports.batch(batchId).orElseThrow(() -> new NotFoundException("Import batch"));
+        final List<UUID> customerIds = imports.customersOf(batchId);
+        int queued = 0;
+        for (final UUID customerId : customerIds) {
+            final Map<String, String> values = customerValues(customerId);
+            final Optional<String> legacy = customers.legacyAccountRefOf(customerId);
+            legacy.ifPresent(reference -> values.put("legacy_ref", reference));
+            final Optional<String> phone = customers.phoneOf(customerId);
+            if (phone.isPresent() && queue.enqueue(customerId, phone.get(),
+                    legacy.isPresent() ? Template.MOVED_NOTICE_LEGACY : Template.MOVED_NOTICE, values,
+                    "MOVED_NOTICE:" + batchId + ":" + customerId)) {
+                queued++;
+            }
+        }
+        return new MovedNotices(batchId, customerIds.size(), queued);
     }
 
     @Transactional

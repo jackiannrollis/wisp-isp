@@ -1,0 +1,152 @@
+.step {
+  padding: var(--app-space-5);
+  margin-top: var(--app-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-4);
+}
+
+.help {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+
+  code {
+    font-size: 0.9em;
+  }
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-4);
+
+  mat-form-field {
+    flex: 1 1 260px;
+  }
+
+  .time {
+    flex: 0 1 220px;
+  }
+}
+
+.file {
+  display: none;
+}
+
+.file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+.file-name {
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.error {
+  margin: 0;
+  color: var(--app-error);
+  font-weight: 600;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--app-space-4);
+  margin: 0;
+
+  dt {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    font: var(--mat-sys-title-medium);
+    font-weight: 600;
+
+    small {
+      display: block;
+      font: var(--mat-sys-body-small);
+      font-weight: 400;
+      color: var(--mat-sys-on-surface-variant);
+    }
+  }
+}
+
+.warnings {
+  margin: 0;
+  padding-left: var(--app-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-2);
+}
+
+.attention {
+  color: var(--app-warning);
+  font-weight: 600;
+}
+
+.alert {
+  color: var(--app-error);
+  font-weight: 600;
+}
+
+.result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.count {
+  margin-left: var(--app-space-2);
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.result {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--mat-sys-body-medium);
+
+  th,
+  td {
+    text-align: left;
+    padding: var(--app-space-2) var(--app-space-3);
+    border-bottom: var(--app-border);
+    white-space: nowrap;
+  }
+
+  th {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.key {
+  font-weight: 600;
+}
+
+.secret {
+  font-family: var(--app-font-mono, monospace);
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+  font-family: inherit;
+}

@@ -6,7 +6,10 @@ import com.corebalt.isp.shared.web.ConflictException;
 import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -24,7 +27,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 class TenantRegistryService implements TenantRegistry {
 
-    private static final String SELECT = "select id, code, name, subdomain, status from tenancy_tenant ";
+    private static final String SELECT = "select id, code, name, subdomain, status, cutover_window_until from tenancy_tenant ";
+
+    /** The longest cutover window the console may open (ADR 0014). */
+    static final Duration MAX_CUTOVER_WINDOW = Duration.ofDays(30);
 
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
@@ -80,7 +86,7 @@ class TenantRegistryService implements TenantRegistry {
                     .param("name", name.strip())
                     .param("subdomain", normalisedSubdomain)
                     .update();
-            return new TenantRef(id, normalisedCode, name.strip(), normalisedSubdomain, "TRIAL");
+            return new TenantRef(id, normalisedCode, name.strip(), normalisedSubdomain, "TRIAL", null);
         });
     }
 
@@ -97,6 +103,34 @@ class TenantRegistryService implements TenantRegistry {
     @Override
     public TenantRef reinstate(final UUID tenantId) {
         return transition(tenantId, Set.of("SUSPENDED"), "ACTIVE", "reinstate");
+    }
+
+    @Override
+    public TenantRef openCutoverWindow(final UUID tenantId, final Instant until) {
+        final Instant now = clock.instant();
+        if (until == null || !until.isAfter(now)) {
+            throw InvalidRequestException.of("until", "must be in the future");
+        }
+        if (until.isAfter(now.plus(MAX_CUTOVER_WINDOW))) {
+            throw InvalidRequestException.of("until", "at most " + MAX_CUTOVER_WINDOW.toDays() + " days ahead");
+        }
+        return setCutoverWindow(tenantId, until);
+    }
+
+    @Override
+    public TenantRef closeCutoverWindow(final UUID tenantId) {
+        return setCutoverWindow(tenantId, null);
+    }
+
+    private TenantRef setCutoverWindow(final UUID tenantId, final Instant until) {
+        return inScope(() -> {
+            find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
+            jdbc.sql("update tenancy_tenant set cutover_window_until = :until, updated_at = now() where id = :id")
+                    .param("until", until == null ? null : Timestamp.from(until))
+                    .param("id", tenantId)
+                    .update();
+            return find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
+        });
     }
 
     private TenantRef transition(final UUID tenantId, final Set<String> from, final String to, final String verb) {
@@ -121,6 +155,8 @@ class TenantRegistryService implements TenantRegistry {
     }
 
     private static TenantRef row(final java.sql.ResultSet rs, final int row) throws java.sql.SQLException {
-        return new TenantRef(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5));
+        final Timestamp until = rs.getTimestamp(6);
+        return new TenantRef(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                until == null ? null : until.toInstant());
     }
 }

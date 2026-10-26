@@ -22,7 +22,7 @@ Store only the states people set by hand; derive everything else from dates. RAD
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: customer and line created
-    PENDING --> ACTIVE: first renewal paid
+    PENDING --> ACTIVE: first renewal paid, or the cutover import (S11)
     PENDING --> TERMINATED: cancelled before activation
     ACTIVE --> ACTIVE: renewal extends expires_at
     ACTIVE --> PAUSED: customer pause request
@@ -91,6 +91,16 @@ The same logic lives in two places that must agree: the SQL function `subscripti
 - `SUSPENDED` is an admin action with a reason; access is `REJECT`; the router drops the session at once. Lifting the hold re-evaluates dates: a subscription that expired during the hold comes back as `RESTRICTED`, not `FULL`.
 - `TERMINATED` revokes the PPPoE password (RADIUS rejects it with "Account terminated") and frees the static IP; the customer, ledger and accounting history remain for records and lawful requests. Any wallet balance is settled by refund or credit note.
 - **Cancel before activation.** A `PENDING` line that was never paid (the customer changed their mind, the installation fell through) is closed with `POST /api/v1/subscriptions/{id}/cancel`. It needs `customers.write`, a reason and an `Idempotency-Key`; it writes an audit row and publishes `SubscriptionStateChanged` (`PENDING` to `TERMINATED`) like every transition (S9). The PPPoE credential is revoked, so the RADIUS view has nothing for the line. The wallet is untouched: money paid towards the line stays as credit, and a refund takes the normal road. Only a `PENDING` line can be cancelled; an active one is terminated. Nothing cancels a line automatically: the dashboard's action queue lists lines pending for more than 14 days, for staff to chase or cancel (decisions.md 2026-10-21).
+
+## The cutover import
+
+The one activation that is not a payment (S11, [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)): an ISP moving existing, paying customers onto the platform imports them with the expiry each one already paid for in the old system, so nobody loses paid days and nobody gets a free cycle.
+
+- The CSV column `paid_until` opens the line `ACTIVE` with that expiry; `cycle_started_at` is one package duration before it, so fair use counts the right cycle (N9); grace is copied as a renewal copies it (S6). A date alone (`2026-11-15`) means the time of day chosen on the import, default 12:00, in the tenant's zone: an expiry in daytime, when customers can pay and staff can help. A past date is allowed: the line is `ACTIVE` and expired, so RADIUS sends the customer to the pay page instead of rejecting them.
+- Bounded three ways: `paid_until` at most one package duration ahead; only while the tenant's **cutover window** is open, which a Corebalt platform admin opens for at most 30 days and which closes by itself; only by a holder of `subscriptions.import_active`, a permission of the built-in Owner role alone, with 2FA.
+- Previewed first: the import's dry run returns what the file does (lines activating, already expired and ahead; the earliest and latest date; the value of the time granted, pro rata of the package price), warnings when more than a tenth of the dates are in the past or nearly all fall on days 1 to 12 (a swapped DD/MM and MM/DD looks like that), and a confirmation the import must send back for that very file.
+- No ledger entry: the old system collected that money, the wallet starts empty. An audit row per activated line and one per batch with the preview's totals; `SubscriptionStateChanged` with cause `IMPORTED`, which no consumer acts on since the line has no session yet. No payment SMS; reminders run as for any line. The first renewal follows S5 from `paid_until`, so the customer's billing day survives the migration.
+- The same import keeps the customer's PPPoE username and password from the old system (`pppoe_username`, `pppoe_password`), so their router needs no change (T2 widened, docs/06), and their old M-Pesa account reference (`legacy_account_ref`), which keeps matching their payments (P3, docs/05). A "we've moved" SMS with the new number goes to the batch when staff ask (M1).
 
 ## Reminders
 

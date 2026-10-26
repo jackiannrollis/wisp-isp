@@ -4,6 +4,7 @@ import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,10 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
     long countByCustomerId(UUID customerId);
 
     Page<Subscription> findByCustomerId(UUID customerId, Pageable page);
+
+    /** Which of these usernames a line of the current tenant already has (the import's kept names, T2). */
+    @Query("select s.pppoeUsername from Subscription s where s.pppoeUsername in :usernames")
+    List<String> findPppoeUsernamesIn(Collection<String> usernames);
 
     /** Row lock for transitions and renewals, so two cannot interleave on one line. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

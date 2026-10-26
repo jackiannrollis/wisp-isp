@@ -22,6 +22,12 @@ public final class Permissions {
     public static final String PACKAGES_WRITE = "packages.write";
     /** Open lines, lifecycle transitions, package changes, PPPoE password regeneration. */
     public static final String SUBSCRIPTIONS_WRITE = "subscriptions.write";
+    /**
+     * S11: import lines already active, with the expiry their customers paid for in the ISP's old
+     * system, while the tenant's cutover window is open (ADR 0014); correct a kept PPPoE username.
+     * Held by the built-in Owner role only, and 2FA.
+     */
+    public static final String SUBSCRIPTIONS_IMPORT_ACTIVE = "subscriptions.import_active";
     /** Register routers and regenerate their secrets. */
     public static final String NETWORK_WRITE = "network.write";
     /** P5: record a cash, bank or M-Pesa payment by hand. */
@@ -55,7 +61,8 @@ public final class Permissions {
 
     /** The whole catalogue, for the role editor and the built-in Owner role. */
     public static final List<String> ALL = List.of(
-            CUSTOMERS_WRITE, PACKAGES_WRITE, SUBSCRIPTIONS_WRITE, NETWORK_WRITE, PAYMENTS_RECORD_MANUAL, PAYMENTS_ASSIGN,
+            CUSTOMERS_WRITE, PACKAGES_WRITE, SUBSCRIPTIONS_WRITE, SUBSCRIPTIONS_IMPORT_ACTIVE, NETWORK_WRITE,
+            PAYMENTS_RECORD_MANUAL, PAYMENTS_ASSIGN,
             PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, SETTINGS_WRITE,
             STAFF_MANAGE, AUDIT_READ, FINANCE_READ);
 

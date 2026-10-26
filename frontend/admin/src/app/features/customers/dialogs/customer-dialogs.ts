@@ -88,6 +88,14 @@ abstract class SubmittingDialog<R> {
           <mat-label>Installation location</mat-label>
           <input matInput formControlName="installationLocation" maxlength="500" />
         </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Old account reference</mat-label>
+          <input matInput formControlName="legacyAccountRef" maxlength="32" />
+          <mat-hint
+            >What this customer typed as the M-Pesa account in your old system; still
+            matches</mat-hint
+          >
+        </mat-form-field>
         @if (error(); as error) {
           <p class="error" role="alert">{{ error }}</p>
         }
@@ -115,6 +123,7 @@ export class CustomerFormDialogComponent extends SubmittingDialog<Customer> {
     email: [this.data.customer?.email ?? '', Validators.email],
     address: [this.data.customer?.address ?? ''],
     installationLocation: [this.data.customer?.installationLocation ?? ''],
+    legacyAccountRef: [this.data.customer?.legacyAccountRef ?? ''],
   });
 
   protected save(): void {
@@ -127,6 +136,7 @@ export class CustomerFormDialogComponent extends SubmittingDialog<Customer> {
       installationLocation: value.installationLocation.trim() || undefined,
       lat: this.data.customer?.lat,
       lng: this.data.customer?.lng,
+      legacyAccountRef: value.legacyAccountRef.trim() || undefined,
     };
     const id = this.data.customer?.id;
     this.send(id ? this.customers.update(id, request) : this.customers.create(request));

@@ -9,6 +9,7 @@ import com.corebalt.isp.packages.api.PackageCatalog.PackageSummary;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.ConflictException;
+import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.shared.web.PageResponse;
 import com.corebalt.isp.subscriptions.api.CreateLineRequest;
@@ -23,10 +24,14 @@ import com.corebalt.isp.subscriptions.domain.PppoeUsernames;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.SubscriptionState;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
+import com.corebalt.isp.tenancy.api.TenantProfile;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +53,7 @@ public class LineService implements SubscriptionDirectory {
     private final PackageCatalog packages;
     private final RouterDirectory routers;
     private final LineCredentialStore credentials;
+    private final TenantProfile tenantProfile;
     private final AuditTrail audit;
     private final SubscriptionViews views;
     private final Clock clock;
@@ -58,6 +64,7 @@ public class LineService implements SubscriptionDirectory {
             final PackageCatalog packages,
             final RouterDirectory routers,
             final LineCredentialStore credentials,
+            final TenantProfile tenantProfile,
             final AuditTrail audit,
             final SubscriptionViews views,
             final Clock clock) {
@@ -66,10 +73,17 @@ public class LineService implements SubscriptionDirectory {
         this.packages = packages;
         this.routers = routers;
         this.credentials = credentials;
+        this.tenantProfile = tenantProfile;
         this.audit = audit;
         this.views = views;
         this.clock = clock;
     }
+
+    /**
+     * Credentials the cutover import keeps from the ISP's old system (ADR 0014): the customer's router
+     * already dials with them. Never logged, never returned.
+     */
+    public record KeptCredential(String username, String password) {}
 
     @Transactional
     public LineOpenedDto open(final CreateLineRequest request) {
@@ -86,6 +100,16 @@ public class LineService implements SubscriptionDirectory {
     /** For callers that already resolved the customer, package and router (the CSV import). */
     @Transactional
     LineOpenedDto open(final CustomerSummary customer, final PackageSummary pkg, final UUID routerId) {
+        return open(customer, pkg, routerId, null);
+    }
+
+    /**
+     * With {@code kept} (the cutover import, ADR 0014) the line keeps the old system's username and
+     * password instead of generated ones, and the response carries no password: the router has it.
+     */
+    @Transactional
+    LineOpenedDto open(final CustomerSummary customer, final PackageSummary pkg, final UUID routerId,
+                       final KeptCredential kept) {
         if (!customer.active()) {
             throw new ConflictException("Customer " + customer.number() + " is archived.");
         }
@@ -100,12 +124,19 @@ public class LineService implements SubscriptionDirectory {
                         customer.id(),
                         pkg.id(),
                         routerId,
-                        PppoeUsernames.forLine(customer.number(), lineNumber),
+                        kept != null ? kept.username() : PppoeUsernames.forLine(customer.number(), lineNumber),
+                        kept != null,
                         clock.instant());
         // Flush first: the credential row references the line (and a duplicate username, from a
         // concurrent request for the same customer, fails here as a 409 before any password exists).
         lines.saveAndFlush(line);
-        final String password = credentials.issue(line.getId());
+        final String password;
+        if (kept != null) {
+            credentials.keep(line.getId(), kept.password());
+            password = null;
+        } else {
+            password = credentials.issue(line.getId());
+        }
         audit.record(
                 AuditEntry.of(
                         "subscriptions.line_opened",
@@ -113,10 +144,40 @@ public class LineService implements SubscriptionDirectory {
                         line.getId(),
                         Map.of(
                                 "pppoeUsername", line.getPppoeUsername(),
+                                "usernameKept", kept != null,
                                 "state", line.getState().name(),
                                 "packageId", pkg.id().toString(),
                                 "routerId", routerId.toString())));
         return new LineOpenedDto(views.toDto(line), password);
+    }
+
+    /** Which of these usernames a line of the tenant already has (the import's kept names). */
+    @Transactional(readOnly = true)
+    Set<String> existingUsernames(final Collection<String> usernames) {
+        return usernames.isEmpty() ? Set.of() : new HashSet<>(lines.findPppoeUsernamesIn(usernames));
+    }
+
+    /**
+     * A kept username typed wrong in the import (ADR 0014): corrected while the tenant's cutover
+     * window is open, by the Owner, with an audit row. A generated username never changes (T2).
+     */
+    @Transactional
+    public SubscriptionDto correctKeptUsername(final UUID subscriptionId, final String username) {
+        final Instant now = clock.instant();
+        if (tenantProfile.currentCutoverWindowUntil().filter(now::isBefore).isEmpty()) {
+            throw new ConflictException("S11: the cutover window is closed; a Corebalt platform admin opens it.");
+        }
+        final String cleaned = username == null ? "" : username.strip();
+        PppoeUsernames.keptProblem(cleaned).ifPresent(problem -> {
+            throw InvalidRequestException.of("username", problem);
+        });
+        final Subscription line = lines.findForUpdate(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
+        final String before = line.getPppoeUsername();
+        line.correctKeptUsername(cleaned, now);
+        lines.saveAndFlush(line);
+        audit.record(new AuditEntry("subscriptions.pppoe_username_corrected", "subscription", line.getId(),
+                Map.of("pppoeUsername", before), Map.of("pppoeUsername", cleaned), null));
+        return views.toDto(line);
     }
 
     @Transactional

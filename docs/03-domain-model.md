@@ -54,6 +54,7 @@ erDiagram
 | `number` | Tenant code plus zero-padded sequence, e.g. `CB001238`; unique across the platform; used as the M-Pesa account reference |
 | `name`, `phone` (E.164), `email`, `national_id` (encrypted, optional) | |
 | `address`, `installation_location` (text), `lat`, `lng` | |
+| `legacy_account_ref` | The M-Pesa account reference the customer used in the ISP's old system, kept by the cutover import ([ADR 0014](adr/0014-cutover-import-with-current-expiry.md)); upper-cased, unique per tenant, matched exactly before normalisation (P3); cleared by staff once forgotten |
 | `status` | `ACTIVE`, `ARCHIVED` |
 | `portal_pin_hash` | Portal login by phone number and PIN, or OTP by SMS |
 
@@ -80,7 +81,7 @@ erDiagram
 | Field | Notes |
 |---|---|
 | `customer_id`, `package_id`, `router_id` | |
-| `pppoe_username` | Equals `customer.number` for the first line; `CB001238-2` for a second line |
+| `pppoe_username`, `username_kept` | Equals `customer.number` for the first line, `CB001238-2` for a second line; or, when `username_kept`, the name the cutover import kept from the old system: unique within the tenant, never in the generated shape, correctable while the cutover window is open (T2, [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)) |
 | PPPoE password | Not a column here: platform-generated, stored in `network_radius_credential` (owned by `network`), shown once to staff at creation, then only regenerated ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)) |
 | `static_ip`, `mac_address` | Optional |
 | `state` | Stored: `PENDING`, `ACTIVE`, `PAUSED`, `SUSPENDED`, `TERMINATED` (see [04](04-subscription-lifecycle.md)) |

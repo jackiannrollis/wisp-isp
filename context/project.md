@@ -35,7 +35,7 @@ Modules talk through published events or small explicit interfaces, never throug
 3. **Expired users are restricted, not rejected**: `restricted` pool and address list, pay page reachable. `Access-Reject` only for `PENDING`, `SUSPENDED`, `TERMINATED`.
 4. **Money is an append-only ledger** on a per-customer wallet; payments credit, renewals debit, corrections are new entries. Integer KES cents, never floats.
 5. **M-Pesa callbacks are idempotent** on (`tenant_id`, `TransID`); unmatched payments go to a suspense queue; reconciliation runs daily.
-6. **Everything is tenant-scoped**: `tenant_id` on every table, RLS in PostgreSQL, tenant context mandatory in code, customer numbers and PPPoE usernames prefixed with the tenant code (`CB001238`).
+6. **Everything is tenant-scoped**: `tenant_id` on every table, RLS in PostgreSQL, tenant context mandatory in code, customer numbers and generated PPPoE usernames prefixed with the tenant code (`CB001238`; a username kept from an ISP's old system by the cutover import is unique within its tenant, ADR 0014).
 7. **Secrets are write-only and envelope-encrypted**; never logged, never returned by the API.
 
 ## Stored states and derived access

@@ -10,7 +10,10 @@ public final class CustomerSpecifications {
 
     private CustomerSpecifications() {}
 
-    /** Name contains, number starts with, or (three digits or more) phone contains the query. */
+    /**
+     * Name contains, number or old-system reference starts with, or (three digits or more) phone
+     * contains the query.
+     */
     public static Specification<Customer> matching(final String query) {
         if (query == null || query.isBlank()) {
             return (root, cq, cb) -> null;
@@ -22,10 +25,11 @@ public final class CustomerSpecifications {
         return (root, cq, cb) -> {
             final var byName = cb.like(cb.lower(root.get("name")), "%" + escape(text) + "%", '\\');
             final var byNumber = cb.like(cb.lower(root.get("number")), escape(text) + "%", '\\');
+            final var byLegacyRef = cb.like(cb.lower(root.get("legacyAccountRef")), escape(text) + "%", '\\');
             if (digits.length() < 3) {
-                return cb.or(byName, byNumber);
+                return cb.or(byName, byNumber, byLegacyRef);
             }
-            return cb.or(byName, byNumber, cb.like(root.get("phone"), "%" + digits + "%"));
+            return cb.or(byName, byNumber, byLegacyRef, cb.like(root.get("phone"), "%" + digits + "%"));
         };
     }
 

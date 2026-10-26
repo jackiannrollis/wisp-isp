@@ -95,6 +95,32 @@ class MpesaIT extends IntegrationTest {
         assertThat(awaitPayment(txn)).containsEntry("status", "MATCHED").containsEntry("customer_id", UUID.fromString(wanjiku));
     }
 
+    /**
+     * ADR 0014: the reference a customer used in the old system is matched exactly, before the
+     * normalised reference, so a digits-only old reference never turns into somebody else's number.
+     */
+    @Test
+    void P3_anOldSystemReferenceMatchesExactlyBeforeNormalisation() throws Exception {
+        // John's old account number is "1": normalised, that is Wanjiku's number (CB000001).
+        final Api.Response updated = api.put("/api/v1/customers/" + john, """
+                {"name":"John Otieno","phone":"0722000126","legacyAccountRef":" 1 "}
+                """);
+        assertThat(updated.status()).as(updated.body()).isEqualTo(200);
+        assertThat(updated.json().get("legacyAccountRef").asString()).isEqualTo("1");
+        final String txn = txn();
+        callback("c2b/confirmation", fixture("c2b-v2-confirmation-masked.json",
+                Map.of("TRANS_ID", txn, "AMOUNT", "100", "REF", " 1 ", "MSISDN", "2547 ***** 126")));
+        assertThat(awaitPayment(txn)).containsEntry("status", "MATCHED").containsEntry("customer_id", UUID.fromString(john));
+
+        final String lower = txn();
+        api.put("/api/v1/customers/" + john, """
+                {"name":"John Otieno","phone":"0722000126","legacyAccountRef":"hse-4"}
+                """);
+        callback("c2b/confirmation", fixture("c2b-v2-confirmation-masked.json",
+                Map.of("TRANS_ID", lower, "AMOUNT", "100", "REF", "Hse-4", "MSISDN", "2547 ***** 126")));
+        assertThat(awaitPayment(lower)).as("compared upper-cased").containsEntry("customer_id", UUID.fromString(john));
+    }
+
     @Test
     void P3_aHashedNumberMatchesExactlyOneCustomer() throws Exception {
         final String txn = txn();

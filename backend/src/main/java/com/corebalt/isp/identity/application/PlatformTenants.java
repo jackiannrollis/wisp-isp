@@ -7,6 +7,8 @@ import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
 import com.corebalt.isp.tenancy.api.TenantRegistry.TenantRef;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -132,8 +134,43 @@ public class PlatformTenants {
         }));
     }
 
+    /**
+     * Opens the tenant's cutover window until {@code until}, at most 30 days ahead (ADR 0014, S11):
+     * until then the tenant's Owner may import lines already active with the expiry their customers
+     * paid for in the old system. A second call moves the end. Audited in both logs.
+     */
+    public TenantRef openCutoverWindow(final UUID adminId, final UUID tenantId, final Instant until) {
+        final TenantRef before = tenant(tenantId);
+        final TenantRef after = tenants.openCutoverWindow(tenantId, until);
+        auditCutoverWindow(adminId, before, after, "opened");
+        return after;
+    }
+
+    /** Closes the cutover window before its end. */
+    public TenantRef closeCutoverWindow(final UUID adminId, final UUID tenantId) {
+        final TenantRef before = tenant(tenantId);
+        final TenantRef after = tenants.closeCutoverWindow(tenantId);
+        auditCutoverWindow(adminId, before, after, "closed");
+        return after;
+    }
+
     private TenantRef tenant(final UUID tenantId) {
         return tenants.find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
+    }
+
+    private void auditCutoverWindow(final UUID adminId, final TenantRef before, final TenantRef after, final String verb) {
+        final Map<String, Object> was = new HashMap<>();
+        was.put("cutoverWindowUntil", before.cutoverWindowUntil() == null ? null : before.cutoverWindowUntil().toString());
+        final Map<String, Object> is = new HashMap<>();
+        is.put("cutoverWindowUntil", after.cutoverWindowUntil() == null ? null : after.cutoverWindowUntil().toString());
+        TenantContext.callAsTenant(after.id(), () -> tx.execute(s -> {
+            tenantAudit.recordPlatform(adminId, null, new AuditEntry("identity.cutover_window_" + verb, "tenant", after.id(),
+                    was, is, null));
+            final Map<String, Object> detail = new HashMap<>(is);
+            detail.put("code", after.code());
+            platformAudit.record(adminId, "platform.cutover_window_" + verb, "tenant", after.id(), detail);
+            return null;
+        }));
     }
 
     private void auditStatus(final UUID adminId, final TenantRef before, final TenantRef after, final String verb,

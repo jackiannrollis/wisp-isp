@@ -5,7 +5,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 ## Tenancy (docs/07)
 
 - **T1** Every tenant-scoped row carries `tenant_id`; every query runs with a tenant context; a missing context is an error, never "all tenants".
-- **T2** Customer numbers and PPPoE usernames are `<tenant code><6-digit sequence>` (`CB001238`), unique across the platform; a second line is `CB001238-2`.
+- **T2** Customer numbers are `<tenant code><6-digit sequence>` (`CB001238`), unique across the platform. A generated PPPoE username is the customer number, a second line `CB001238-2`. The cutover import (S11) may instead keep the username a customer already has in the ISP's old system: unique within its tenant only, never in the generated shape, correctable only while the cutover window is open; logins stay tenant-bound through T3.
 - **T3** A username authenticates only through routers of its own tenant (`v_radius_auth` joins router tenant to subscription tenant).
 - **T4** Tenant secrets are write-only: stored envelope-encrypted, never returned, logged or placed in events. Exception (ADR 0009): PPPoE passwords and router RADIUS secrets are stored readable only through the RADIUS views, because FreeRADIUS must compare them; the application can set and regenerate them but never read them back, and shows a new value once.
 
@@ -21,6 +21,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **S8** Lifting a suspension re-evaluates dates; a line that expired during the hold returns as `RESTRICTED`.
 - **S9** Every state transition writes an audit row and publishes `SubscriptionStateChanged`. A `PENDING` line that was never paid may be cancelled before activation (`PENDING` → `TERMINATED`, `customers.write`, reason required): its credential is revoked and the wallet is untouched. No line is ever cancelled automatically.
 - **S10** Downgrades always apply at the next renewal; immediate upgrades charge proration and change speed by CoA.
+- **S11** A line is activated without a payment only by the onboarding import (ADR 0014): with `paid_until` at most one package duration ahead (a past date is allowed: the line is `ACTIVE` and expired, so the customer gets the pay page), while the tenant's cutover window opened by the Corebalt console is open (at most 30 days), by a holder of `subscriptions.import_active` (the Owner, 2FA), after a preview of that very file. It writes no ledger entry, an audit row per line and one per batch with the preview's totals, and `SubscriptionStateChanged` with cause `IMPORTED`, which no consumer acts on. The cycle for fair use starts one package duration before `paid_until` (N9); grace is copied as at a renewal (S6).
 
 ## Billing (docs/05)
 
@@ -36,7 +37,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 - **P1** (`tenant_id`, `provider_txn_id`) is unique; a duplicate callback is acknowledged with success and has no side effects.
 - **P2** The raw callback payload is stored before any processing; processing is retried from the stored copy.
-- **P3** Matching order: exact account reference → normalised reference → the payer's number, only when it arrives plain or SHA-256-hashed and belongs to exactly one customer → `UNMATCHED` (suspense queue). A masked number (`2547 ***** 126`) is never matched automatically; staff see a shortlist of customers whose number fits it and assign with an audited click. Never a fuzzy name match.
+- **P3** Matching order: exact account reference → exact match on a customer's old-system reference (`legacy_account_ref`, kept from a cutover, compared trimmed and upper-cased, unique per tenant) → normalised reference → the payer's number, only when it arrives plain or SHA-256-hashed and belongs to exactly one customer → `UNMATCHED` (suspense queue). The old reference comes before normalisation because a digits-only old reference would otherwise read as somebody else's short customer number. A masked number (`2547 ***** 126`) is never matched automatically; staff see a shortlist of customers whose number fits it and assign with an audited click. Never a fuzzy name match.
 - **P4** `PaymentReceived` is written to the outbox in the same transaction as the payment record. Billing alone credits the ledger from it (one `PAYMENT` entry per payment, enforced by a unique ledger reference) and issues the receipt; a matched payment with no ledger entry after 5 minutes raises an alert. Manual payments take the same road.
 - **P5** A manual payment needs the `payments.record_manual` permission, a reference and an audit row.
 - **P6** An STK request with no callback after 2 minutes is queried; after 5 minutes it is `TIMED_OUT` and never silently retried.
@@ -55,7 +56,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 
 ## Notifications (docs/04)
 
-- **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment); the fair-use and data-cap messages use kind, subscription and `cycle_started_at` (one per cycle).
+- **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment); the fair-use and data-cap messages use kind, subscription and `cycle_started_at` (one per cycle); the "we've moved" notice after a cutover import uses the import batch and the customer (one per customer and batch).
 - **M2** Reminders respect the tenant sending window (default 07:00 to 21:00, tenant time zone); the payment message (including its restored variant), the unrecognised-reference reply, package-change messages and the fair-use and data-cap messages (the service changed now) go out immediately.
 - **M3** Messages never include secrets, PINs or full national IDs: templates, including a tenant's own wording, may use only a fixed list of placeholders that carry none of them. Two fixed, non-editable messages are the exceptions: the portal sign-in code, and a staff member's temporary password when staff choose "send by SMS" (Q11). Both are sent at once to the person's own phone, never retried, and logged with the secret masked.
 

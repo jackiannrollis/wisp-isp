@@ -125,7 +125,7 @@ class SubscriptionLifecycleTest {
 
     private static Subscription pending() {
         return Subscription.open(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "CB000001", T0.minus(Duration.ofDays(1)));
+                UUID.randomUUID(), "CB000001", false, T0.minus(Duration.ofDays(1)));
     }
 
     /** ACTIVE, activated at {@code activatedAt}, expiring a month later, no grace. */

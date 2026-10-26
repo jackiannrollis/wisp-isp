@@ -27,9 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ol>
  *   <li>P1: a TransID already recorded is a duplicate; nothing happens.
- *   <li>P3, in order: the account reference is exactly a customer number; the normalised reference
- *       is one; a plain or hashed payer number belongs to exactly one customer. A masked number is
- *       never matched. Otherwise UNMATCHED, into the suspense queue.
+ *   <li>P3, in order: the account reference is exactly a customer number; it is exactly a customer's
+ *       old-system reference (ADR 0014); the normalised reference is a customer number; a plain or
+ *       hashed payer number belongs to exactly one customer. A masked number is never matched.
+ *       Otherwise UNMATCHED, into the suspense queue.
  *   <li>P4: the payment and its event (PaymentReceived, or PaymentUnmatched) commit together.
  * </ol>
  *
@@ -42,6 +43,7 @@ public class MpesaIngestion {
     public enum MatchedBy {
         STK_REQUEST,
         EXACT_REFERENCE,
+        LEGACY_REFERENCE,
         NORMALISED_REFERENCE,
         PHONE,
         PHONE_HASH,
@@ -105,6 +107,12 @@ public class MpesaIngestion {
             final Optional<CustomerSummary> exact = customers.findByNumber(accountRef.strip());
             if (exact.isPresent()) {
                 return new Match(exact.get().id(), MatchedBy.EXACT_REFERENCE);
+            }
+            // Before normalisation (ADR 0014): a digits-only old reference such as "1238" would otherwise
+            // be read as the short form of a customer number that exists after the import.
+            final Optional<CustomerSummary> legacy = customers.findByLegacyAccountRef(accountRef);
+            if (legacy.isPresent()) {
+                return new Match(legacy.get().id(), MatchedBy.LEGACY_REFERENCE);
             }
             final Optional<CustomerSummary> normalised = AccountReference
                     .normalise(accountRef, tenantProfile.currentTenantCode())

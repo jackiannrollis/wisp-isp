@@ -34,12 +34,16 @@ public enum Template {
     /** The line passed its fair-use allowance and is throttled until it renews (docs/09 step 8b, Q15 default). */
     FAIR_USE_REACHED(true, "Hi {name}, you have used your {allowance} fair-use data on {package}, so speed is reduced. Pay KES {price} to Paybill {paybill}, acc {number} to renew now."),
     /** The line used its data cap and is restricted until it renews (Q14 default). */
-    DATA_CAP_REACHED(true, "Hi {name}, you have used all {allowance} of data on {package}. Pay KES {price} to Paybill {paybill}, account {number} to renew and reconnect.");
+    DATA_CAP_REACHED(true, "Hi {name}, you have used all {allowance} of data on {package}. Pay KES {price} to Paybill {paybill}, account {number} to renew and reconnect."),
+    /** After a cutover import (ADR 0014): the customer's new number, sent once per import batch when staff ask. */
+    MOVED_NOTICE(false, "Hi {name}, we have moved to a new system. Your account number is now {number}. Use it when paying to Paybill {paybill}."),
+    /** The same, for a customer whose old account reference is kept (P3): it still works. */
+    MOVED_NOTICE_LEGACY(false, "Hi {name}, we have moved to a new system. Your account number is now {number}. Use it when paying to Paybill {paybill}. Old reference {legacy_ref} still works.");
 
     /** Every placeholder a template may use; none can carry a secret (M3). */
     public static final Set<String> PLACEHOLDERS = Set.of(
             "name", "number", "package", "price", "amount", "receipt", "expires_on", "balance", "due", "paybill",
-            "lines", "reference", "code", "grace_days", "allowance");
+            "lines", "reference", "code", "grace_days", "allowance", "legacy_ref");
 
     /** Long but realistic values: the defaults must fit one part with these (a test checks). */
     public static final Map<String, String> SAMPLE = Map.ofEntries(
@@ -57,7 +61,8 @@ public enum Template {
             Map.entry("reference", "HOUSE 4"),
             Map.entry("code", "CB"),
             Map.entry("grace_days", "2"),
-            Map.entry("allowance", "100 GB"));
+            Map.entry("allowance", "100 GB"),
+            Map.entry("legacy_ref", "A1234"));
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([a-z_]+)}");
 

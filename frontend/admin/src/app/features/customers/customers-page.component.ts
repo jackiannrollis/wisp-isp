@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { Router } from '@angular/router';
-import { IconPlug, IconPlus, TablerIconComponent } from '@tabler/icons-angular';
+import { Router, RouterLink } from '@angular/router';
+import { IconFileUpload, IconPlug, IconPlus, TablerIconComponent } from '@tabler/icons-angular';
 
 import { PermissionService } from '../../core/permissions/permission.service';
 
@@ -30,6 +30,7 @@ import { CustomerFormDialogComponent } from './dialogs/customer-dialogs';
     MatButtonModule,
     TablerIconComponent,
     PageHeaderComponent,
+    RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -37,11 +38,18 @@ import { CustomerFormDialogComponent } from './dialogs/customer-dialogs';
       title="Customers"
       subtitle="Everyone you sell a line to, with their contact details."
     >
-      @if (canCreate()) {
-        <button actions mat-flat-button type="button" (click)="create()">
-          <tabler-icon [icon]="addIcon" [size]="18" /> New customer
-        </button>
-      }
+      <ng-container actions>
+        @if (canImport()) {
+          <a mat-stroked-button routerLink="/customers/import">
+            <tabler-icon [icon]="importIcon" [size]="18" /> Import
+          </a>
+        }
+        @if (canCreate()) {
+          <button mat-flat-button type="button" (click)="create()">
+            <tabler-icon [icon]="addIcon" [size]="18" /> New customer
+          </button>
+        }
+      </ng-container>
     </app-page-header>
     <app-data-table
       tableId="customers"
@@ -77,9 +85,14 @@ export class CustomersPageComponent {
   private readonly permissions = inject(PermissionService);
 
   protected readonly addIcon = IconPlus;
+  protected readonly importIcon = IconFileUpload;
   protected readonly canCreate = computed(() =>
     this.permissions.permissions().has('customers.write'),
   );
+  protected readonly canImport = computed(() => {
+    const p = this.permissions.permissions();
+    return p.has('customers.write') && p.has('subscriptions.write');
+  });
   protected readonly link = (c: Customer) => `/customers/${c.id}`;
 
   protected create(): void {

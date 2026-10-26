@@ -112,6 +112,7 @@ class SubscriptionViews {
                     line.getPackageId(),
                     line.getRouterId(),
                     line.getPppoeUsername(),
+                    line.isUsernameKept(),
                     line.getState().name(),
                     decision.profile().name(),
                     DisplayStatus.of(facts, decision, now).name(),

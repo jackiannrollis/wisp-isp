@@ -15,15 +15,18 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,6 +40,8 @@ class PlatformController {
     record ImpersonationRequest(@NotNull UUID staffUserId, @NotBlank String reason, Integer minutes) {}
 
     record SuspendRequest(@NotBlank @Size(max = 500) String reason) {}
+
+    record CutoverWindowRequest(@NotNull Instant until) {}
 
     private final PlatformTenants tenants;
     private final StaffAdmin staff;
@@ -77,6 +82,19 @@ class PlatformController {
     @Operation(summary = "SUSPENDED to ACTIVE")
     TenantRef reinstate(@PathVariable final UUID tenantId) {
         return tenants.reinstate(admin(), tenantId);
+    }
+
+    @PutMapping("/tenants/{tenantId}/cutover-window")
+    @Operation(summary = "Open the tenant's cutover window until a date at most 30 days ahead (ADR 0014): until then the "
+            + "Owner's customer import may activate lines with the expiry their customers already paid for; it closes by itself")
+    TenantRef openCutoverWindow(@PathVariable final UUID tenantId, @Valid @RequestBody final CutoverWindowRequest request) {
+        return tenants.openCutoverWindow(admin(), tenantId, request.until());
+    }
+
+    @DeleteMapping("/tenants/{tenantId}/cutover-window")
+    @Operation(summary = "Close the cutover window now")
+    TenantRef closeCutoverWindow(@PathVariable final UUID tenantId) {
+        return tenants.closeCutoverWindow(admin(), tenantId);
     }
 
     @PostMapping("/tenants/{tenantId}/staff/{staffId}/invitation")

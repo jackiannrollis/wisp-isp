@@ -80,6 +80,6 @@ public class AccountSettings {
     private static AccountSettingsDto toDto(final Tenant tenant) {
         return new AccountSettingsDto(tenant.getCode(), tenant.getName(), tenant.getBrandColor(), tenant.getLogoUrl(),
                 tenant.getTimeZone(), tenant.getCurrency(), tenant.getDefaultGraceDays(), tenant.getGraceMode(),
-                tenant.getPartialPaymentRule(), tenant.getMaxPauseDays());
+                tenant.getPartialPaymentRule(), tenant.getMaxPauseDays(), tenant.getCutoverWindowUntil());
     }
 }

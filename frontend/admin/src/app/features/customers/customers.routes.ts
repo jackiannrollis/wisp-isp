@@ -7,6 +7,12 @@ export const CUSTOMERS_ROUTES: Routes = [
     loadComponent: () => import('./customers-page.component').then((m) => m.CustomersPageComponent),
   },
   {
+    path: 'import',
+    title: 'Import customers',
+    loadComponent: () =>
+      import('./import-page.component').then((m) => m.CustomerImportPageComponent),
+  },
+  {
     path: ':id',
     title: 'Customer',
     loadComponent: () =>

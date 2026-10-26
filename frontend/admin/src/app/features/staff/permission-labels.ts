@@ -17,6 +17,12 @@ export const PERMISSION_LABELS: Record<string, PermissionLabel> = {
       'Open, pause, suspend and close lines, change packages, new PPPoE passwords. Importing customers needs this and Edit customers.',
     group: 'Customers and lines',
   },
+  'subscriptions.import_active': {
+    label: 'Cutover import',
+    description:
+      'Import lines already active with the expiry customers paid for in the old system, while Corebalt has opened the cutover window; correct kept PPPoE usernames. Owner only.',
+    group: 'Customers and lines',
+  },
   'packages.write': {
     label: 'Edit packages',
     description: 'Create and change packages and prices.',

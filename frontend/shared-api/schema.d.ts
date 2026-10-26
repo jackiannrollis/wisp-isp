@@ -6,6 +6,23 @@
  */
 
 export interface paths {
+    "/api/v1/subscriptions/{id}/pppoe-username": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Correct a PPPoE username the cutover import kept from the old system, while the cutover window is open (ADR 0014); a generated username never changes (T2) */
+        put: operations["correctUsername"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/{id}/role": {
         parameters: {
             query?: never;
@@ -195,6 +212,24 @@ export interface paths {
         put: operations["update_2"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/tenants/{tenantId}/cutover-window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Open the tenant's cutover window until a date at most 30 days ahead (ADR 0014): until then the Owner's customer import may activate lines with the expiry their customers already paid for; it closes by itself */
+        put: operations["openCutoverWindow"];
+        post?: never;
+        /** Close the cutover window now */
+        delete: operations["closeCutoverWindow"];
         options?: never;
         head?: never;
         patch?: never;
@@ -798,6 +833,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/moved-notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue the "we've moved" SMS to every customer of an import batch (ADR 0014): their new number and, when kept, their old reference; once per batch and customer (M1), sent in the sending window (M2) */
+        post: operations["movedNotices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/password": {
         parameters: {
             query?: never;
@@ -878,9 +930,29 @@ export interface paths {
         put?: never;
         /**
          * Import customers from CSV, all rows or none
-         * @description Columns: name, phone (required), email, address, installation_location, lat, lng, package. Rows with a package get a PENDING line on routerId; their PPPoE passwords are in this response only.
+         * @description Columns: name, phone (required), email, address, installation_location, lat, lng, package, paid_until, pppoe_username, pppoe_password, legacy_account_ref. Rows with a package get a line on routerId: PENDING, or ACTIVE until paid_until when the caller holds subscriptions.import_active and the tenant's cutover window is open (S11, ADR 0014), in which case confirmation must be the preview's for this file. Kept PPPoE credentials are never echoed; generated passwords are in this response only.
          */
         post: operations["importCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customer-imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dry run of an import: the same validation, nothing written
+         * @description Columns: name, phone (required), email, address, installation_location, lat, lng, package, paid_until, pppoe_username, pppoe_password, legacy_account_ref. Returns the totals (lines activating, already expired, in the future; the earliest and latest paid_until; the value of the time granted), warnings that usually mean a swapped date format, and the confirmation an import with paid_until must send back (ADR 0014). timeOfDay (HH:mm, default 12:00, tenant time) is the expiry time of a date-only paid_until.
+         */
+        post: operations["preview_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1732,6 +1804,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customer-imports/{batchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One import batch: the totals its preview showed when it was committed */
+        get: operations["batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/branding": {
         parameters: {
             query?: never;
@@ -1837,6 +1926,54 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        UsernameRequest: {
+            username: string;
+        };
+        CycleUsage: {
+            /** Format: date-time */
+            cycleStartedAt?: string;
+            /** Format: int64 */
+            usedBytes?: number;
+            /** Format: int64 */
+            fairUseBytes?: number;
+            /** Format: int64 */
+            dataCapBytes?: number;
+            fairUseExceeded?: boolean;
+            dataCapReached?: boolean;
+        };
+        SubscriptionDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            customerId?: string;
+            /** Format: uuid */
+            packageId?: string;
+            /** Format: uuid */
+            routerId?: string;
+            pppoeUsername?: string;
+            usernameKept?: boolean;
+            state?: string;
+            accessProfile?: string;
+            displayStatus?: string;
+            accessReason?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: int32 */
+            graceDays?: number;
+            /** Format: date-time */
+            pausedAt?: string;
+            /** Format: date-time */
+            pauseUntil?: string;
+            /** Format: date-time */
+            activatedAt?: string;
+            /** Format: date-time */
+            terminatedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            usage?: components["schemas"]["CycleUsage"];
+        };
         RoleChange: {
             /** Format: uuid */
             roleId: string;
@@ -1947,6 +2084,8 @@ export interface components {
             partialPaymentRule?: string;
             /** Format: int32 */
             maxPauseDays?: number;
+            /** Format: date-time */
+            cutoverWindowUntil?: string;
         };
         RestCredential: {
             username: string;
@@ -2070,6 +2209,7 @@ export interface components {
             installationLocation?: string;
             lat?: number;
             lng?: number;
+            legacyAccountRef?: string;
         };
         CustomerDto: {
             /** Format: uuid */
@@ -2082,11 +2222,26 @@ export interface components {
             installationLocation?: string;
             lat?: number;
             lng?: number;
+            legacyAccountRef?: string;
             status?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        CutoverWindowRequest: {
+            /** Format: date-time */
+            until: string;
+        };
+        TenantRef: {
+            /** Format: uuid */
+            id?: string;
+            code?: string;
+            name?: string;
+            subdomain?: string;
+            status?: string;
+            /** Format: date-time */
+            cutoverWindowUntil?: string;
         };
         CreateLineRequest: {
             /** Format: uuid */
@@ -2096,53 +2251,9 @@ export interface components {
             /** Format: uuid */
             routerId: string;
         };
-        CycleUsage: {
-            /** Format: date-time */
-            cycleStartedAt?: string;
-            /** Format: int64 */
-            usedBytes?: number;
-            /** Format: int64 */
-            fairUseBytes?: number;
-            /** Format: int64 */
-            dataCapBytes?: number;
-            fairUseExceeded?: boolean;
-            dataCapReached?: boolean;
-        };
         LineOpenedDto: {
             subscription?: components["schemas"]["SubscriptionDto"];
             pppoePassword?: string;
-        };
-        SubscriptionDto: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: uuid */
-            customerId?: string;
-            /** Format: uuid */
-            packageId?: string;
-            /** Format: uuid */
-            routerId?: string;
-            pppoeUsername?: string;
-            state?: string;
-            accessProfile?: string;
-            displayStatus?: string;
-            accessReason?: string;
-            /** Format: date-time */
-            expiresAt?: string;
-            /** Format: int32 */
-            graceDays?: number;
-            /** Format: date-time */
-            pausedAt?: string;
-            /** Format: date-time */
-            pauseUntil?: string;
-            /** Format: date-time */
-            activatedAt?: string;
-            /** Format: date-time */
-            terminatedAt?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-            usage?: components["schemas"]["CycleUsage"];
         };
         ReasonRequest: {
             reason: string;
@@ -2334,6 +2445,18 @@ export interface components {
             payerName?: string;
             note?: string;
         };
+        MovedNoticeRequest: {
+            /** Format: uuid */
+            importBatchId: string;
+        };
+        MovedNotices: {
+            /** Format: uuid */
+            importBatchId?: string;
+            /** Format: int32 */
+            customers?: number;
+            /** Format: int32 */
+            queued?: number;
+        };
         OwnPassword: {
             currentPassword: string;
             newPassword: string;
@@ -2357,8 +2480,12 @@ export interface components {
             createdAt?: string;
         };
         CustomerImportResultDto: {
+            /** Format: uuid */
+            batchId?: string;
             /** Format: int32 */
             imported?: number;
+            /** Format: int32 */
+            activated?: number;
             rows?: components["schemas"]["Row"][];
         };
         Row: {
@@ -2372,6 +2499,41 @@ export interface components {
             subscriptionId?: string;
             pppoeUsername?: string;
             pppoePassword?: string;
+            credentialKept?: boolean;
+            /** Format: date-time */
+            activatedUntil?: string;
+        };
+        Activation: {
+            /** Format: int32 */
+            total?: number;
+            /** Format: int32 */
+            expired?: number;
+            /** Format: int32 */
+            future?: number;
+            /** Format: date-time */
+            earliestPaidUntil?: string;
+            /** Format: date-time */
+            latestPaidUntil?: string;
+            valueGranted?: components["schemas"]["MoneyDto"];
+        };
+        CustomerImportPreviewDto: {
+            /** Format: int32 */
+            rows?: number;
+            /** Format: int32 */
+            lines?: number;
+            /** Format: int32 */
+            credentialsKept?: number;
+            /** Format: int32 */
+            legacyRefs?: number;
+            activation?: components["schemas"]["Activation"];
+            warnings?: components["schemas"]["Warning"][];
+            confirmation?: string;
+        };
+        Warning: {
+            code?: string;
+            message?: string;
+            /** Format: int32 */
+            rows?: number;
         };
         Code: {
             challenge: string;
@@ -2397,14 +2559,6 @@ export interface components {
         Created: {
             tenant?: components["schemas"]["TenantRef"];
             owner?: components["schemas"]["Invitation"];
-        };
-        TenantRef: {
-            /** Format: uuid */
-            id?: string;
-            code?: string;
-            name?: string;
-            subdomain?: string;
-            status?: string;
         };
         SuspendRequest: {
             reason: string;
@@ -2835,6 +2989,24 @@ export interface components {
             /** Format: int64 */
             total?: number;
         };
+        ImportBatch: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            routerId?: string;
+            /** Format: int32 */
+            rows?: number;
+            /** Format: int32 */
+            lines?: number;
+            /** Format: int32 */
+            credentialsKept?: number;
+            /** Format: int32 */
+            legacyRefs?: number;
+            activation?: components["schemas"]["Activation"];
+            warnings?: components["schemas"]["Warning"][];
+        };
         AuditRow: {
             /** Format: uuid */
             id?: string;
@@ -2873,6 +3045,32 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    correctUsername: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsernameRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
     role: {
         parameters: {
             query?: never;
@@ -2972,7 +3170,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED" | "MOVED_NOTICE" | "MOVED_NOTICE_LEGACY";
             };
             cookie?: never;
         };
@@ -2998,7 +3196,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED" | "MOVED_NOTICE" | "MOVED_NOTICE_LEGACY";
             };
             cookie?: never;
         };
@@ -3293,6 +3491,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CustomerDto"];
+                };
+            };
+        };
+    };
+    openCutoverWindow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CutoverWindowRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantRef"];
+                };
+            };
+        };
+    };
+    closeCutoverWindow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TenantRef"];
                 };
             };
         };
@@ -3693,7 +3939,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED";
+                key: "EXPIRING_3D" | "EXPIRING_3D_AUTO" | "EXPIRING_1D" | "EXPIRING_1D_AUTO" | "DUE_TODAY" | "DUE_TODAY_AUTO" | "GRACE_STARTED" | "RESTRICTED" | "PAYMENT_RECEIVED_RENEWED" | "PAYMENT_RECEIVED_RESTORED" | "PAYMENT_RECEIVED_ACTIVATED" | "PAYMENT_RECEIVED_MULTI" | "PAYMENT_RECEIVED_PARTIAL" | "PAYMENT_RECEIVED_CREDIT" | "PAYMENT_RECEIVED_POSTPAID" | "PAYMENT_UNMATCHED" | "PACKAGE_CHANGED_NOW" | "PACKAGE_CHANGED_NEXT" | "FAIR_USE_REACHED" | "DATA_CAP_REACHED" | "MOVED_NOTICE" | "MOVED_NOTICE_LEGACY";
             };
             cookie?: never;
         };
@@ -4301,6 +4547,30 @@ export interface operations {
             };
         };
     };
+    movedNotices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MovedNoticeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MovedNotices"];
+                };
+            };
+        };
+    };
     password: {
         parameters: {
             query?: never;
@@ -4427,6 +4697,8 @@ export interface operations {
         parameters: {
             query?: {
                 routerId?: string;
+                timeOfDay?: string;
+                confirmation?: string;
             };
             header?: never;
             path?: never;
@@ -4446,6 +4718,34 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CustomerImportResultDto"];
+                };
+            };
+        };
+    };
+    preview_1: {
+        parameters: {
+            query?: {
+                routerId?: string;
+                timeOfDay?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+                "text/plain": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CustomerImportPreviewDto"];
                 };
             };
         };
@@ -5592,6 +5892,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PageResponseLedgerEntryDto"];
+                };
+            };
+        };
+    };
+    batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportBatch"];
                 };
             };
         };

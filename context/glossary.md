@@ -8,6 +8,10 @@
 | Tenant code | Short unique prefix per tenant (`CB`) used in customer numbers and PPPoE usernames |
 | Customer | A person or business billed by a tenant; has one wallet and one or more subscriptions |
 | Customer number | `<tenant code><6-digit sequence>`, e.g. `CB001238`; also the M-Pesa account reference and the first PPPoE username |
+| Cutover | Moving an ISP's existing customers from its old system onto the platform; the cutover import activates their lines with the expiry they already paid for (S11, ADR 0014) |
+| Cutover window | The period, at most 30 days, during which the Corebalt console lets a tenant's Owner run the cutover import; closes by itself |
+| Kept credentials | A PPPoE username and password the cutover import keeps from the old system, so the customer's router needs no change; unique within the tenant |
+| Old account reference | `legacy_account_ref`: the M-Pesa reference a customer used in the old system, still matched exactly after the cutover (P3) |
 | Subscription (line) | One service connection: package, router, credentials, expiry and state |
 | Package | A sellable plan: speeds, duration, price, grace, fair-use and throttle values |
 | Wallet | A customer's balance, backed by the ledger |

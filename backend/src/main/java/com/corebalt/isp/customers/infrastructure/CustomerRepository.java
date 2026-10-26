@@ -26,4 +26,9 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSp
 
     @Query("select c.phone from Customer c where c.phone in :phones")
     List<String> findPhonesIn(Collection<String> phones);
+
+    Optional<Customer> findByLegacyAccountRef(String legacyAccountRef);
+
+    @Query("select c.legacyAccountRef from Customer c where c.legacyAccountRef in :references")
+    List<String> findLegacyAccountRefsIn(Collection<String> references);
 }

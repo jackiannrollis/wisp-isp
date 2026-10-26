@@ -16,6 +16,12 @@ public interface LineCredentialStore {
     /** Generates and stores the first password of a new line; returns it once. */
     String issue(UUID subscriptionId);
 
+    /**
+     * Stores the password a new line keeps from the ISP's old system (the cutover import, ADR 0014):
+     * the customer's router already has it, so it is never returned, logged or audited by value.
+     */
+    void keep(UUID subscriptionId, String password);
+
     /** Replaces the password; the old one stops working at the next login. Returns the new one once. */
     String regenerate(UUID subscriptionId);
 

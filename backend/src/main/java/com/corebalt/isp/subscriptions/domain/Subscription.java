@@ -50,8 +50,13 @@ public class Subscription {
     @Column(name = "pending_package_id")
     private UUID pendingPackageId;
 
-    @Column(name = "pppoe_username", nullable = false, updatable = false)
+    /** Generated from the customer number (T2), or kept from the ISP's old system by the cutover import (ADR 0014). */
+    @Column(name = "pppoe_username", nullable = false)
     private String pppoeUsername;
+
+    /** True when the import kept the old system's username; only such a name may be corrected, while the window is open. */
+    @Column(name = "username_kept", nullable = false)
+    private boolean usernameKept;
 
     @JdbcTypeCode(SqlTypes.INET)
     @Column(name = "static_ip")
@@ -107,6 +112,7 @@ public class Subscription {
             final UUID packageId,
             final UUID routerId,
             final String pppoeUsername,
+            final boolean usernameKept,
             final Instant now) {
         final Subscription line = new Subscription();
         line.id = id;
@@ -115,6 +121,7 @@ public class Subscription {
         line.packageId = packageId;
         line.routerId = routerId;
         line.pppoeUsername = pppoeUsername;
+        line.usernameKept = usernameKept;
         line.state = SubscriptionState.PENDING;
         line.graceDays = 0;
         line.createdAt = now;
@@ -156,6 +163,43 @@ public class Subscription {
         cycleStartedAt = now;
         updatedAt = now;
         return new Renewal(from, previousExpiresAt, expiresAt);
+    }
+
+    /**
+     * S11 (ADR 0014): the cutover import opens the line ACTIVE with the expiry the customer already
+     * paid for in the old system, with no payment on the platform. The fair-use cycle began one
+     * package duration before it (N9); grace is copied as a renewal would copy it (S6). A past
+     * {@code paidUntil} is allowed: the line is ACTIVE and expired, so RADIUS puts the customer on the
+     * pay page (S2) instead of rejecting them. At most one package duration ahead.
+     */
+    public Transition activateByImport(final Instant paidUntil, final Duration period, final int graceDays,
+                                       final GraceMode graceMode, final Instant now) {
+        if (state != SubscriptionState.PENDING) {
+            throw new LifecycleViolation("S11: only a PENDING line can be activated by the import; this one is " + state + ".");
+        }
+        if (paidUntil.isAfter(now.plus(period))) {
+            throw new LifecycleViolation("S11: paid_until is more than one package duration ahead.");
+        }
+        state = SubscriptionState.ACTIVE;
+        expiresAt = paidUntil;
+        activatedAt = now;
+        cycleStartedAt = paidUntil.minus(period);
+        this.graceDays = graceDays;
+        this.graceMode = graceMode;
+        updatedAt = now;
+        return new Transition(SubscriptionState.PENDING, SubscriptionState.ACTIVE, false);
+    }
+
+    /**
+     * A username the cutover import kept from the old system was typed wrong (ADR 0014). Only a kept
+     * name changes; generated ones never do (T2). The caller checks the cutover window.
+     */
+    public void correctKeptUsername(final String username, final Instant now) {
+        if (!usernameKept) {
+            throw new LifecycleViolation("T2: a generated PPPoE username never changes; only one kept from the old system can be corrected.");
+        }
+        pppoeUsername = username;
+        updatedAt = now;
     }
 
     /** The package the next renewal sells: a pending change, else the current package (S10). */
@@ -330,6 +374,10 @@ public class Subscription {
 
     public String getPppoeUsername() {
         return pppoeUsername;
+    }
+
+    public boolean isUsernameKept() {
+        return usernameKept;
     }
 
     public InetAddress getStaticIp() {

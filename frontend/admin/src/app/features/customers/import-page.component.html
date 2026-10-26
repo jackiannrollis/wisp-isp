@@ -1,0 +1,204 @@
+<app-page-header
+  title="Import customers"
+  subtitle="A CSV of customers and their lines, checked first, then imported all at once."
+  backLink="/customers"
+  backLabel="Customers"
+/>
+
+<section class="panel step" aria-labelledby="file-title">
+  <h2 id="file-title" class="section-title">1. The file and its options</h2>
+  <p class="help">
+    Header required, any order: <code>{{ columns }}</code
+    >. Rows with a package get a line on the router below. <code>paid_until</code> activates the
+    line with the expiry the customer already paid for in your old system (a date alone expires at
+    the time of day chosen here); it needs the Owner and the cutover window Corebalt opens.
+    <code>pppoe_username</code> and <code>pppoe_password</code> keep the credentials a customer's
+    router already has.
+  </p>
+  <form [formGroup]="form" class="options">
+    <mat-form-field appearance="outline">
+      <mat-label>Router for the lines</mat-label>
+      <mat-select formControlName="routerId">
+        <mat-option value="">None (rows without a package only)</mat-option>
+        @for (router of routers(); track router.id) {
+          <mat-option [value]="router.id">{{ router.name }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" class="time">
+      <mat-label>Expiry time for dates</mat-label>
+      <input matInput type="time" formControlName="timeOfDay" />
+      <mat-hint>Your time zone; daytime, when customers can pay</mat-hint>
+    </mat-form-field>
+  </form>
+  <div class="file-row">
+    <input
+      #file
+      type="file"
+      accept=".csv,text/csv"
+      class="file"
+      (change)="choose(file)"
+      aria-label="Customer list CSV"
+    />
+    <button mat-stroked-button type="button" [disabled]="busy()" (click)="file.click()">
+      <tabler-icon [icon]="uploadIcon" [size]="16" /> Choose CSV
+    </button>
+    @if (fileName(); as name) {
+      <span class="file-name">{{ name }}</span>
+    }
+    <button
+      mat-flat-button
+      type="button"
+      [disabled]="!csv() || busy() || !canImport()"
+      (click)="runPreview()"
+    >
+      {{ busy() && !preview() ? 'Checking…' : 'Check the file' }}
+    </button>
+  </div>
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+</section>
+
+@if (preview(); as p) {
+  <section class="panel step" aria-labelledby="preview-title">
+    <h2 id="preview-title" class="section-title">2. What this file does</h2>
+    <dl class="stats">
+      <div>
+        <dt>Customers</dt>
+        <dd>{{ p.rows }}</dd>
+      </div>
+      <div>
+        <dt>Lines</dt>
+        <dd>{{ p.lines }}</dd>
+      </div>
+      <div>
+        <dt>Credentials kept</dt>
+        <dd>{{ p.credentialsKept }}</dd>
+      </div>
+      <div>
+        <dt>Old references</dt>
+        <dd>{{ p.legacyRefs }}</dd>
+      </div>
+      <div>
+        <dt>Lines activated</dt>
+        <dd>
+          {{ p.activation?.total ?? 0 }}
+          @if (p.activation?.total) {
+            <small
+              >{{ p.activation?.expired }} already expired, {{ p.activation?.future }} ahead</small
+            >
+          }
+        </dd>
+      </div>
+      @if (p.activation?.total) {
+        <div>
+          <dt>Paid until</dt>
+          <dd>
+            <small
+              >{{ date(p.activation?.earliestPaidUntil) }} to
+              {{ date(p.activation?.latestPaidUntil) }}</small
+            >
+          </dd>
+        </div>
+        <div>
+          <dt>Time granted</dt>
+          <dd>{{ money(p.activation?.valueGranted) }}</dd>
+        </div>
+      }
+    </dl>
+    @if (p.warnings?.length) {
+      <ul class="warnings">
+        @for (warning of p.warnings; track warning.code) {
+          <li class="attention">{{ warning.message }}</li>
+        }
+      </ul>
+    }
+    @if (activates()) {
+      <p class="help">
+        Activated lines are served without a payment here: the time was paid in your old system. No
+        money moves, every activation is in the audit log.
+      </p>
+    }
+    <button mat-flat-button type="button" [disabled]="busy()" (click)="commit()">
+      {{ busy() ? 'Importing…' : 'Import ' + p.rows + ' customers' }}
+    </button>
+  </section>
+}
+
+@if (result(); as r) {
+  <section class="panel step" aria-labelledby="result-title">
+    <header class="result-head">
+      <h2 id="result-title" class="section-title">
+        3. Imported {{ r.imported }} customers
+        @if (r.activated) {
+          <span class="count">{{ r.activated }} lines active</span>
+        }
+      </h2>
+      <div class="actions">
+        <button mat-stroked-button type="button" (click)="download()">
+          <tabler-icon [icon]="downloadIcon" [size]="16" /> Download this answer
+        </button>
+        @if (canImport()) {
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="busy() || !!notices()"
+            (click)="sendNotices()"
+          >
+            <tabler-icon [icon]="messageIcon" [size]="16" />
+            {{
+              notices()
+                ? 'Queued ' + notices()?.queued + ' of ' + notices()?.customers
+                : 'Send "we have moved" SMS'
+            }}
+          </button>
+        }
+      </div>
+    </header>
+    <p class="help alert">
+      Generated PPPoE passwords are shown only here. Save this answer in the password manager for
+      the technician and delete it once every customer router is configured.
+    </p>
+    <div class="table-wrap">
+      <table class="result">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Number</th>
+            <th>Name</th>
+            <th>PPPoE username</th>
+            <th>Password</th>
+            <th>Active until</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of r.rows; track row.row) {
+            <tr>
+              <td>{{ row.row }}</td>
+              <td class="key">{{ row.number }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.pppoeUsername || '—' }}</td>
+              <td class="secret">
+                @if (row.credentialKept) {
+                  <span class="muted">kept from the old system</span>
+                } @else {
+                  {{ row.pppoePassword || '—' }}
+                }
+              </td>
+              <td>
+                {{
+                  row.activatedUntil
+                    ? date(row.activatedUntil)
+                    : row.subscriptionId
+                      ? 'pending'
+                      : '—'
+                }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

@@ -56,6 +56,10 @@ public class Tenant {
     @Column(name = "partial_payment_rule", nullable = false)
     private String partialPaymentRule;
 
+    /** The end of the cutover window the console opened (ADR 0014, S11); null when none. Set by the registry. */
+    @Column(name = "cutover_window_until", insertable = false, updatable = false)
+    private Instant cutoverWindowUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +67,10 @@ public class Tenant {
     private Instant updatedAt;
 
     protected Tenant() {}
+
+    public Instant getCutoverWindowUntil() {
+        return cutoverWindowUntil;
+    }
 
     public UUID getId() {
         return id;

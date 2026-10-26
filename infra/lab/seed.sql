@@ -148,7 +148,7 @@ ON CONFLICT (id) DO UPDATE SET secret = EXCLUDED.secret, updated_at = now();
 INSERT INTO identity_role (id, tenant_id, name, permissions, requires_2fa, built_in)
 SELECT '01900000-0000-7000-8000-0000000e0001'::uuid, t.id, 'Lab operator',
        ARRAY['customers.write', 'packages.write', 'subscriptions.write', 'network.write', 'payments.record_manual',
-             'payments.assign', 'payments.stk', 'payments.reconcile', 'billing.adjust', 'settings.secrets',
+             'subscriptions.import_active', 'payments.assign', 'payments.stk', 'payments.reconcile', 'billing.adjust', 'settings.secrets',
              'settings.notifications', 'settings.write', 'staff.manage', 'audit.read', 'finance.read'], false, false
 FROM tenancy_tenant t WHERE t.code = 'CB'
 ON CONFLICT (id) DO UPDATE SET permissions = EXCLUDED.permissions, requires_2fa = false, updated_at = now();

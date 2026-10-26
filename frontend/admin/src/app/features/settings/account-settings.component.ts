@@ -16,6 +16,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { errorMessage } from '../../core/api/requests';
 import { TenantThemeService } from '../../core/theme/tenant-theme.service';
+import { formatDateTime } from '../../shared/ui/format';
 import { AccountSettingsRequest, SettingsService } from './data/settings.service';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -80,8 +81,22 @@ const HTTPS = /^\s*(https:\/\/\S+)?\s*$/;
               <dt>Currency</dt>
               <dd>{{ current.value()?.currency }}</dd>
             </div>
+            <div>
+              <dt>Cutover window</dt>
+              <dd>
+                @if (current.value()?.cutoverWindowUntil; as until) {
+                  open until {{ date(until) }}
+                } @else {
+                  closed
+                }
+              </dd>
+            </div>
           </dl>
-          <p class="help">The code prefixes every customer number; these three are fixed.</p>
+          <p class="help">
+            The code prefixes every customer number; these three are fixed. Corebalt opens the
+            cutover window when you move existing customers over with the expiry they already paid
+            for.
+          </p>
         </section>
 
         <section class="panel form">
@@ -184,6 +199,7 @@ export class AccountSettingsComponent {
 
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly date = formatDateTime;
   protected readonly current = rxResource({ stream: () => this.settings.account() });
 
   protected readonly form = inject(NonNullableFormBuilder).group({

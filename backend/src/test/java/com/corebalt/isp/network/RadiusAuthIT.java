@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -256,6 +257,56 @@ class RadiusAuthIT extends IntegrationTest {
     @Test
     void T3_customerLogsInThroughOwnTenantsRouter() throws Exception {
         assertThat(login("ZZ000001", ZZ_NAS).code()).isEqualTo("Access-Accept");
+    }
+
+    /**
+     * ADR 0014, T2 widened: a username kept from an ISP's old system is unique within its tenant
+     * only. Both lab tenants keep the same name with different passwords; FreeRADIUS answers each
+     * through its own router (T3) and refuses the other tenant's password.
+     */
+    @Test
+    void T2_T3_aKeptLegacyUsernameLogsInThroughItsOwnTenantsRouterOnly() throws Exception {
+        keptLine("CB", "CB000090", CB_NAS, "old-user@lab", "cb-legacy-password");
+        keptLine("ZZ", "ZZ000090", ZZ_NAS, "old-user@lab", "zz-legacy-password");
+        final RadiusReply cb = login("old-user@lab", "cb-legacy-password", CB_NAS);
+        assertThat(cb.code()).as(cb.toString()).isEqualTo("Access-Accept");
+        assertThat(cb.attributes()).containsEntry("Framed-Pool", "full");
+        assertThat(login("old-user@lab", "zz-legacy-password", ZZ_NAS).code()).isEqualTo("Access-Accept");
+        assertThat(login("old-user@lab", "cb-legacy-password", ZZ_NAS).code()).as("the other tenant's password").isEqualTo("Access-Reject");
+        assertThat(login("OLD-USER@LAB", "cb-legacy-password", CB_NAS).code()).as("case matters").isEqualTo("Access-Reject");
+    }
+
+    /** As the owner, like the seed: an ACTIVE line with a kept username and password on the tenant's radtest router. */
+    private static void keptLine(final String code, final String number, final String nas, final String username,
+                                 final String password) throws SQLException {
+        try (Connection owner =
+                        DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                var insert = owner.prepareStatement("""
+                        with t as (select id from tenancy_tenant where code = ?),
+                             c as (insert into customers_customer (id, tenant_id, number, name, phone)
+                                   select ?, t.id, ?, 'Kept Legacy', ? from t returning id, tenant_id),
+                             s as (insert into subscriptions_subscription
+                                       (id, tenant_id, customer_id, package_id, router_id, pppoe_username, username_kept,
+                                        state, expires_at, grace_days, cycle_started_at)
+                                   select ?, c.tenant_id, c.id,
+                                          (select id from packages_package p where p.tenant_id = c.tenant_id order by p.id limit 1),
+                                          (select id from network_router r where r.tenant_id = c.tenant_id and host(r.tunnel_ip_a) = ?),
+                                          ?, true, 'ACTIVE', now() + interval '30 days', 0, now() - interval '1 day'
+                                   from c returning id, tenant_id)
+                        insert into network_radius_credential (id, tenant_id, subscription_id, secret)
+                        select ?, s.tenant_id, s.id, ? from s
+                        """)) {
+            insert.setString(1, code);
+            insert.setObject(2, UUID.randomUUID());
+            insert.setString(3, number);
+            insert.setString(4, "+2547000009" + number.substring(number.length() - 2));
+            insert.setObject(5, UUID.randomUUID());
+            insert.setString(6, nas);
+            insert.setString(7, username);
+            insert.setObject(8, UUID.randomUUID());
+            insert.setString(9, password);
+            assertThat(insert.executeUpdate()).isOne();
+        }
     }
 
     @Test

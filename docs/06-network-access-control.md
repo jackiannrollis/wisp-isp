@@ -27,7 +27,7 @@ Static IPs are returned as `Framed-IP-Address` instead of a pool. `Mikrotik-Rate
 
 ## PPPoE flow (v1)
 
-1. The customer's router dials PPPoE with username `CB001238` and its password.
+1. The customer's router dials PPPoE with username `CB001238` and its password, or with the username and password it already had before the ISP moved to the platform (kept by the cutover import, ADR 0014: FreeRADIUS asks the view for the username together with the asking router's address, so a kept name only has to be unique within its tenant, T3).
 2. The MikroTik sends Access-Request to node A, then node B on timeout.
 3. FreeRADIUS answers from `v_radius_auth` with the profile above.
 4. The MikroTik creates the session with that speed, pool and address list, and starts accounting.

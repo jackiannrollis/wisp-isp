@@ -56,7 +56,14 @@ onboarding script with a WireGuard key pair made by the platform (the public key
 in the script once), a new RADIUS secret and REST login; the host timer `corebalt-routersync` keeps
 the hub's peers and FreeRADIUS's clients equal to the database, so onboarding a router needs no step on
 the host; the platform console activates, suspends and reinstates tenants and reissues an unused
-Owner invitation. Not yet: the Nairobi node (pending Q2).
+Owner invitation. The cutover import (ADR 0014, S11, Q16 resolved): the admin app's Customers →
+Import screen previews a CSV (totals, the value of the time granted, warnings for a swapped date
+format) and then imports it; a row with `paid_until` opens its line ACTIVE with the expiry the
+customer paid for in the old system, only while the console has opened the tenant's cutover window
+and only by the Owner's `subscriptions.import_active`; rows may keep the old PPPoE username and
+password (T2 widened: unique per tenant) and the old M-Pesa reference (P3, matched before
+normalisation); a "we've moved" SMS goes to the batch on request; the runbook has the lossless
+one-day cutover. Not yet: the Nairobi node (pending Q2).
 
 ## Commands
 

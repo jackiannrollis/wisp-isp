@@ -7,7 +7,8 @@ import java.util.UUID;
 /**
  * A stored state changed (S9). The network module turns it into a CoA or Disconnect, except when
  * {@code cause} is {@link Cause#AUTO_RESUME_RECORDED}: the RADIUS view already resumed that line at
- * {@code pause_until} (E4), so the customer's fresh session must not be dropped. Carries IDs only (E3).
+ * {@code pause_until} (E4), so the customer's fresh session must not be dropped; or
+ * {@link Cause#IMPORTED}: the line has no session yet. Carries IDs only (E3).
  */
 public record SubscriptionStateChanged(
         UUID eventId,
@@ -26,6 +27,11 @@ public record SubscriptionStateChanged(
         /** A paid renewal activated the line. */
         RENEWAL,
         /** A job recorded a resume the RADIUS view had already applied: no CoA or Disconnect. */
-        AUTO_RESUME_RECORDED
+        AUTO_RESUME_RECORDED,
+        /**
+         * The cutover import activated the line with the expiry its customer paid for in the old
+         * system (S11, ADR 0014): no payment, and nothing for any consumer to do.
+         */
+        IMPORTED
     }
 }

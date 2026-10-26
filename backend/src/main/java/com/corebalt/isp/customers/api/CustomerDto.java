@@ -14,6 +14,7 @@ public record CustomerDto(
         String installationLocation,
         BigDecimal lat,
         BigDecimal lng,
+        String legacyAccountRef,
         String status,
         Instant createdAt,
         Instant updatedAt) {}

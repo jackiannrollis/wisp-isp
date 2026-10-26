@@ -23,6 +23,21 @@ public interface CustomerFacade {
     /** Exact customer number, e.g. {@code CB001238} (P3 step 1). */
     Optional<CustomerSummary> findByNumber(String number);
 
+    /**
+     * The customer whose old-system account reference is exactly {@code reference}, compared
+     * trimmed and upper-cased (P3 step 2, ADR 0014).
+     */
+    Optional<CustomerSummary> findByLegacyAccountRef(String reference);
+
+    /** The customer's old-system account reference, if one is kept (for the "we've moved" SMS). */
+    Optional<String> legacyAccountRefOf(UUID customerId);
+
+    /** The stored form of a non-blank old-system reference (trimmed, upper-cased), or empty when its shape is wrong. */
+    Optional<String> normaliseLegacyAccountRef(String reference);
+
+    /** Which of these (upper-cased) old-system references already belong to one of the tenant's customers. */
+    Set<String> existingLegacyAccountRefs(Collection<String> references);
+
     /** Customers with this E.164 phone (P3 step 3; matched only when exactly one). */
     List<CustomerSummary> findByPhone(String e164);
 

@@ -7,8 +7,8 @@ import java.util.UUID;
  * A line as staff see it. {@code accessProfile}, {@code displayStatus} and {@code accessReason} (why
  * access is limited; null when it is not) are derived at read time (S1) and shown as returned; the
  * frontend never computes them. Never carries the PPPoE password
- * (T4, ADR 0009). {@code usage} is the line's current cycle against its package's limits (docs/09
- * step 8b).
+ * (T4, ADR 0009). {@code usernameKept}: the cutover import kept the old system's username (ADR 0014).
+ * {@code usage} is the line's current cycle against its package's limits (docs/09 step 8b).
  */
 public record SubscriptionDto(
         UUID id,
@@ -16,6 +16,7 @@ public record SubscriptionDto(
         UUID packageId,
         UUID routerId,
         String pppoeUsername,
+        boolean usernameKept,
         String state,
         String accessProfile,
         String displayStatus,

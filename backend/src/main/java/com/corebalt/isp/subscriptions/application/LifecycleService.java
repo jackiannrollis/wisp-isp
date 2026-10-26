@@ -1,5 +1,6 @@
 package com.corebalt.isp.subscriptions.application;
 
+import com.corebalt.isp.packages.api.PackageCatalog.PackageTerms;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.shared.id.UuidV7;
@@ -9,16 +10,19 @@ import com.corebalt.isp.subscriptions.api.LineCredentialStore;
 import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged;
 import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged.Cause;
+import com.corebalt.isp.subscriptions.domain.GraceMode;
 import com.corebalt.isp.subscriptions.domain.Subscription;
 import com.corebalt.isp.subscriptions.domain.Subscription.Transition;
 import com.corebalt.isp.subscriptions.infrastructure.SubscriptionRepository;
 import com.corebalt.isp.tenancy.api.TenantProfile;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -102,6 +106,34 @@ public class LifecycleService {
     @Transactional
     public void recordAutoResume(final UUID subscriptionId) {
         apply(subscriptionId, "subscriptions.resumed", "pause_until reached", (line, now) -> line.resume(now));
+    }
+
+    /**
+     * S11 (ADR 0014): the cutover import activates a line it just opened with the expiry its customer
+     * paid for in the ISP's old system. No ledger entry (the old system took that money), an audit
+     * row naming the import batch and row, and {@link SubscriptionStateChanged} with cause
+     * {@link Cause#IMPORTED}, which no consumer acts on: the line has no session yet. Grace is copied
+     * as a renewal copies it (S6). Runs inside the import's transaction.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public SubscriptionDto activateByImport(final UUID subscriptionId, final Instant paidUntil, final PackageTerms pkg,
+                                            final UUID batchId, final int row) {
+        final int graceDays = pkg.graceDays() != null ? pkg.graceDays() : tenantProfile.currentPolicy().defaultGraceDays();
+        final GraceMode graceMode = GraceMode.valueOf(tenantProfile.currentPolicy().graceMode());
+        final Subscription line =
+                lines.findForUpdate(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
+        final Instant now = clock.instant();
+        final Map<String, Object> before = snapshot(line);
+        final Transition transition =
+                line.activateByImport(paidUntil, Duration.ofMinutes(pkg.durationMinutes()), graceDays, graceMode, now);
+        final Map<String, Object> after = snapshot(line);
+        after.put("cycleStartedAt", line.getCycleStartedAt().toString());
+        after.put("importBatchId", batchId.toString());
+        after.put("row", row);
+        audit.record(new AuditEntry("subscriptions.activated_by_import", "subscription", line.getId(), before, after, null));
+        outbox.publish(new SubscriptionStateChanged(UuidV7.next(clock), line.getTenantId(), now, line.getId(),
+                line.getCustomerId(), transition.from().name(), transition.to().name(), Cause.IMPORTED));
+        return views.toDto(line);
     }
 
     private SubscriptionDto apply(

@@ -15,9 +15,10 @@ One platform serves many ISPs, and nothing crosses between them: every row carri
 
 ## Usernames and numbers
 
-- Customer numbers are the tenant code plus a zero-padded sequence (`CB001238`). The tenant code is unique on the platform, so numbers and PPPoE usernames are unique across all ISPs on the shared RADIUS servers.
+- Customer numbers are the tenant code plus a zero-padded sequence (`CB001238`). The tenant code is unique on the platform, so numbers and generated PPPoE usernames are unique across all ISPs on the shared RADIUS servers.
 - A second line for the same customer is `CB001238-2`.
-- M-Pesa account references are the customer number; a tenant's own prefix makes mistyped references easier to recognise and normalise.
+- A customer moved from an ISP's old system may keep that system's PPPoE username and password (the cutover import, [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)): such a name is unique within its tenant only and never in the generated shape; FreeRADIUS resolves every username together with the asking router's tenant (T3), so two ISPs may both have an `old-user@isp`.
+- M-Pesa account references are the customer number; a tenant's own prefix makes mistyped references easier to recognise and normalise. A customer's old-system reference (`legacy_account_ref`) keeps matching after a cutover (P3).
 
 ## Secrets
 
@@ -49,6 +50,7 @@ Corebalt staff use a separate platform console, with its own roles, for:
 
 - Tenant onboarding and suspension, trial periods. A tenant is created in `TRIAL` and moved to `ACTIVE` by the console (`POST /api/platform/tenants/{id}/activate`); `TRIAL` restricts nothing today, the status is bookkeeping for the platform's own billing (Q1). A suspension (`…/suspend`, with a reason; `…/reinstate` to come back as `ACTIVE`) does exactly what reads the status: staff and portal sign-ins are refused and the scheduled jobs skip the tenant; M-Pesa callbacks, events in flight and RADIUS logins continue, so the ISP's customers stay online. Cutting a suspended ISP's customers off is a product decision not taken. Every transition is in the tenant's own audit log and the platform's.
 - An Owner's invitation lost before the first sign-in is reissued from the console (`…/staff/{id}/invitation`: a new temporary password shown once, valid 72 hours); once a member has signed in, only the tenant's own staff reset them, or the console through an impersonation.
+- The cutover window (`PUT …/cutover-window` with an end at most 30 days ahead, `DELETE` to close early; [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)): while it is open, the tenant's Owner may import lines already active with the expiry their customers paid for in the old system (S11). It closes by itself; both audit logs record it; the tenant sees it in its account settings.
 - Router onboarding scripts and fleet-wide router status
 - Platform monitoring: RADIUS success rates per tenant, callback gaps, queue depth
 - Billing the ISPs for the platform itself (per active subscriber or flat tiers; open question)
@@ -59,7 +61,7 @@ Corebalt staff use a separate platform console, with its own roles, for:
 1. Create the tenant, code and subdomain; set branding and policies.
 2. Start the Daraja app and go-live request immediately; register SMS sender ID.
 3. Create packages, staff users and roles; enforce 2FA for finance roles.
-4. Import customers from CSV with validation of phone numbers and duplicate numbers; generate PPPoE credentials.
+4. Import customers from CSV with validation of phone numbers and duplicate numbers; generate PPPoE credentials, or keep the old system's, and for a cutover the expiry each customer already paid for (the admin app's import screen: a preview, then the import).
 5. Onboard routers with the generated scripts; verify tunnels, RADIUS test logins (`radtest`) and CoA.
 6. Run a pilot period with manual payment entry until Daraja is live, then switch on callbacks.
 7. Sign the data processing agreement before real customer data is imported (see [08](08-reliability-security-compliance.md)).

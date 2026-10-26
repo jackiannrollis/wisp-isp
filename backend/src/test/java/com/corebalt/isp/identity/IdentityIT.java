@@ -17,6 +17,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +103,7 @@ class IdentityIT extends IntegrationTest {
         final JsonNode me = new Api(port, signedIn.json().get("accessToken").asString()).get("/api/v1/me").json();
         assertThat(me.get("email").asString()).isEqualTo(invited.email());
         assertThat(me.get("role").asString()).isEqualTo("Owner");
-        assertThat(me.get("permissions").size()).isEqualTo(Permissions.ALL.size()).isEqualTo(15);
+        assertThat(me.get("permissions").size()).isEqualTo(Permissions.ALL.size()).isEqualTo(16);
 
         // The next sign-in asks for the code.
         final JsonNode again = post("/api/v1/auth/login", Map.of("tenant", tenant.code().toLowerCase(), "email",
@@ -251,6 +252,22 @@ class IdentityIT extends IntegrationTest {
     void theOwnerRoleCannotBeEditedAndUnknownCodesAreRefused() {
         assertThat(owner.put("/api/v1/roles/" + roleId("Owner"), "{\"name\":\"Owner\",\"permissions\":[]}").status()).isEqualTo(409);
         assertThat(owner.post("/api/v1/roles", "{\"name\":\"Root\",\"permissions\":[\"everything\"]}").status()).isEqualTo(400);
+    }
+
+    /** A2, ADR 0014: the cutover import's permission is the Owner's alone, like the account settings, and needs 2FA. */
+    @Test
+    void A2_theCutoverImportPermissionIsHeldByTheOwnerRoleOnly() {
+        for (final String ownerOnly : List.of("subscriptions.import_active", "settings.write")) {
+            final Api.Response refused = owner.post("/api/v1/roles", "{\"name\":\"Migrator\",\"permissions\":[\"" + ownerOnly + "\"]}");
+            assertThat(refused.status()).as(refused.body()).isEqualTo(400);
+            assertThat(refused.body()).contains("held by the Owner role only");
+        }
+        for (final JsonNode role : owner.get("/api/v1/roles").json()) {
+            if (role.get("name").asString().equals("Owner")) {
+                assertThat(role.get("permissions").toString()).contains("subscriptions.import_active");
+                assertThat(role.get("requires2fa").asBoolean()).isTrue();
+            }
+        }
     }
 
     @Test
@@ -571,6 +588,40 @@ class IdentityIT extends IntegrationTest {
                         select detail->>'reason' from identity_platform_audit_log
                         where action = 'platform.tenant_suspended' and target_id = :t
                         """).param("t", UUID.fromString(tenantId)).query(String.class).list()).containsExactly("invoice unpaid");
+    }
+
+    /** ADR 0014: the console opens a tenant's cutover window for at most 30 days; both audit logs record it. */
+    @Test
+    void ADR0014_thePlatformOpensAndClosesTheCutoverWindowWithinThirtyDays() {
+        final Api platform = platformAdmin();
+        final String code = "W" + (char) ('A' + PHONES.incrementAndGet() % 26) + (char) ('A' + (System.nanoTime() % 26));
+        final JsonNode created = platform.post("/api/platform/tenants", """
+                {"code":"%s","name":"Window Net","subdomain":"%s","ownerEmail":"boss@window.example.test","ownerName":"Boss"}
+                """.formatted(code, code.toLowerCase() + "net")).json();
+        final String tenantId = created.get("tenant").get("id").asString();
+        assertThat(created.get("tenant").get("cutoverWindowUntil").isNull()).isTrue();
+        final String path = "/api/platform/tenants/" + tenantId + "/cutover-window";
+
+        assertThat(platform.put(path, "{\"until\":\"" + Instant.now().plus(Duration.ofDays(31)) + "\"}").status()).isEqualTo(400);
+        assertThat(platform.put(path, "{\"until\":\"" + Instant.now().minus(Duration.ofHours(1)) + "\"}").status()).isEqualTo(400);
+        final Instant until = Instant.now().plus(Duration.ofDays(7)).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        final Api.Response opened = platform.put(path, "{\"until\":\"" + until + "\"}");
+        assertThat(opened.status()).as(opened.body()).isEqualTo(200);
+        assertThat(Instant.parse(opened.json().get("cutoverWindowUntil").asString())).isEqualTo(until);
+        assertThat(platform.get("/api/platform/tenants").body()).contains(until.toString());
+        assertThat(new Api(port, UUID.fromString(tenantId)).get("/api/v1/settings/account").json().get("cutoverWindowUntil").asString())
+                .as("the tenant sees its window in the account settings").isEqualTo(until.toString());
+
+        final Api.Response closed = platform.delete(path);
+        assertThat(closed.status()).isEqualTo(200);
+        assertThat(closed.json().get("cutoverWindowUntil").isNull()).isTrue();
+        assertThat(OwnerSql.client().sql("select action from identity_audit_log where tenant_id = :t and action like 'identity.cutover_window_%' order by created_at")
+                .param("t", UUID.fromString(tenantId)).query(String.class).list())
+                .containsExactly("identity.cutover_window_opened", "identity.cutover_window_closed");
+        assertThat(OwnerSql.client().sql("select count(*) from identity_platform_audit_log where action like 'platform.cutover_window_%' and target_id = :t")
+                .param("t", UUID.fromString(tenantId)).query(Long.class).single()).isEqualTo(2);
+        assertThat(platform.put("/api/platform/tenants/" + UUID.randomUUID() + "/cutover-window", "{\"until\":\"" + until + "\"}").status())
+                .isEqualTo(404);
     }
 
     @Test

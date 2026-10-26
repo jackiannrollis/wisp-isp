@@ -60,6 +60,12 @@
       <dt>Installation</dt>
       <dd>{{ c.installationLocation || '—' }}</dd>
     </div>
+    @if (c.legacyAccountRef) {
+      <div>
+        <dt>Old account reference</dt>
+        <dd>{{ c.legacyAccountRef }}</dd>
+      </div>
+    }
     <div>
       <dt>Customer since</dt>
       <dd>{{ date(c.createdAt) }}</dd>

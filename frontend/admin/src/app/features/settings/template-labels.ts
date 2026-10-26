@@ -45,6 +45,14 @@ export const TEMPLATE_LABELS: Record<string, { label: string; when: string }> = 
     label: 'Package changes at renewal',
     when: 'Downgrade or change scheduled',
   },
+  MOVED_NOTICE: {
+    label: 'We have moved',
+    when: 'Sent to an imported batch when you ask: the new account number',
+  },
+  MOVED_NOTICE_LEGACY: {
+    label: 'We have moved (old reference kept)',
+    when: 'The same, for customers whose old account reference still matches',
+  },
 };
 
 export function templateLabel(key: string | undefined): { label: string; when: string } {

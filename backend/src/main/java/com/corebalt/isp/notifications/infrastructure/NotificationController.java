@@ -1,5 +1,6 @@
 package com.corebalt.isp.notifications.infrastructure;
 
+import com.corebalt.isp.notifications.application.MessageComposer;
 import com.corebalt.isp.notifications.application.NotificationQueries;
 import com.corebalt.isp.notifications.application.NotificationQueue;
 import com.corebalt.isp.notifications.application.NotificationQueue.TemplateView;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Set;
@@ -34,11 +36,24 @@ class NotificationController {
     private final SmsSettings settings;
     private final NotificationQueue queue;
     private final NotificationQueries queries;
+    private final MessageComposer composer;
 
-    NotificationController(final SmsSettings settings, final NotificationQueue queue, final NotificationQueries queries) {
+    NotificationController(final SmsSettings settings, final NotificationQueue queue, final NotificationQueries queries,
+                           final MessageComposer composer) {
         this.settings = settings;
         this.queue = queue;
         this.queries = queries;
+        this.composer = composer;
+    }
+
+    record MovedNoticeRequest(@NotNull UUID importBatchId) {}
+
+    @PostMapping("/api/v1/notifications/moved-notices")
+    @PreAuthorize("hasAuthority('customers.write')")
+    @Operation(summary = "Queue the \"we've moved\" SMS to every customer of an import batch (ADR 0014): their new number and, "
+            + "when kept, their old reference; once per batch and customer (M1), sent in the sending window (M2)")
+    MessageComposer.MovedNotices movedNotices(@Valid @RequestBody final MovedNoticeRequest request) {
+        return composer.movedNotices(request.importBatchId());
     }
 
     @PutMapping("/api/v1/settings/notifications")

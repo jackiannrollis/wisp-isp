@@ -1,5 +1,6 @@
 package com.corebalt.isp.tenancy.api;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,10 +35,24 @@ public interface TenantRegistry {
     /** SUSPENDED to ACTIVE (a suspended trial comes back as ACTIVE). */
     TenantRef reinstate(UUID tenantId);
 
-    record TenantRef(UUID id, String code, String name, String subdomain, String status) {
+    /**
+     * Opens (or moves) the tenant's cutover window (ADR 0014, S11): until {@code until}, at most 30
+     * days ahead, the customer import may activate lines with the expiry their customers already
+     * paid for. The window closes by itself at that instant.
+     */
+    TenantRef openCutoverWindow(UUID tenantId, Instant until);
+
+    /** Closes the cutover window now; a no-op when none is open. */
+    TenantRef closeCutoverWindow(UUID tenantId);
+
+    record TenantRef(UUID id, String code, String name, String subdomain, String status, Instant cutoverWindowUntil) {
 
         public boolean canSignIn() {
             return !"SUSPENDED".equals(status);
+        }
+
+        public boolean cutoverWindowOpen(final Instant now) {
+            return cutoverWindowUntil != null && now.isBefore(cutoverWindowUntil);
         }
     }
 }

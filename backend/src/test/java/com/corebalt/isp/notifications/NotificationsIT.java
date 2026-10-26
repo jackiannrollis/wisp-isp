@@ -101,6 +101,45 @@ class NotificationsIT extends IntegrationTest {
         assertThat(api.get("/api/v1/subscriptions/" + line).json().get("state").asString()).isEqualTo("ACTIVE");
     }
 
+    /** ADR 0014, M1: the "we've moved" notice goes once to each customer of an import batch, with the old reference when kept. */
+    @Test
+    void ADR0014_theMovedNoticeGoesOncePerCustomerOfAnImportBatch() {
+        OwnerSql.client().sql("insert into payments_mpesa_config (tenant_id, shortcode, shortcode_type, sandbox, callback_token_hash) "
+                + "values (:t, '600984', 'PAYBILL', true, :h)").param("t", tenant.id()).param("h", UUID.randomUUID().toString()).update();
+        final String movedPhone = nextPhone();
+        final String plainPhone = nextPhone();
+        final Api.Response imported = api.postCsv("/api/v1/customer-imports", "name,phone,legacy_account_ref\n"
+                + "Moved Customer,0" + movedPhone.substring(4) + ",hse-4\n"
+                + "Plain Customer,0" + plainPhone.substring(4) + ",\n");
+        assertThat(imported.status()).as(imported.body()).isEqualTo(200);
+        final String batchId = imported.json().get("batchId").asString();
+        final String movedId = imported.json().get("rows").get(0).get("customerId").asString();
+        final String movedNumber = imported.json().get("rows").get(0).get("number").asString();
+
+        assertThat(new Api(port, tenant.id(), "subscriptions.write").post("/api/v1/notifications/moved-notices",
+                "{\"importBatchId\":\"" + batchId + "\"}").status()).isEqualTo(403);
+        final Api.Response sent = api.post("/api/v1/notifications/moved-notices", "{\"importBatchId\":\"" + batchId + "\"}");
+        assertThat(sent.status()).as(sent.body()).isEqualTo(200);
+        assertThat(sent.json().get("customers").asInt()).isEqualTo(2);
+        assertThat(sent.json().get("queued").asInt()).isEqualTo(2);
+
+        final Map<String, Object> moved = message("MOVED_NOTICE:" + batchId + ":" + movedId);
+        assertThat(moved.get("template_key")).isEqualTo("MOVED_NOTICE_LEGACY");
+        assertThat((String) moved.get("body")).isEqualTo("Hi Moved, we have moved to a new system. Your account number is now "
+                + movedNumber + ". Use it when paying to Paybill 600984. Old reference HSE-4 still works.");
+        assertThat(moved.get("recipient")).isEqualTo(movedPhone);
+        assertThat(moved.get("status")).isEqualTo("QUEUED");
+        assertThat(OwnerSql.client().sql("select template_key from notifications_notification where tenant_id = :t and recipient = :p")
+                .param("t", tenant.id()).param("p", plainPhone).query(String.class).single()).isEqualTo("MOVED_NOTICE");
+
+        final Api.Response again = api.post("/api/v1/notifications/moved-notices", "{\"importBatchId\":\"" + batchId + "\"}");
+        assertThat(again.json().get("queued").asInt()).as("never twice (M1)").isZero();
+        assertThat(OwnerSql.client().sql("select count(*) from notifications_notification where tenant_id = :t")
+                .param("t", tenant.id()).query(Long.class).single()).isEqualTo(2);
+        assertThat(api.post("/api/v1/notifications/moved-notices", "{\"importBatchId\":\"" + UUID.randomUUID() + "\"}").status())
+                .isEqualTo(404);
+    }
+
     @Test
     void aRestoringPaymentTellsTheCustomerWhatToDoIfTheInternetIsNotBack() {
         final String line = openLine();
@@ -265,7 +304,7 @@ class NotificationsIT extends IntegrationTest {
         assertThat(new Api(port, tenant.id(), "billing.adjust").get("/api/v1/settings/notifications/templates").status()).isEqualTo(403);
 
         final JsonNode placeholders = api.get("/api/v1/settings/notifications/placeholders").json();
-        assertThat(placeholders).hasSize(15);
+        assertThat(placeholders).hasSize(16);
         assertThat(placeholders.toString()).contains("{\"name\":\"name\",\"sample\":\"Wanjiku\"}").doesNotContain("pin");
     }
 

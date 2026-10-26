@@ -17,7 +17,7 @@ Each record states the context, the decision and its consequences at the time it
 | [0011](0011-tunnel-worker.md) | A tunnel worker, the only process that talks to routers | Accepted |
 | [0012](0012-end-to-end-suite-against-the-stack.md) | End-to-end suite against the real stack, with a fake Daraja | Accepted |
 | [0013](0013-router-onboarding-keys-from-the-platform.md) | Router onboarding: the platform generates the router keys, the hub learns peers from the database | Accepted |
-| [0014](0014-cutover-import-with-current-expiry.md) | Cutover import: an imported line activated with the expiry the customer already paid for | Proposed (Q16) |
+| [0014](0014-cutover-import-with-current-expiry.md) | Cutover import: an imported line activated with the expiry the customer already paid for, kept credentials and old references | Accepted |
 
 ## Writing a new record
 

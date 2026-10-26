@@ -83,6 +83,30 @@ class CustomersIT extends IntegrationTest {
         assertThat(updated.json().get("lat").decimalValue()).isEqualByComparingTo("-1.2921");
     }
 
+    /** ADR 0014, P3: the old system's account reference is kept upper-cased, unique per tenant, and found by search. */
+    @Test
+    void P3_anOldSystemReferenceIsKeptUpperCasedUniqueAndSearchable() {
+        final Api.Response created = api.post("/api/v1/customers",
+                "{\"name\":\"Moved In\",\"phone\":\"0712000001\",\"legacyAccountRef\":\" hse-4 \"}");
+        assertThat(created.status()).as(created.body()).isEqualTo(201);
+        assertThat(created.json().get("legacyAccountRef").asString()).isEqualTo("HSE-4");
+        final Api.Response duplicate = api.post("/api/v1/customers",
+                "{\"name\":\"Same Ref\",\"phone\":\"0712000002\",\"legacyAccountRef\":\"Hse-4\"}");
+        assertThat(duplicate.status()).isEqualTo(400);
+        assertThat(duplicate.body()).contains("legacyAccountRef").contains("already used by customer " + created.json().get("number").asString());
+        assertThat(api.post("/api/v1/customers", "{\"name\":\"Bad Ref\",\"phone\":\"0712000003\",\"legacyAccountRef\":\"no!way\"}").status())
+                .isEqualTo(400);
+        assertThat(api.get("/api/v1/customers?q=hse").json().get("total").asLong()).isOne();
+        final Api.Response cleared = api.put("/api/v1/customers/" + created.json().get("id").asString(),
+                "{\"name\":\"Moved In\",\"phone\":\"0712000001\",\"legacyAccountRef\":\"\"}");
+        assertThat(cleared.status()).isEqualTo(200);
+        assertThat(cleared.json().get("legacyAccountRef").isNull()).isTrue();
+        // Another tenant may use the same old reference.
+        final Api other = new Api(port, TestTenants.create(jdbc, tx));
+        assertThat(other.post("/api/v1/customers", "{\"name\":\"Elsewhere\",\"phone\":\"0712000001\",\"legacyAccountRef\":\"HSE-4\"}").status())
+                .isEqualTo(201);
+    }
+
     @Test
     void listSearchesNameNumberAndPhoneWithPaging() {
         create("Achieng Atieno", "0711111111");

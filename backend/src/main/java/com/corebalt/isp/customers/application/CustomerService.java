@@ -7,6 +7,7 @@ import com.corebalt.isp.customers.api.CustomerRequest;
 import com.corebalt.isp.customers.api.CustomerSummary;
 import com.corebalt.isp.customers.domain.Customer;
 import com.corebalt.isp.customers.domain.CustomerStatus;
+import com.corebalt.isp.customers.domain.LegacyAccountRefs;
 import com.corebalt.isp.customers.domain.PhoneNumbers;
 import com.corebalt.isp.customers.infrastructure.CustomerNumberAllocator;
 import com.corebalt.isp.customers.infrastructure.CustomerRepository;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -60,6 +62,7 @@ public class CustomerService implements CustomerFacade {
     @Transactional
     public CustomerDto register(final CustomerRequest request) {
         final Customer.Profile profile = profile(request);
+        requireLegacyRefFree(profile.legacyAccountRef(), null);
         final Instant now = clock.instant();
         final Customer customer =
                 Customer.register(
@@ -78,7 +81,9 @@ public class CustomerService implements CustomerFacade {
     @Transactional
     public CustomerDto update(final UUID customerId, final CustomerRequest request) {
         final Customer customer = load(customerId);
-        customer.update(profile(request), clock.instant());
+        final Customer.Profile profile = profile(request);
+        requireLegacyRefFree(profile.legacyAccountRef(), customerId);
+        customer.update(profile, clock.instant());
         return mapper.toDto(customer);
     }
 
@@ -121,6 +126,36 @@ public class CustomerService implements CustomerFacade {
     @Transactional(readOnly = true)
     public Optional<CustomerSummary> findByNumber(final String number) {
         return customers.findByNumber(number).map(CustomerService::summary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<CustomerSummary> findByLegacyAccountRef(final String reference) {
+        if (reference == null || reference.isBlank()) {
+            return Optional.empty();
+        }
+        return customers.findByLegacyAccountRef(reference.strip().toUpperCase(Locale.ROOT)).map(CustomerService::summary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> legacyAccountRefOf(final UUID customerId) {
+        return customers.findById(customerId).map(Customer::getLegacyAccountRef);
+    }
+
+    @Override
+    public Optional<String> normaliseLegacyAccountRef(final String reference) {
+        try {
+            return LegacyAccountRefs.normalise(reference);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> existingLegacyAccountRefs(final Collection<String> references) {
+        return references.isEmpty() ? Set.of() : new HashSet<>(customers.findLegacyAccountRefsIn(references));
     }
 
     @Override
@@ -168,6 +203,12 @@ public class CustomerService implements CustomerFacade {
         final String phone =
                 PhoneNumbers.normalise(request.phone())
                         .orElseThrow(() -> InvalidRequestException.of("phone", "not a valid phone number"));
+        final String legacyRef;
+        try {
+            legacyRef = LegacyAccountRefs.normalise(request.legacyAccountRef()).orElse(null);
+        } catch (IllegalArgumentException e) {
+            throw InvalidRequestException.of("legacyAccountRef", e.getMessage());
+        }
         return new Customer.Profile(
                 request.name().strip(),
                 phone,
@@ -175,7 +216,20 @@ public class CustomerService implements CustomerFacade {
                 blankToNull(request.address()),
                 blankToNull(request.installationLocation()),
                 request.lat(),
-                request.lng());
+                request.lng(),
+                legacyRef);
+    }
+
+    /** The old-system reference is unique within the tenant; {@code except} is the customer being edited. */
+    private void requireLegacyRefFree(final String reference, final UUID except) {
+        if (reference == null) {
+            return;
+        }
+        customers.findByLegacyAccountRef(reference)
+                .filter(other -> !other.getId().equals(except))
+                .ifPresent(other -> {
+                    throw InvalidRequestException.of("legacyAccountRef", "already used by customer " + other.getNumber());
+                });
     }
 
     private static String blankToNull(final String value) {

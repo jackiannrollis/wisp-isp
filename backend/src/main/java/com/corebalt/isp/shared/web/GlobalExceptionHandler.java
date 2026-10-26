@@ -1,6 +1,8 @@
 package com.corebalt.isp.shared.web;
 
 import com.corebalt.isp.shared.tenant.TenantContextMissingException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +24,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    /** The constraint named by a PostgreSQL integrity error: a table's name, never a row's values. */
+    private static final Pattern CONSTRAINT = Pattern.compile("constraint \"([A-Za-z0-9_]+)\"");
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -61,10 +66,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.UNPROCESSABLE_CONTENT, ProblemTypes.IDEMPOTENCY_KEY_REUSED, e.getMessage());
     }
 
-    /** A unique or foreign key the request ran into; the SQL detail is logged, never returned. */
+    /**
+     * A unique or foreign key the request ran into. The constraint's name is logged (it names a
+     * table, never a row); the SQL detail, which carries the row's values, is neither logged nor
+     * returned (A3).
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail integrityViolation(final DataIntegrityViolationException e) {
-        log.info("Integrity violation: {}", e.getMostSpecificCause().getClass().getSimpleName());
+        final Throwable cause = e.getMostSpecificCause();
+        final Matcher constraint = CONSTRAINT.matcher(String.valueOf(cause.getMessage()));
+        log.info("Integrity violation: {}{}", cause.getClass().getSimpleName(),
+                constraint.find() ? " on " + constraint.group(1) : "");
         return ProblemResponseWriter.problem(
                 HttpStatus.CONFLICT, ProblemTypes.CONFLICT, "The request conflicts with existing data.");
     }

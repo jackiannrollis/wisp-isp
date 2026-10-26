@@ -3,6 +3,7 @@ package com.corebalt.isp.identity.application;
 import com.corebalt.isp.identity.domain.Credentials;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
+import com.corebalt.isp.shared.security.Permissions;
 import com.corebalt.isp.shared.security.Tokens;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.InvalidRequestException;
@@ -253,7 +254,7 @@ public class StaffSignIn {
         return tx.execute(s -> jdbc.sql("""
                         select s.id, s.tenant_id, s.email, s.password_hash, s.status, s.token_version, s.failed_logins,
                                s.locked_until, s.must_change_password, s.password_expires_at, s.totp_enabled, s.totp_secret_enc,
-                               r.name, r.permissions, coalesce(r.requires_2fa, false)
+                               r.name, r.permissions, coalesce(r.requires_2fa, false), coalesce(r.built_in, false)
                         from identity_staff_user s left join identity_role r on r.id = s.role_id
                         where """ + " " + where)
                 .param("key", key)
@@ -262,8 +263,20 @@ public class StaffSignIn {
                         rs.getTimestamp(8) == null ? null : rs.getTimestamp(8).toInstant(), rs.getBoolean(9),
                         rs.getTimestamp(10) == null ? null : rs.getTimestamp(10).toInstant(), rs.getBoolean(11), rs.getBytes(12),
                         rs.getString(13),
-                        rs.getArray(14) == null ? List.of() : Arrays.asList((String[]) rs.getArray(14).getArray()),
+                        permissions(rs.getString(13), rs.getBoolean(16), rs.getArray(14)),
                         rs.getBoolean(15)))
                 .optional());
+    }
+
+    /**
+     * The built-in Owner role holds the whole catalogue (A2), so a code a release adds reaches an
+     * existing tenant's Owner at their next sign-in without touching the stored role row.
+     */
+    private static List<String> permissions(final String roleName, final boolean builtIn, final java.sql.Array stored)
+            throws java.sql.SQLException {
+        if (builtIn && Roles.OWNER.equalsIgnoreCase(roleName)) {
+            return Permissions.ALL;
+        }
+        return stored == null ? List.of() : Arrays.asList((String[]) stored.getArray());
     }
 }

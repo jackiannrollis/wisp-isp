@@ -1,6 +1,8 @@
 package com.corebalt.isp.tenancy.api;
 
+import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Optional;
 
 /** Facts about the current tenant that other modules need (T1: always the context's tenant). */
 public interface TenantProfile {
@@ -10,6 +12,12 @@ public interface TenantProfile {
 
     /** The current tenant's subscription policy (docs/07 per-tenant configuration). */
     TenantPolicy currentPolicy();
+
+    /**
+     * The end of the tenant's cutover window (ADR 0014, S11) when the console opened one; empty
+     * otherwise. Whether it is open is a comparison with the clock: it closes by itself.
+     */
+    Optional<Instant> currentCutoverWindowUntil();
 
     /**
      * {@code graceMode} is {@code FULL_SPEED} or {@code THROTTLED}; {@code partialPaymentRule} is

@@ -18,12 +18,12 @@ Decisions still pending. Do not invent an answer in code; pick the stated defaul
 | Q13 | Fair use: what resets the allowance? | Only a renewal (a new cycle); a top-up that does not renew, a pause or a package change does not | Product | docs/09 step 8b |
 | Q14 | Hard data cap (`data_cap_bytes`): what happens when it is reached? | RESTRICTED (walled garden with the pay page) until the next renewal; never rejected (N3) | Product | docs/09 step 8b |
 | Q15 | Fair-use messages: when does the customer hear? | One SMS when the allowance is passed (dedupe per line and cycle, M1); no warning before it | Product | docs/09 step 8b |
-| Q16 | Cutover of an ISP's existing customers: may the CSV import activate a line with the expiry the customer already paid for, without a payment ([ADR 0014](../docs/adr/0014-cutover-import-with-current-expiry.md), proposed)? | No: cut over per customer on their renewal date, or record a manual payment per customer (`infra/ops/runbooks/pilot-onboarding.md`, Customers) | Product | Before the pilot's cutover (Q5) |
 
 ## Resolved
 
 | Date | Question | Answer | Where it now lives |
 |---|---|---|---|
+| 2026-10-26 | Q16: may the CSV import activate a line with the expiry the customer already paid for, without a payment? | Yes, as rule S11: only while a cutover window opened by the Corebalt console is open (at most 30 days), by the Owner's own permission `subscriptions.import_active` (2FA), after a preview of the file (totals, the value of the time granted, warnings for swapped date formats), with `paid_until` at most one package duration ahead and date-only values read at a chosen time of day in the tenant's zone; no ledger entry, cause `IMPORTED`. The same import keeps old PPPoE credentials (T2 widened) and old M-Pesa references (P3) | [ADR 0014](../docs/adr/0014-cutover-import-with-current-expiry.md); context/domain-rules.md S11, T2, P3; `infra/ops/runbooks/pilot-onboarding.md` step 6 |
 | 2026-10-20 | Q11: optional "send by SMS" of a staff member's temporary password, against M3? | Yes, as an explicit M3 exception: fixed wording, to the staff member's own phone, 72-hour expiry, forced change at first sign-in, audit row, logged masked | context/domain-rules.md M3; `TemporaryPasswordSms` |
 | 2026-10-17 | Frontend framework: Next.js or Angular? | Angular 22 | [ADR 0002](../docs/adr/0002-angular-for-web-apps.md) |
 | 2026-10-17 | Message broker from day one or Postgres-backed jobs first? | RabbitMQ from day one with a transactional outbox | [ADR 0003](../docs/adr/0003-rabbitmq-with-transactional-outbox.md) |

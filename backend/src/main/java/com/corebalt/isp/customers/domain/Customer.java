@@ -40,6 +40,10 @@ public class Customer {
 
     private BigDecimal lng;
 
+    /** The account reference of the ISP's old system, upper-cased, unique per tenant (ADR 0014, P3). */
+    @Column(name = "legacy_account_ref")
+    private String legacyAccountRef;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CustomerStatus status;
@@ -82,10 +86,11 @@ public class Customer {
         installationLocation = profile.installationLocation();
         lat = profile.lat();
         lng = profile.lng();
+        legacyAccountRef = profile.legacyAccountRef();
         updatedAt = now;
     }
 
-    /** Validated profile fields; {@code phone} already in E.164. */
+    /** Validated profile fields; {@code phone} already in E.164, {@code legacyAccountRef} upper-cased or null. */
     public record Profile(
             String name,
             String phone,
@@ -93,7 +98,8 @@ public class Customer {
             String address,
             String installationLocation,
             BigDecimal lat,
-            BigDecimal lng) {}
+            BigDecimal lng,
+            String legacyAccountRef) {}
 
     public UUID getId() {
         return id;
@@ -133,6 +139,10 @@ public class Customer {
 
     public BigDecimal getLng() {
         return lng;
+    }
+
+    public String getLegacyAccountRef() {
+        return legacyAccountRef;
     }
 
     public CustomerStatus getStatus() {

@@ -44,6 +44,13 @@ public class RadiusCredentials implements LineCredentialStore {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public void keep(final UUID subscriptionId, final String password) {
+        insert("subscription_id", subscriptionId, password);
+        audit.record(AuditEntry.of("network.pppoe_password_kept", "subscription", subscriptionId));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public String regenerate(final UUID subscriptionId) {
         final String password = SecretGenerator.pppoePassword();
         update("subscription_id", subscriptionId, password);

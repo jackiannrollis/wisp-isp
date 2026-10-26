@@ -7,12 +7,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 
 /**
  * The account's own policy and look (settings.write; decisions.md 2026-10-21). {@code code},
  * {@code timeZone} and {@code currency} are fixed when the tenant is created and only shown.
  * Grace and the partial-payment rule apply from each line's next renewal (S6); the pause limit to the
- * next pause; branding at once.
+ * next pause; branding at once. {@code cutoverWindowUntil} is shown only: the Corebalt console
+ * opens the cutover window (ADR 0014), and it is null when none is open.
  */
 public record AccountSettingsDto(
         String code,
@@ -24,7 +26,8 @@ public record AccountSettingsDto(
         int defaultGraceDays,
         String graceMode,
         String partialPaymentRule,
-        int maxPauseDays) {
+        int maxPauseDays,
+        Instant cutoverWindowUntil) {
 
     /** What staff may change. The logo is an https address; null removes it. */
     @Schema(name = "AccountSettingsRequest")

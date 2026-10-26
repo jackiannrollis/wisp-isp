@@ -4,7 +4,9 @@ import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.tenancy.api.TenantProfile;
 import com.corebalt.isp.tenancy.domain.Tenant;
 import com.corebalt.isp.tenancy.infrastructure.TenantRepository;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,12 @@ class TenantProfileService implements TenantProfile {
                 tenant.getGraceMode(),
                 tenant.getMaxPauseDays(),
                 tenant.getPartialPaymentRule());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Instant> currentCutoverWindowUntil() {
+        return Optional.ofNullable(current().getCutoverWindowUntil());
     }
 
     private Tenant current() {

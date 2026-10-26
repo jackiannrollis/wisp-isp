@@ -36,7 +36,10 @@ public class Roles {
     public static final Set<String> NEEDS_2FA = Set.of(
             Permissions.STAFF_MANAGE, Permissions.SETTINGS_SECRETS, Permissions.SETTINGS_WRITE, Permissions.BILLING_ADJUST,
             Permissions.PAYMENTS_RECORD_MANUAL, Permissions.PAYMENTS_ASSIGN, Permissions.PAYMENTS_RECONCILE,
-            Permissions.FINANCE_READ);
+            Permissions.FINANCE_READ, Permissions.SUBSCRIPTIONS_IMPORT_ACTIVE);
+
+    /** Codes the built-in Owner role alone may hold; the role editor refuses them (A2). */
+    static final Set<String> OWNER_ONLY = Set.of(Permissions.SETTINGS_WRITE, Permissions.SUBSCRIPTIONS_IMPORT_ACTIVE);
 
     static final Map<String, List<String>> BUILT_IN = builtIns();
 
@@ -66,7 +69,11 @@ public class Roles {
         return roles;
     }
 
-    /** Creates the built-in roles of the current tenant if missing; returns the Owner role. */
+    /**
+     * Creates the built-in roles of the current tenant if missing; returns the Owner role. The Owner
+     * always holds the whole catalogue: a code added to {@link Permissions#ALL} by a release reaches
+     * existing tenants' Owners here (their next sign-in carries it; tokens are not revoked for a gain).
+     */
     @Transactional
     public UUID ensureBuiltIns() {
         BUILT_IN.forEach((name, permissions) -> jdbc.sql("""
@@ -80,6 +87,14 @@ public class Roles {
                 .param("permissions", permissions.toArray(String[]::new))
                 .param("twoFa", requires2fa(permissions))
                 .update());
+        final String[] all = Permissions.ALL.toArray(String[]::new);
+        jdbc.sql("""
+                        update identity_role set permissions = cast(:all as text[]), requires_2fa = true, updated_at = now()
+                        where built_in and lower(name) = lower(:name) and permissions <> cast(:all as text[])
+                        """)
+                .param("all", all)
+                .param("name", OWNER)
+                .update();
         return jdbc.sql("select id from identity_role where lower(name) = lower(:name)")
                 .param("name", OWNER).query(UUID.class).single();
     }
@@ -178,9 +193,12 @@ public class Roles {
         if (!unknown.isEmpty()) {
             throw InvalidRequestException.of("permissions", "unknown codes: " + String.join(", ", unknown));
         }
-        // Only the built-in Owner role, which is never edited here, holds the account's own settings.
-        if (permissions.contains(Permissions.SETTINGS_WRITE)) {
-            throw InvalidRequestException.of("permissions", Permissions.SETTINGS_WRITE + " is held by the Owner role only");
+        // Only the built-in Owner role, which is never edited here, holds the account's own settings
+        // and the cutover import.
+        for (final String ownerOnly : OWNER_ONLY) {
+            if (permissions.contains(ownerOnly)) {
+                throw InvalidRequestException.of("permissions", ownerOnly + " is held by the Owner role only");
+            }
         }
         return Permissions.ALL.stream().filter(permissions::contains).toList();
     }
