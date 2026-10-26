@@ -70,7 +70,11 @@ Generated per router from the router's page in the admin app (`POST /api/v1/rout
 7. A restricted REST API user for the platform (read, PPP active, system resource) and SNMP read-only with a per-router community
 8. NTP so accounting timestamps are right
 
-The platform verifies the script worked by polling `/system/resource` over the tunnel and recording `routeros_version`. The hub's peer list is kept equal to the routers' stored public keys by a sync on the host (ADR 0013), so a rebuilt host has its peers back from the database.
+The platform verifies the script worked by polling `/system/resource` over the tunnel and recording `routeros_version`. The hub's peer list is kept equal to the active routers' stored public keys by a sync on the host (ADR 0013), so a rebuilt host has its peers back from the database.
+
+## Retiring a router
+
+A router that was replaced, stolen or taken out of service is retired from its page (`POST /api/v1/routers/{id}/retire`, `network.write`, a reason, an `Idempotency-Key`; N10, [ADR 0015](adr/0015-router-retirement.md)). Retirement is final. In one transaction its lines that are not terminated move to the replacement router (required while there are any; a line's router is bookkeeping, logins work through any router of the tenant, T3), its RADIUS secret and monitoring login are deleted, its open sessions are closed (cause `Router-Retired`) and its offline alert is cleared. Within a minute the host's sync removes its WireGuard peer from the hub and restarts FreeRADIUS without it, so the device can no longer reach the platform (N6). The row stays as history: the routers list hides it unless asked, every action on it is refused, its name may be given to the replacement, its tunnel address is never reused. A replacement is registered and onboarded first, then the old router is retired with the replacement chosen for its lines.
 
 ## Hotspot (v2)
 

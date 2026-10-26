@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -70,6 +71,21 @@ public class Accounting {
                         where acctstoptime is null and coalesce(acctupdatetime, acctstarttime) < :cutoff
                         """)
                 .param("cutoff", Timestamp.from(clock.instant().minus(STALE_AFTER)))
+                .update();
+    }
+
+    /**
+     * N10: a retired router's open sessions end at their last update, cause {@code Router-Retired}, so no
+     * CoA or Disconnect is ever aimed at a router FreeRADIUS no longer knows (AccessChanges reads radacct).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int closeSessionsOf(final UUID routerId) {
+        return jdbc.sql("""
+                        update radacct
+                        set acctstoptime = coalesce(acctupdatetime, acctstarttime), acctterminatecause = 'Router-Retired'
+                        where acctstoptime is null and router_id = :routerId
+                        """)
+                .param("routerId", routerId)
                 .update();
     }
 

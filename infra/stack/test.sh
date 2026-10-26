@@ -141,7 +141,7 @@ EOF
 cp test.override.yml compose.override.yml
 cp stackctl.sh stackctl && chmod +x stackctl
 cp backupctl.sh backupctl && chmod +x backupctl
-cp routersync.sh routersync && chmod +x routersync   # not run here (no hub); checked by converge
+cp routersync.sh routersync && chmod +x routersync   # run in the onboarding section against a stand-in hub; the real hub in converge
 # Every run starts with nothing deployed; the containers of an earlier run are reused or recreated.
 rm -f images.env images.env.previous images.env.failed images.env.new
 release() { # <name> [backend image]: an images.env for a release
@@ -511,6 +511,37 @@ compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) fro
     && echo "   ok   no ledger entry for the activation (B1)" || { echo "   FAIL a ledger entry appeared for the cutover import"; fail=1; }
 r=$(post /api/v1/notifications/moved-notices "{\"importBatchId\":\"$bid\"}" "${auth[@]}")
 [ "$(echo "$r" | jf 'd["queued"]')" = 1 ] && echo "   ok   the \"we've moved\" SMS is queued once for the batch (M1)" || { echo "   FAIL moved notice: $(echo "$r" | head -c 300)"; fail=1; }
+# Router retirement (N10, ADR 0015) and the host's routersync, run for real against this stack's database
+# with a stand-in hub that only keeps peer files: the onboarded router is a peer, then retired with a
+# replacement taking its lines, then its peer is removed and FreeRADIUS reloaded without its secret.
+fakehub=$(mktemp -d); mkdir -p "$fakehub/peers"
+cat > "$fakehub/hub" <<'HUB'
+#!/bin/sh
+case "$1" in
+    add-peer) printf '[Peer]\nPublicKey = %s\nAllowedIPs = %s\n' "$3" "$4" > "$FAKE_PEERS/$2.conf" ;;
+    remove-peer) rm -f "$FAKE_PEERS/$2.conf" ;;
+esac
+HUB
+chmod +x "$fakehub/hub"
+sync_run() { FAKE_PEERS="$fakehub/peers" ROUTERSYNC_HUB="$fakehub/hub" ROUTERSYNC_PEER_DIR="$fakehub/peers" ./routersync 2>&1; }
+out=$(sync_run || true); peer=$(grep -l "AllowedIPs = $tip/32" "$fakehub/peers"/*.conf 2>/dev/null | head -1 || true)
+[ -n "$peer" ] && echo "   ok   routersync made the onboarded router a hub peer ($(basename "$peer" .conf)): $out" || { echo "   FAIL routersync did not add the router's peer: $out"; fail=1; }
+tip2="127.0.$((RANDOM % 250 + 1)).$((RANDOM % 250 + 2))"
+rid2=$(post /api/v1/routers "{\"name\":\"stacktest-replacement\",\"tunnelIp\":\"$tip2\"}" "${auth[@]}" | jf 'd["router"]["id"]')
+r=$(post "/api/v1/routers/$rid/retire" "{\"reason\":\"stack test: replaced\",\"replacementRouterId\":\"$rid2\"}" "${auth[@]}" -H "Idempotency-Key: retire-$code")
+if [ -n "$(echo "$r" | jf 'd["retiredAt"]')" ] && [ "$(echo "$r" | jf 'd["replacedByRouterId"]')" = "$rid2" ]; then echo "   ok   router retired, its lines moved to the replacement (N10)"
+else echo "   FAIL router retirement: $(echo "$r" | head -c 300)"; fail=1; fi
+[ "$(curl -sk --max-time 30 "${auth[@]}" "$API/api/v1/subscriptions/$sid" | jf 'd["routerId"]')" = "$rid2" ] \
+    && echo "   ok   the imported line now belongs to the replacement" || { echo "   FAIL the line did not move"; fail=1; }
+compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) from radius_client_v3 where nasname = '$tip'" 2>/dev/null | grep -qx 0 \
+    && echo "   ok   radius_client_v3 no longer lists the retired router" || { echo "   FAIL the retired router is still a RADIUS client"; fail=1; }
+out=$(sync_run || true)
+if [ -n "$peer" ] && [ ! -e "$peer" ] && echo "$out" | grep -q "[1-9][0-9]* removed (retired)" && echo "$out" | grep -q "FreeRADIUS reloaded"; then
+    echo "   ok   routersync removed the retired router's peer and reloaded FreeRADIUS: $out"
+else echo "   FAIL routersync after the retirement: $out"; fail=1; fi
+out=$(sync_run || true)
+echo "$out" | grep -q " 0 removed (retired).*FreeRADIUS unchanged" && echo "   ok   a second sync changes nothing" || { echo "   FAIL second sync: $out"; fail=1; }
+rm -rf "$fakehub"
 unset tmp otp ptoken stoken auth conf
 
 echo "== services"

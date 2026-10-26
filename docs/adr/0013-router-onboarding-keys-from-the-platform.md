@@ -1,6 +1,6 @@
 # ADR 0013 · Router onboarding: the platform generates the router's keys and the hub learns peers from the database
 
-**Status:** Accepted
+**Status:** Accepted; the sync's "never removed" amended by [ADR 0015](0015-router-retirement.md) (a retired router's peer is removed)
 **Date:** 2026-10-26
 
 ## Context

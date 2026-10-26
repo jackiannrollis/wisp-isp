@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { map } from 'rxjs';
 
-import { errorMessage } from '../../core/api/requests';
+import { errorMessage, newIdempotencyKey } from '../../core/api/requests';
 import {
   Router,
   RouterOnboardingRequest,
@@ -18,6 +21,10 @@ const STYLES = `
   form { display: flex; flex-direction: column; gap: 0.25rem; min-width: min(26rem, 80vw); padding-top: 0.5rem; }
   .error { color: var(--mat-sys-error); margin: 0; }
   .hint { color: var(--mat-sys-on-surface-variant); margin: 0 0 0.75rem; }
+  .destructive {
+    --mat-button-filled-container-color: var(--mat-sys-error);
+    --mat-button-filled-label-text-color: var(--mat-sys-on-error);
+  }
 `;
 
 const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
@@ -157,6 +164,99 @@ export class RestCredentialDialogComponent {
         this.busy.set(false);
       },
     });
+  }
+}
+
+/**
+ * Retire a router for good (N10, ADR 0015): a reason, and the router that takes over its lines (the API
+ * insists while it has any). The Idempotency-Key is made when the dialog opens, so a retry applies once.
+ */
+@Component({
+  selector: 'app-retire-router-dialog',
+  imports: [
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: STYLES,
+  template: `
+    <h2 mat-dialog-title>Retire {{ data.router.name }}?</h2>
+    <mat-dialog-content>
+      <p class="hint">
+        For a router that was replaced, stolen or taken out of service. Its RADIUS secret and
+        monitoring login are deleted, its open sessions are closed, and the hub drops its WireGuard
+        peer within a minute, so the device can no longer reach the platform. This cannot be undone;
+        its name can be given to the router that replaces it.
+      </p>
+      <form [formGroup]="form" id="retire-form" (ngSubmit)="save()">
+        <mat-form-field appearance="outline">
+          <mat-label>Lines move to</mat-label>
+          <mat-select formControlName="replacementRouterId">
+            <mat-option value="">No other router (it has no lines)</mat-option>
+            @for (other of others(); track other.id) {
+              <mat-option [value]="other.id">{{ other.name }} · {{ other.tunnelIp }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Required while lines are on this router; ended lines stay as history</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Reason</mat-label>
+          <textarea matInput rows="2" formControlName="reason" maxlength="500"></textarea>
+          <mat-hint>Kept in the audit log</mat-hint>
+        </mat-form-field>
+        @if (error(); as error) {
+          <p class="error" role="alert">{{ error }}</p>
+        }
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" mat-dialog-close>Keep it</button>
+      <button
+        mat-flat-button
+        type="submit"
+        form="retire-form"
+        class="destructive"
+        [disabled]="form.invalid || busy()"
+      >
+        Retire router
+      </button>
+    </mat-dialog-actions>
+  `,
+})
+export class RetireRouterDialogComponent {
+  protected readonly data = inject<{ router: Router }>(MAT_DIALOG_DATA);
+  private readonly routers = inject(RoutersService);
+  private readonly ref = inject<MatDialogRef<RetireRouterDialogComponent, Router>>(MatDialogRef);
+  private readonly key = newIdempotencyKey();
+  protected readonly busy = signal(false);
+  protected readonly error = signal<string | null>(null);
+  /** Active routers other than this one (the list leaves retired routers out). */
+  protected readonly others = toSignal(
+    this.routers.all().pipe(map((all) => all.filter((r) => r.id !== this.data.router.id))),
+    { initialValue: [] as Router[] },
+  );
+  protected readonly form = inject(NonNullableFormBuilder).group({
+    replacementRouterId: [''],
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+  });
+
+  protected save(): void {
+    const { replacementRouterId, reason } = this.form.getRawValue();
+    this.busy.set(true);
+    this.error.set(null);
+    this.routers
+      .retire(this.data.router.id ?? '', reason.trim(), replacementRouterId || null, this.key)
+      .subscribe({
+        next: (router) => this.ref.close(router),
+        error: (e: unknown) => {
+          this.error.set(errorMessage(e));
+          this.busy.set(false);
+        },
+      });
   }
 }
 

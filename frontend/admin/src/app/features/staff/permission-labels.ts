@@ -60,7 +60,8 @@ export const PERMISSION_LABELS: Record<string, PermissionLabel> = {
   },
   'network.write': {
     label: 'Manage routers',
-    description: 'Register routers, set monitoring logins and issue new RADIUS secrets.',
+    description:
+      'Register and retire routers, generate onboarding scripts, set monitoring logins and issue new RADIUS secrets.',
     group: 'Network',
   },
   'settings.notifications': {

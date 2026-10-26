@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 /** Row-level security limits every query to the current tenant (T1). */
@@ -21,6 +22,14 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
     long countByCustomerId(UUID customerId);
 
     Page<Subscription> findByCustomerId(UUID customerId, Pageable page);
+
+    long countByRouterIdAndStateNot(UUID routerId, SubscriptionState state);
+
+    /** N10: a retired router's lines that are not TERMINATED move to its replacement (bookkeeping, T3). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Subscription s set s.routerId = :to, s.updatedAt = :now where s.routerId = :from "
+            + "and s.state <> com.corebalt.isp.subscriptions.domain.SubscriptionState.TERMINATED")
+    int moveLiveLines(UUID from, UUID to, Instant now);
 
     /** Which of these usernames a line of the current tenant already has (the import's kept names, T2). */
     @Query("select s.pppoeUsername from Subscription s where s.pppoeUsername in :usernames")

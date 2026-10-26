@@ -8,5 +8,6 @@ import java.util.UUID;
  */
 public interface RouterDirectory {
 
+    /** The router exists and is not retired (N10): a new line may terminate on it. */
     boolean exists(UUID routerId);
 }

@@ -2,10 +2,13 @@ package com.corebalt.isp.notifications.application;
 
 import com.corebalt.isp.network.api.RouterOffline;
 import com.corebalt.isp.network.api.RouterOnline;
+import com.corebalt.isp.network.api.RouterRetired;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -47,12 +50,21 @@ public class RouterAlerts {
     }
 
     public void online(final RouterOnline event) {
+        clear(event.routerId(), event.occurredAt());
+    }
+
+    /** N10: a retired router's offline alert is moot. */
+    public void retired(final RouterRetired event) {
+        clear(event.routerId(), event.occurredAt());
+    }
+
+    private void clear(final UUID routerId, final Instant at) {
         jdbc.sql("""
                         update notifications_alert set cleared_at = :at
                         where kind = 'ROUTER_OFFLINE' and subject_id = :routerId and cleared_at is null
                         """)
-                .param("at", Timestamp.from(event.occurredAt()))
-                .param("routerId", event.routerId())
+                .param("at", Timestamp.from(at))
+                .param("routerId", routerId)
                 .update();
     }
 }

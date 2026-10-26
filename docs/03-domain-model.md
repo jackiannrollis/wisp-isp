@@ -145,6 +145,7 @@ Derived, never stored: `display_status` (`EXPIRING`, `GRACE`, `RESTRICTED`, …)
 | `api_username`, `api_password` | Encrypted; REST user limited to read and PPP actions |
 | `snmp_community` | Encrypted |
 | `status`, `last_seen_at`, `last_handshake_at` | `ONLINE`, `OFFLINE`, `UNKNOWN` |
+| `retired_at`, `retired_reason`, `replaced_by_router_id` | Set once by retirement, which is final (N10, [ADR 0015](adr/0015-router-retirement.md)): the router keeps no secret or login, its live lines moved to the replacement; its name may be reused, its tunnel address never |
 
 **ip_pool** — `router_id`, `name`, `cidr`, `purpose` (`FULL`, `RESTRICTED`).
 

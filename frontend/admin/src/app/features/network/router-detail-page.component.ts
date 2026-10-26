@@ -5,8 +5,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterLink } from '@angular/router';
 import {
   IconAlertTriangle,
+  IconArchive,
   IconDotsVertical,
   IconFileCode,
   IconKey,
@@ -15,7 +17,7 @@ import {
   IconShieldLock,
   TablerIconComponent,
 } from '@tabler/icons-angular';
-import { Observable, timer } from 'rxjs';
+import { Observable, of, timer } from 'rxjs';
 
 import { errorMessage } from '../../core/api/requests';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -30,8 +32,12 @@ import {
 import { formatAge, formatDateTime, formatDuration } from '../../shared/ui/format';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
-import { Router, RouterWithSecret, RoutersService } from './data/routers.service';
-import { OnboardingScriptDialogComponent, RestCredentialDialogComponent } from './router-dialogs';
+import { Router, RouterWithSecret, RoutersService, routerStatus } from './data/routers.service';
+import {
+  OnboardingScriptDialogComponent,
+  RestCredentialDialogComponent,
+  RetireRouterDialogComponent,
+} from './router-dialogs';
 
 /** The worker polls on request; its answer lands within a few seconds (ADR 0011). */
 const POLL_SETTLE_MS = 4000;
@@ -51,6 +57,7 @@ const POLL_SETTLE_MS = 4000;
     MatTooltipModule,
     MatSnackBarModule,
     TablerIconComponent,
+    RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './router-detail-page.component.html',
@@ -72,6 +79,7 @@ export class RouterDetailPageComponent {
     stop: IconPlugConnectedX,
     secret: IconShieldLock,
     alert: IconAlertTriangle,
+    retire: IconArchive,
   };
   protected readonly date = formatDateTime;
   protected readonly age = formatAge;
@@ -87,6 +95,15 @@ export class RouterDetailPageComponent {
     params: () => this.id(),
     stream: ({ params }) => this.routers.sessions(params),
   });
+
+  protected readonly status = routerStatus;
+
+  /** The name of the router that took a retired router's lines. */
+  private readonly replacement = rxResource({
+    params: () => this.router.value()?.replacedByRouterId ?? undefined,
+    stream: ({ params }) => (params ? this.routers.get(params) : of(undefined)),
+  });
+  protected readonly replacementName = computed(() => this.replacement.value()?.name ?? null);
 
   /** Usernames the router reports, to mark each RADIUS session found there or not. */
   protected readonly onRouter = computed(
@@ -136,6 +153,23 @@ export class RouterDetailPageComponent {
       destructive: true,
       run: () => this.routers.removeRestCredential(router.id ?? ''),
     }).subscribe((done) => done && this.reload());
+  }
+
+  /** N10: final; the page reloads to show the router as history. */
+  protected retire(router: Router): void {
+    this.dialog
+      .open(RetireRouterDialogComponent, { data: { router }, width: '560px' })
+      .afterClosed()
+      .subscribe((retired: Router | undefined) => {
+        if (retired) {
+          this.snack.open(
+            `${router.name} is retired. The hub drops its peer within a minute.`,
+            undefined,
+            { duration: 5000 },
+          );
+          this.reload();
+        }
+      });
   }
 
   protected newSecret(router: Router): void {

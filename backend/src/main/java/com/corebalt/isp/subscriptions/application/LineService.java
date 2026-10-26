@@ -15,6 +15,7 @@ import com.corebalt.isp.shared.web.PageResponse;
 import com.corebalt.isp.subscriptions.api.CreateLineRequest;
 import com.corebalt.isp.subscriptions.api.LineCredentialStore;
 import com.corebalt.isp.subscriptions.api.LineOpenedDto;
+import com.corebalt.isp.subscriptions.api.LineRouters;
 import com.corebalt.isp.subscriptions.api.PppoeCredentialDto;
 import com.corebalt.isp.subscriptions.api.RouterDirectory;
 import com.corebalt.isp.subscriptions.api.SubscriptionDirectory;
@@ -37,6 +38,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -46,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
  * retried regeneration simply issues another one (decisions.md 2026-10-19).
  */
 @Service
-public class LineService implements SubscriptionDirectory {
+public class LineService implements SubscriptionDirectory, LineRouters {
 
     private final SubscriptionRepository lines;
     private final CustomerFacade customers;
@@ -247,6 +249,18 @@ public class LineService implements SubscriptionDirectory {
     @Transactional(readOnly = true)
     public Optional<String> accessProfileBeforeLimit(final UUID subscriptionId, final Instant at, final boolean dataCap) {
         return lines.findById(subscriptionId).map(l -> views.profileBeforeLimit(l, at, dataCap).name());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long liveLinesOn(final UUID routerId) {
+        return lines.countByRouterIdAndStateNot(routerId, SubscriptionState.TERMINATED);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int moveLiveLines(final UUID from, final UUID to) {
+        return lines.moveLiveLines(from, to, clock.instant());
     }
 
     private Subscription load(final UUID subscriptionId) {

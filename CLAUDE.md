@@ -63,7 +63,10 @@ customer paid for in the old system, only while the console has opened the tenan
 and only by the Owner's `subscriptions.import_active`; rows may keep the old PPPoE username and
 password (T2 widened: unique per tenant) and the old M-Pesa reference (P3, matched before
 normalisation); a "we've moved" SMS goes to the batch on request; the runbook has the lossless
-one-day cutover. Not yet: the Nairobi node (pending Q2).
+one-day cutover. Router retirement (ADR 0015, N10): final, from the router's page; its live lines move
+to a replacement, its secret, REST login and open sessions go at once, and the host's routersync removes
+its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-peer`). Not yet: the
+Nairobi node (pending Q2).
 
 ## Commands
 

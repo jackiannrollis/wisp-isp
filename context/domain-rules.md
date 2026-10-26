@@ -53,6 +53,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **N7** `radacct` is partitioned monthly, kept 13 months; `network_usage_daily` is the only usage source for screens and reports.
 - **N8** Device limits are enforced only on hotspot (`shared_users`); PPPoE cannot see devices behind the customer's router.
 - **N9** Fair use and data caps count download plus upload in the line's current cycle, from its last renewal (`cycle_started_at`, Q12 default), from the usage roll-up only (N7); only a renewal starts a new cycle (Q13 default). Past `fup_bytes` the line is `THROTTLED`, past `data_cap_bytes` `RESTRICTED` (Q14 default), until it renews; a line whose cycle start is unknown is not metered. A crossing is announced once per line, cycle and kind (`UsageThresholdReached`): Disconnect, then one SMS (Q15 default).
+- **N10** A router leaves the platform only by retirement, which is final (`network.write`, a reason, an `Idempotency-Key`): its lines that are not terminated move to a replacement router, required while there are any; its RADIUS secret and REST login are deleted and its open sessions closed in the same transaction; the host's sync removes its WireGuard peer and reloads FreeRADIUS within a minute, so the device can no longer reach the platform (N6). The row stays as history; its name may be reused by its replacement, its tunnel address never.
 
 ## Notifications (docs/04)
 

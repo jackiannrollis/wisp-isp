@@ -1,5 +1,6 @@
 package com.corebalt.isp.network.domain;
 
+import com.corebalt.isp.shared.web.ConflictException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -87,6 +88,13 @@ public class Router {
     private String managementCidrs;
     @Column(name = "onboarding_script_generated_at")
     private Instant onboardingScriptGeneratedAt;
+    // Retirement (ADR 0015, N10): final; the row stays for history.
+    @Column(name = "retired_at")
+    private Instant retiredAt;
+    @Column(name = "retired_reason")
+    private String retiredReason;
+    @Column(name = "replaced_by_router_id")
+    private UUID replacedByRouterId;
 
     protected Router() {}
 
@@ -138,6 +146,47 @@ public class Router {
         this.managementCidrs = managementCidrs;
         this.onboardingScriptGeneratedAt = now;
         this.updatedAt = now;
+    }
+
+    /**
+     * N10: the router leaves the platform for good. {@code replacement} takes its lines, when it had any;
+     * the caller revokes the secret, clears the REST login and closes its sessions in the same transaction.
+     */
+    public void retire(final String reason, final UUID replacement, final Instant now) {
+        requireActive();
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("N10: a reason is required");
+        }
+        if (id.equals(replacement)) {
+            throw new ConflictException("N10: a router cannot replace itself; choose another router for its lines.");
+        }
+        retiredAt = now;
+        retiredReason = reason.strip();
+        replacedByRouterId = replacement;
+        updatedAt = now;
+    }
+
+    /** N10: a retired router takes no new lines, secrets, scripts, logins or polls. */
+    public void requireActive() {
+        if (retiredAt != null) {
+            throw new RouterRetiredException(name);
+        }
+    }
+
+    public boolean isRetired() {
+        return retiredAt != null;
+    }
+
+    public Instant getRetiredAt() {
+        return retiredAt;
+    }
+
+    public String getRetiredReason() {
+        return retiredReason;
+    }
+
+    public UUID getReplacedByRouterId() {
+        return replacedByRouterId;
     }
 
     public String getWgPublicKey() {

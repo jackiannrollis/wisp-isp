@@ -344,7 +344,7 @@ public class CustomerImportService {
         if (needsRouter && routerId == null) {
             problems.add(new Violation(null, "routerId", "required when rows have a package"));
         } else if (needsRouter && !routers.exists(routerId)) {
-            problems.add(new Violation(null, "routerId", "no such router"));
+            problems.add(new Violation(null, "routerId", "no such router, or it is retired"));
         }
         if (activates) {
             if (!CurrentActor.has(Permissions.SUBSCRIPTIONS_IMPORT_ACTIVE)) {

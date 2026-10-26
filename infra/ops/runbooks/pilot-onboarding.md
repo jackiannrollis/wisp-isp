@@ -90,6 +90,8 @@ Every router joins the platform over WireGuard with a per-router RADIUS secret (
 8. **First login.** The first customer line on this router (step 6) is the login check: the router's `/ppp active` and the platform's Sessions screen show the session, the auth log in Loki shows the accept (`failover-drill.md`, The login check). A reject with "Account not yet active" means the line is still `PENDING`; no reply at all means FreeRADIUS does not know the router yet: `journalctl -u corebalt-routersync -n 5` on the host shows whether the sync reloaded it after the script was generated (by hand: `stackctl reload-radius`).
 9. **CoA.** The first restore proves it: a line restricted for non-payment, then paid, must be back within a minute without anyone touching the router (docs/06 CoA and Disconnect). Until the network lab has run on real routers, CoA and Disconnect are proven only against a fake router (`infra/lab/README.md`), so the first real restore is watched by the technician with a customer on the phone.
 
+**Replacing or retiring a router (technician, Owner).** A router that failed, was stolen or is taken out of service is retired, never deleted (N10, ADR 0015). For a replacement: register the new router with a **new** tunnel address (a retired router's address is never reused) and, if wanted, the old name; generate and run its onboarding script (steps 3 and 4); then on the old router's page choose Retire router, pick the new router under "Lines move to" and give the reason. In that moment the old router's RADIUS secret and monitoring login are deleted, its open sessions closed and its offline alert cleared; within a minute the host's sync removes its hub peer and restarts FreeRADIUS (`journalctl -u corebalt-routersync -n 3` shows `1 removed (retired)`). A stolen router needs no replacement first when it carried no lines; otherwise the API refuses until a router takes them. Retirement cannot be undone.
+
 Node B: the script carries the place for the second hub peer and the second RADIUS entry; both are added when the Nairobi node exists (Q2), by re-running an updated script on every router.
 
 ## 6. Customers and the cutover (Owner or Support, technician)
@@ -165,7 +167,6 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 
 - A screen for the platform console: creating, activating or suspending a tenant and reissuing an invitation are API calls by hand today.
 - A reason to be `ACTIVE` rather than `TRIAL`: the status changes nothing yet; it waits for the platform's own billing (Q1).
-- A router that should leave the hub: the sync never removes a peer (routers have no delete); `wg set wg0 peer <key> remove` and the peer file by hand.
 - RouterOS steps of the lossless cutover (the profile switch, disabling the old RADIUS entry, clearing sessions) and PAP/CHAP against kept passwords on real customer devices are unproven until the network lab runs.
 - The script's SNMP community is set on the router and not kept by the platform (docs/03 planned it encrypted): nothing reads SNMP in v1, and the next script sets a new one.
 - Whether the read-only REST user may read `/ppp/active` on a real router, and CoA and Disconnect on real routers: the network lab's Hyper-V half has not run (`infra/lab/README.md`).

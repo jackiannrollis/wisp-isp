@@ -37,6 +37,7 @@ const TONES: Record<string, StatusTone> = {
   ARCHIVED: 'neutral',
   NOT_MONITORED: 'neutral',
   DISABLED: 'neutral',
+  RETIRED: 'neutral',
 };
 
 export function statusTone(status: string | null | undefined): StatusTone {

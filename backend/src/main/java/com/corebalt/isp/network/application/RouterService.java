@@ -80,7 +80,7 @@ public class RouterService implements RouterDirectory, RouterNames {
 
     @Transactional
     public RouterSecretDto regenerateSecret(final UUID routerId) {
-        final Router router = load(routerId);
+        final Router router = active(routerId);
         return new RouterSecretDto(toDto(router), credentials.regenerateRouterSecret(router.getId()));
     }
 
@@ -89,15 +89,18 @@ public class RouterService implements RouterDirectory, RouterNames {
         return toDto(load(routerId));
     }
 
+    /** Active routers, or every router with the retired ones (N10) when {@code includeRetired}. */
     @Transactional(readOnly = true)
-    public PageResponse<RouterDto> list(final Pageable page) {
-        return PageResponse.of(routers.findAll(page), RouterService::toDto);
+    public PageResponse<RouterDto> list(final Pageable page, final boolean includeRetired) {
+        return PageResponse.of(includeRetired ? routers.findAll(page) : routers.findByRetiredAtIsNull(page),
+                RouterService::toDto);
     }
 
+    /** N10: a retired router takes no new lines. */
     @Override
     @Transactional(readOnly = true)
     public boolean exists(final UUID routerId) {
-        return routers.existsById(routerId);
+        return routers.existsByIdAndRetiredAtIsNull(routerId);
     }
 
     @Override
@@ -112,7 +115,7 @@ public class RouterService implements RouterDirectory, RouterNames {
      */
     @Transactional
     public RouterDto setRestCredential(final UUID routerId, final String username, final String password) {
-        final Router router = load(routerId);
+        final Router router = active(routerId);
         if (username == null || username.isBlank() || username.length() > 64) {
             throw InvalidRequestException.of("username", "1 to 64 characters");
         }
@@ -139,7 +142,7 @@ public class RouterService implements RouterDirectory, RouterNames {
 
     @Transactional
     public RouterDto removeRestCredential(final UUID routerId) {
-        load(routerId);
+        active(routerId);
         jdbc.sql("""
                         update network_router
                         set rest_username = null, rest_password_enc = null, rest_key_version = null, status = 'NOT_MONITORED',
@@ -156,7 +159,7 @@ public class RouterService implements RouterDirectory, RouterNames {
     /** Asks the tunnel worker to poll now (it also polls every 60 s on its own). */
     @Transactional
     public void requestPoll(final UUID routerId) {
-        load(routerId);
+        active(routerId);
         outbox.publish(new RouterPollRequested(UuidV7.next(clock), TenantContext.requireTenantId(), clock.instant(), routerId));
     }
 
@@ -168,6 +171,13 @@ public class RouterService implements RouterDirectory, RouterNames {
 
     private Router load(final UUID routerId) {
         return routers.findById(routerId).orElseThrow(() -> new NotFoundException("Router"));
+    }
+
+    /** N10: secrets, logins and polls only for a router that is not retired (409 otherwise). */
+    private Router active(final UUID routerId) {
+        final Router router = load(routerId);
+        router.requireActive();
+        return router;
     }
 
     static InetAddress ipv4(final String text) {
@@ -206,6 +216,9 @@ public class RouterService implements RouterDirectory, RouterNames {
                 router.getPoolRestricted(),
                 router.getManagementCidrs(),
                 router.getOnboardingScriptGeneratedAt(),
+                router.getRetiredAt(),
+                router.getRetiredReason(),
+                router.getReplacedByRouterId(),
                 router.getCreatedAt(),
                 router.getUpdatedAt());
     }

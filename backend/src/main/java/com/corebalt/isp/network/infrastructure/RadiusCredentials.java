@@ -73,6 +73,16 @@ public class RadiusCredentials implements LineCredentialStore {
         return secret;
     }
 
+    /**
+     * N10: a retired router's secret goes, so radius_client_v3 no longer lists it; the row stays (and its
+     * updated_at moves, which is how the host's routersync knows to reload FreeRADIUS).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void revokeRouterSecret(final UUID routerId) {
+        update("router_id", routerId, null);
+        audit.record(AuditEntry.of("network.radius_secret_revoked", "router", routerId));
+    }
+
     @Transactional(propagation = Propagation.MANDATORY)
     public String regenerateRouterSecret(final UUID routerId) {
         final String secret = SecretGenerator.sharedSecret();

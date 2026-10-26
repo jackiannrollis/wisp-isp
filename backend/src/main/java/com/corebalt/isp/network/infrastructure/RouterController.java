@@ -6,9 +6,12 @@ import com.corebalt.isp.network.application.SessionViews;
 import com.corebalt.isp.network.api.RouterRequest;
 import com.corebalt.isp.network.api.RouterOnboardingRequest;
 import com.corebalt.isp.network.api.RouterOnboardingScriptDto;
+import com.corebalt.isp.network.api.RouterRetireRequest;
 import com.corebalt.isp.network.api.RouterSecretDto;
 import com.corebalt.isp.network.application.RouterOnboarding;
+import com.corebalt.isp.network.application.RouterRetirement;
 import com.corebalt.isp.network.application.RouterService;
+import com.corebalt.isp.shared.web.IdempotentRequests;
 import com.corebalt.isp.shared.web.PageRequests;
 import com.corebalt.isp.shared.web.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,11 +43,16 @@ class RouterController {
     private final RouterService service;
     private final SessionViews sessions;
     private final RouterOnboarding onboarding;
+    private final RouterRetirement retirement;
+    private final IdempotentRequests idempotent;
 
-    RouterController(final RouterService service, final SessionViews sessions, final RouterOnboarding onboarding) {
+    RouterController(final RouterService service, final SessionViews sessions, final RouterOnboarding onboarding,
+                     final RouterRetirement retirement, final IdempotentRequests idempotent) {
         this.service = service;
         this.sessions = sessions;
         this.onboarding = onboarding;
+        this.retirement = retirement;
+        this.idempotent = idempotent;
     }
 
     @GetMapping("/{id}/sessions")
@@ -53,12 +62,31 @@ class RouterController {
     }
 
     @GetMapping
-    @Operation(summary = "List the tenant's routers")
+    @Operation(summary = "List the tenant's routers: the active ones, or every one with includeRetired (N10)")
     PageResponse<RouterDto> list(
             @RequestParam(defaultValue = "0") final int page,
             @RequestParam(defaultValue = "50") final int size,
-            @RequestParam(required = false) final String sort) {
-        return service.list(PageRequests.of(page, size, sort, SORTABLE, Sort.by("name")));
+            @RequestParam(required = false) final String sort,
+            @RequestParam(defaultValue = "false") final boolean includeRetired) {
+        return service.list(PageRequests.of(page, size, sort, SORTABLE, Sort.by("name")), includeRetired);
+    }
+
+    @PostMapping("/{id}/retire")
+    @PreAuthorize("hasAuthority('network.write')")
+    @Operation(summary = "Retire a router for good (N10, ADR 0015): its lines move to replacementRouterId (required while it has "
+            + "lines), its RADIUS secret and REST login go, its open sessions close; the host's sync removes its WireGuard "
+            + "peer within a minute. Needs an Idempotency-Key")
+    ResponseEntity<RouterDto> retire(
+            @RequestHeader(IdempotentRequests.HEADER) final String key,
+            @PathVariable final UUID id,
+            @Valid @RequestBody final RouterRetireRequest request) {
+        final IdempotentRequests.Result<RouterDto> result = idempotent.execute(
+                key, "POST /routers/" + id + "/retire", request, RouterDto.class, () -> retirement.retire(id, request));
+        final ResponseEntity.BodyBuilder response = ResponseEntity.ok();
+        if (result.replayed()) {
+            response.header(IdempotentRequests.REPLAYED_HEADER, "true");
+        }
+        return response.body(result.body());
     }
 
     @PostMapping

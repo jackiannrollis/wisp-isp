@@ -6,7 +6,8 @@ import java.util.UUID;
 /**
  * A router as staff see it: never its RADIUS secret or REST password. {@code status} is
  * NOT_MONITORED (no REST credential), UNKNOWN (not polled yet), ONLINE or OFFLINE (3 missed polls);
- * {@code lastAccountingAt} is the secondary "last heard" from RADIUS accounting.
+ * {@code lastAccountingAt} is the secondary "last heard" from RADIUS accounting. A retired router
+ * ({@code retiredAt} set, N10) keeps its row for history; its lines moved to {@code replacedByRouterId}.
  */
 public record RouterDto(
         UUID id,
@@ -32,5 +33,8 @@ public record RouterDto(
         String poolRestricted,
         String managementCidrs,
         Instant onboardingScriptGeneratedAt,
+        Instant retiredAt,
+        String retiredReason,
+        UUID replacedByRouterId,
         Instant createdAt,
         Instant updatedAt) {}

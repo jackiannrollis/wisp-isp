@@ -498,11 +498,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the tenant's routers */
+        /** List the tenant's routers: the active ones, or every one with includeRetired (N10) */
         get: operations["list_2"];
         put?: never;
         /** Register a router; the RADIUS secret in the response is shown only this once */
         post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routers/{id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retire a router for good (N10, ADR 0015): its lines move to replacementRouterId (required while it has lines), its RADIUS secret and REST login go, its open sessions close; the host's sync removes its WireGuard peer within a minute. Needs an Idempotency-Key */
+        post: operations["retire"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2122,6 +2139,11 @@ export interface components {
             /** Format: date-time */
             onboardingScriptGeneratedAt?: string;
             /** Format: date-time */
+            retiredAt?: string;
+            retiredReason?: string;
+            /** Format: uuid */
+            replacedByRouterId?: string;
+            /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
@@ -2297,6 +2319,11 @@ export interface components {
         RouterSecretDto: {
             router?: components["schemas"]["RouterDto"];
             radiusSecret?: string;
+        };
+        RouterRetireRequest: {
+            reason: string;
+            /** Format: uuid */
+            replacementRouterId?: string;
         };
         RouterOnboardingRequest: {
             pppoeInterface: string;
@@ -3986,6 +4013,7 @@ export interface operations {
                 page?: number;
                 size?: number;
                 sort?: string;
+                includeRetired?: boolean;
             };
             header?: never;
             path?: never;
@@ -4024,6 +4052,34 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RouterSecretDto"];
+                };
+            };
+        };
+    };
+    retire: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouterRetireRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RouterDto"];
                 };
             };
         };

@@ -3,6 +3,7 @@
 #
 #   wireguard-hub                                   start the hub (container entrypoint)
 #   wireguard-hub add-peer <name> <pubkey> <cidr>   add or replace a router peer, applied at once
+#   wireguard-hub remove-peer <name>                remove a retired router's peer, applied at once
 #   wireguard-hub public-key                        print the hub's public key
 #   wireguard-hub export-peers                      every peer as the add-peer line that recreates it
 #                                                   (public keys and tunnel addresses only), for escrow
@@ -40,6 +41,22 @@ case "${1:-start}" in
         printf '[Peer]\nPublicKey = %s\nAllowedIPs = %s\nPersistentKeepalive = 25\n' "$key" "$cidr" > "$PEER_DIR/$name.conf"
         wg set wg0 peer "$key" allowed-ips "$cidr" persistent-keepalive 25
         echo "wireguard-hub: peer $name $cidr added"
+        exit 0
+        ;;
+    remove-peer)
+        # A retired router (N10, ADR 0015): its key leaves wg0 and its file goes, so the router (or whoever
+        # holds it now) can no longer reach the platform. Removing a peer that is already gone succeeds.
+        [ $# -eq 2 ] || { echo "usage: wireguard-hub remove-peer <name>" >&2; exit 2; }
+        name=$2
+        echo "$name" | grep -Eq '^[a-z0-9-]{1,40}$' || { echo "invalid peer name: $name" >&2; exit 2; }
+        if [ -s "$PEER_DIR/$name.conf" ]; then
+            key=$(sed -n 's/^PublicKey = //p' "$PEER_DIR/$name.conf")
+            [ -z "$key" ] || wg set wg0 peer "$key" remove
+            rm -f "$PEER_DIR/$name.conf"
+            echo "wireguard-hub: peer $name removed"
+        else
+            echo "wireguard-hub: peer $name was not there"
+        fi
         exit 0
         ;;
     public-key)

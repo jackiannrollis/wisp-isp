@@ -41,7 +41,7 @@ The worker and FreeRADIUS code is identical in both layouts; only where they sit
                           └── tunnel-worker  host networking (or a bridge with masquerade)
 ```
 
-- WireGuard runs on the host as the `corebalt-wg-hub` service (the same script as the container); the operator adds each router with `sudo corebalt-wg-hub add-peer` and keeps `export-peers` in escrow (`infra/ops/runbooks/pilot-onboarding.md`, `failover-drill.md`).
+- WireGuard runs on the host as the `corebalt-wg-hub` service (the same script as the container); the host's router sync (`corebalt-routersync`) adds each active router with `corebalt-wg-hub add-peer` and removes a retired one with `remove-peer` (ADR 0013, ADR 0015); `export-peers` is a diagnostic (`infra/ops/runbooks/pilot-onboarding.md`, `failover-drill.md`).
 - FreeRADIUS binds 1812/1813 on the hub tunnel IP only. The firewall allows them only on `wg0`, so nothing listens publicly (N6).
 - The worker runs with host networking. Alternatively it runs on a Docker bridge network: Docker's masquerade then makes its polls and CoA leave from the host, and a routing rule must send `10.200.0.0/16` through `wg0` so they leave from the hub IP. Routers accept REST only from the hub address (the onboarding script's `corebalt-api` user) and CoA only from their RADIUS server.
 - One worker replica per hub, `ISP_WORKER_HUB=A` or `B`, each with the hub's own database login (`isp_worker`).

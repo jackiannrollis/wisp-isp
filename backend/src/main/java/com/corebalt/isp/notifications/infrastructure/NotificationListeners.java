@@ -2,6 +2,7 @@ package com.corebalt.isp.notifications.infrastructure;
 
 import com.corebalt.isp.network.api.RouterOffline;
 import com.corebalt.isp.network.api.RouterOnline;
+import com.corebalt.isp.network.api.RouterRetired;
 import com.corebalt.isp.network.api.SessionReauthorizationFailed;
 import com.corebalt.isp.network.api.SessionReauthorized;
 import com.corebalt.isp.network.api.UsageThresholdReached;
@@ -32,6 +33,7 @@ class NotificationListeners {
     static final String PACKAGES = "notifications.package-changes";
     static final String ROUTERS_OFFLINE = "notifications.routers-offline";
     static final String ROUTERS_ONLINE = "notifications.routers-online";
+    static final String ROUTERS_RETIRED = "notifications.routers-retired";
     static final String COA_FAILED = "notifications.coa-failed";
     static final String COA_DONE = "notifications.coa-done";
     static final String USAGE = "notifications.usage-thresholds";
@@ -73,6 +75,12 @@ class NotificationListeners {
     void routerOnline(final Message message) {
         final RouterOnline event = EventQueues.read(json, message, RouterOnline.class);
         consumer.handleOnce(ROUTERS_ONLINE, message, () -> routerAlerts.online(event));
+    }
+
+    @RabbitListener(queues = ROUTERS_RETIRED)
+    void routerRetired(final Message message) {
+        final RouterRetired event = EventQueues.read(json, message, RouterRetired.class);
+        consumer.handleOnce(ROUTERS_RETIRED, message, () -> routerAlerts.retired(event));
     }
 
     @RabbitListener(queues = REMINDERS)
@@ -136,6 +144,11 @@ class NotificationListeners {
         @Bean
         Declarables notificationsRoutersOnlineQueue() {
             return EventQueues.declare(ROUTERS_ONLINE, EventQueues.routingKey(RouterOnline.class, 1));
+        }
+
+        @Bean
+        Declarables notificationsRoutersRetiredQueue() {
+            return EventQueues.declare(ROUTERS_RETIRED, EventQueues.routingKey(RouterRetired.class, 1));
         }
 
         @Bean

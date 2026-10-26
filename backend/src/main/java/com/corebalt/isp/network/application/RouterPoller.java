@@ -145,7 +145,7 @@ public class RouterPoller {
         jdbc.sql("""
                         update network_router
                         set ppp_active_count = :count, ppp_active_users = :users, ppp_active_at = :at
-                        where id = :id
+                        where id = :id and rest_password_enc is not null
                         """)
                 .param("count", sessions.size())
                 .param("users", sessions.toArray(String[]::new))
@@ -156,12 +156,14 @@ public class RouterPoller {
 
     private void answered(final Target target, final RouterOsClient.Resource resource) {
         final Instant now = clock.instant();
-        jdbc.sql("""
+        // Only while the router is still monitored: a poll in flight when its REST login was removed, or
+        // the router retired (N10), changes nothing and raises nothing.
+        final boolean current = jdbc.sql("""
                         update network_router
                         set status = 'ONLINE', poll_misses = 0, last_polled_at = :now, last_seen_at = :now, offline_since = null,
                             last_poll_error = null, routeros_version = :version, board_name = :board, uptime_seconds = :uptime,
                             cpu_load = :cpu, free_memory_bytes = :free, total_memory_bytes = :total
-                        where id = :id
+                        where id = :id and rest_password_enc is not null
                         """)
                 .param("now", Timestamp.from(now))
                 .param("version", resource.version())
@@ -171,8 +173,8 @@ public class RouterPoller {
                 .param("free", resource.freeMemory())
                 .param("total", resource.totalMemory())
                 .param("id", target.id())
-                .update();
-        if ("OFFLINE".equals(target.status())) {
+                .update() == 1;
+        if (current && "OFFLINE".equals(target.status())) {
             log.info("Router {} is back online", target.id());
             outbox.publish(new RouterOnline(UuidV7.next(clock), TenantContext.requireTenantId(), now, target.id(),
                     target.offlineSince()));
@@ -183,20 +185,20 @@ public class RouterPoller {
         final Instant now = clock.instant();
         final int misses = target.misses() + 1;
         final boolean goesOffline = misses >= MISSES_FOR_OFFLINE && !"OFFLINE".equals(target.status());
-        jdbc.sql("""
+        final boolean current = jdbc.sql("""
                         update network_router
                         set poll_misses = :misses, last_polled_at = :now, last_poll_error = :error,
                             status = case when :offline then 'OFFLINE' else status end,
                             offline_since = case when :offline then cast(:now as timestamptz) else offline_since end
-                        where id = :id
+                        where id = :id and rest_password_enc is not null
                         """)
                 .param("misses", misses)
                 .param("now", Timestamp.from(now))
                 .param("error", error)
                 .param("offline", goesOffline)
                 .param("id", target.id())
-                .update();
-        if (goesOffline) {
+                .update() == 1;
+        if (current && goesOffline) {
             log.warn("Router {} is offline after {} missed polls: {}", target.id(), misses, error);
             outbox.publish(new RouterOffline(UuidV7.next(clock), TenantContext.requireTenantId(), now, target.id(), now));
         }

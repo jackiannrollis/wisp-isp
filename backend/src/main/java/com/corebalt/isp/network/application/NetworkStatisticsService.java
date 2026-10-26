@@ -27,7 +27,8 @@ public class NetworkStatisticsService implements NetworkStatistics {
     public Map<String, Long> routersByStatus() {
         final Map<String, Long> counts = new LinkedHashMap<>();
         STATUSES.forEach(status -> counts.put(status, 0L));
-        jdbc.sql("select status, count(*) from network_router group by status")
+        // Retired routers (N10) are history, not part of the network.
+        jdbc.sql("select status, count(*) from network_router where retired_at is null group by status")
                 .query(rs -> {
                     counts.put(rs.getString(1), rs.getLong(2));
                 });

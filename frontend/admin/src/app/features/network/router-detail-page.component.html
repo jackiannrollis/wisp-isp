@@ -13,8 +13,8 @@
     backLink="/network"
     backLabel="Routers"
   >
-    <app-status-chip status [status]="r.status" />
-    @if (canWrite()) {
+    <app-status-chip status [status]="status(r)" />
+    @if (canWrite() && !r.retiredAt) {
       <ng-container actions>
         <button
           mat-icon-button
@@ -44,6 +44,10 @@
             <tabler-icon [icon]="icons.secret" [size]="18" class="menu-icon" />
             <span>New RADIUS secret</span>
           </button>
+          <button mat-menu-item type="button" class="danger" (click)="retire(r)">
+            <tabler-icon [icon]="icons.retire" [size]="18" class="menu-icon" />
+            <span>Retire router</span>
+          </button>
         </mat-menu>
         @if (r.restUsername) {
           <button mat-flat-button type="button" [disabled]="polling()" (click)="pollNow()">
@@ -59,7 +63,24 @@
     }
   </app-page-header>
 
-  @if (r.lastPollError && r.status !== 'ONLINE') {
+  @if (r.retiredAt) {
+    <div class="notice" role="status">
+      <tabler-icon [icon]="icons.retire" [size]="18" />
+      <span>
+        Retired {{ date(r.retiredAt) }}: <strong>{{ r.retiredReason }}</strong
+        >.
+        @if (r.replacedByRouterId) {
+          Its lines moved to
+          <a [routerLink]="['/network', r.replacedByRouterId]">{{
+            replacementName() || 'the replacement'
+          }}</a
+          >.
+        }
+        It holds no secret or login, the host's sync takes its peer off the hub within a minute of
+        retirement, and it is kept as history.
+      </span>
+    </div>
+  } @else if (r.lastPollError && r.status !== 'ONLINE') {
     <div class="notice" role="status">
       <tabler-icon [icon]="icons.alert" [size]="18" />
       <span>

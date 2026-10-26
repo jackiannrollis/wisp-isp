@@ -93,7 +93,8 @@ public class RouterOnboarding {
             throw InvalidRequestException.of("poolRestricted", "must differ from the full pool: the restricted-mode rules match it");
         }
         final InetAddress pppLocal = RouterService.ipv4(request.pppLocalAddress());
-        routers.findById(routerId).orElseThrow(() -> new NotFoundException("Router"));
+        // N10: a retired router gets no new keys or secrets.
+        routers.findById(routerId).orElseThrow(() -> new NotFoundException("Router")).requireActive();
         final String hubKey = hubPublicKey();
         final Hub hub = Hub.parse(hubAddress);
 

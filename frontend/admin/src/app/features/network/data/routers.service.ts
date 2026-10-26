@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 import { API_BASE } from '../../../core/api/api.config';
+import { idempotent } from '../../../core/api/requests';
 import { listParams } from '../../../core/api/query-params';
 import { Page, TableQuery } from '../../../shared/data-table/data-table.types';
 import { components } from '../../../shared/models';
@@ -76,4 +77,27 @@ export class RoutersService {
   pollNow(id: string): Observable<void> {
     return this.http.post<void>(`${ROUTERS}/${id}/poll`, null);
   }
+
+  /**
+   * Retires the router for good (N10): its lines move to the replacement, its secret, login and
+   * sessions go, the hub drops its peer within a minute. Changes access, so it carries an
+   * Idempotency-Key made when the dialog opened.
+   */
+  retire(
+    id: string,
+    reason: string,
+    replacementRouterId: string | null,
+    key: string,
+  ): Observable<Router> {
+    return this.http.post<Router>(
+      `${ROUTERS}/${id}/retire`,
+      { reason, replacementRouterId },
+      idempotent(key),
+    );
+  }
+}
+
+/** What the routers list shows as the status: a retired router is history, whatever it last reported. */
+export function routerStatus(router: Router): string | undefined {
+  return router.retiredAt ? 'RETIRED' : router.status;
 }

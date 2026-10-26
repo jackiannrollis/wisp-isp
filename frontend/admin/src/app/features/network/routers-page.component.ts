@@ -9,7 +9,12 @@ import { PermissionService } from '../../core/permissions/permission.service';
 import { errorMessage } from '../../core/api/requests';
 import { CellDirective } from '../../shared/data-table/cell.directive';
 import { DataTableComponent } from '../../shared/data-table/data-table.component';
-import { ColumnDef, RowAction, TableFetch } from '../../shared/data-table/data-table.types';
+import {
+  ColumnDef,
+  FilterDef,
+  RowAction,
+  TableFetch,
+} from '../../shared/data-table/data-table.types';
 import {
   SecretDialogComponent,
   SecretDialogData,
@@ -17,7 +22,7 @@ import {
 import { formatAge, formatDateTime, formatDuration } from '../../shared/ui/format';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent, statusLabel } from '../../shared/ui/status-chip.component';
-import { Router, RouterWithSecret, RoutersService } from './data/routers.service';
+import { Router, RouterWithSecret, RoutersService, routerStatus } from './data/routers.service';
 import { RegisterRouterDialogComponent } from './router-dialogs';
 
 /**
@@ -61,6 +66,7 @@ import { RegisterRouterDialogComponent } from './router-dialogs';
       emptyText="No routers registered yet."
       [itemLabel]="['router', 'routers']"
       [columns]="columns"
+      [filters]="filters"
       [fetch]="fetch"
       [actions]="actions()"
       [rowLink]="link"
@@ -70,7 +76,7 @@ import { RegisterRouterDialogComponent } from './router-dialogs';
       <ng-template appCell="name" let-row
         ><span class="key">{{ row.name }}</span></ng-template
       >
-      <ng-template appCell="status" let-row><app-status-chip [status]="row.status" /></ng-template>
+      <ng-template appCell="status" let-row><app-status-chip [status]="status(row)" /></ng-template>
       <ng-template appCell="lastPollError" let-row>
         <span [class.error-text]="!!row.lastPollError">{{ row.lastPollError || '—' }}</span>
       </ng-template>
@@ -88,12 +94,21 @@ export class RoutersPageComponent {
   protected readonly canWrite = computed(() => this.permissions.permissions().has('network.write'));
   protected readonly version = signal(0);
   protected readonly link = (r: Router) => `/network/${r.id}`;
+  protected readonly status = routerStatus;
+  /** Retired routers (N10) are history: hidden unless asked for. */
+  protected readonly filters: FilterDef[] = [
+    {
+      key: 'includeRetired',
+      label: 'Show',
+      options: [{ value: 'true', label: 'Retired too' }],
+    },
+  ];
   protected readonly fetch: TableFetch<Router> = (query) => this.routers.list(query);
 
   protected readonly columns: ColumnDef<Router>[] = [
     { key: 'name', header: 'Name', value: (r) => r.name, sortKey: 'name' },
     { key: 'tunnelIp', header: 'Tunnel address', value: (r) => r.tunnelIp },
-    { key: 'status', header: 'Status', value: (r) => statusLabel(r.status) },
+    { key: 'status', header: 'Status', value: (r) => statusLabel(routerStatus(r)) },
     { key: 'lastSeenAt', header: 'Last seen', value: (r) => formatAge(r.lastSeenAt) },
     { key: 'version', header: 'RouterOS', value: (r) => r.routerosVersion },
     {
@@ -137,7 +152,7 @@ export class RoutersPageComponent {
           {
             label: 'Poll now',
             icon: IconRefresh,
-            visible: (r) => !!r.restUsername,
+            visible: (r) => !!r.restUsername && !r.retiredAt,
             run: (r) => this.pollNow(r),
           },
         ]
