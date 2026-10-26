@@ -4,6 +4,11 @@ spring:
   threads:
     virtual:
       enabled: true
+  modulith:
+    moments:
+      # Not used, and its auto-configuration carries @EnableScheduling: with it on, every @Scheduled job
+      # ran on api-2 and the tunnel worker too, whatever isp.scheduling.enabled said (SchedulingConfig).
+      enabled: false
   # The application connects as isp_app, which owns no tables, so row-level security applies.
   datasource:
     url: ${ISP_DB_URL:jdbc:postgresql://localhost:5432/isp}

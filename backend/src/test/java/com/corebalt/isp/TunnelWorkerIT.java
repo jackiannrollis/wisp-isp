@@ -23,6 +23,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.scheduling.config.TaskManagementConfigUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -55,6 +56,10 @@ class TunnelWorkerIT extends IntegrationTest {
             assertThat(get(workerPort, "/api/v1/customers").statusCode()).isEqualTo(404);
             assertThat(get(workerPort, "/api/v1/auth/login").statusCode()).isEqualTo(404);
             assertThat(get(workerPort, "/.well-known/jwks.json").statusCode()).isEqualTo(404);
+            // isp.scheduling.enabled=false must mean no @Scheduled processing at all: the API's jobs (SMS
+            // sender, renewals, M-Pesa sweeps) belong to api-1 alone and would fail here as isp_worker.
+            assertThat(worker.containsBean(TaskManagementConfigUtils.SCHEDULED_ANNOTATION_PROCESSOR_BEAN_NAME))
+                    .as("no @Scheduled processor in the worker").isFalse();
 
             // The scheduled round, as isp_worker.
             await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(status(first)).isEqualTo("ONLINE"));
