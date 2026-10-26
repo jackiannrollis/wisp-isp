@@ -4,11 +4,13 @@ import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.ConflictException;
 import com.corebalt.isp.shared.web.InvalidRequestException;
+import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
 import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -79,6 +81,36 @@ class TenantRegistryService implements TenantRegistry {
                     .param("subdomain", normalisedSubdomain)
                     .update();
             return new TenantRef(id, normalisedCode, name.strip(), normalisedSubdomain, "TRIAL");
+        });
+    }
+
+    @Override
+    public TenantRef activate(final UUID tenantId) {
+        return transition(tenantId, Set.of("TRIAL"), "ACTIVE", "activate");
+    }
+
+    @Override
+    public TenantRef suspend(final UUID tenantId) {
+        return transition(tenantId, Set.of("TRIAL", "ACTIVE"), "SUSPENDED", "suspend");
+    }
+
+    @Override
+    public TenantRef reinstate(final UUID tenantId) {
+        return transition(tenantId, Set.of("SUSPENDED"), "ACTIVE", "reinstate");
+    }
+
+    private TenantRef transition(final UUID tenantId, final Set<String> from, final String to, final String verb) {
+        return inScope(() -> {
+            final TenantRef current = find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
+            if (!from.contains(current.status())) {
+                throw new ConflictException("Cannot " + verb + " a tenant that is " + current.status() + ".");
+            }
+            jdbc.sql("update tenancy_tenant set status = :to, updated_at = now() where id = :id and status = :from")
+                    .param("to", to)
+                    .param("id", tenantId)
+                    .param("from", current.status())
+                    .update();
+            return find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
         });
     }
 

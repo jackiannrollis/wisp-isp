@@ -52,7 +52,7 @@ curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d
 
 The answer holds the tenant (`status` `TRIAL`) and the Owner's invitation: a **temporary password shown only in this answer, valid 72 hours**, and the Owner's staff id. Give the password to the Owner in person or by phone, never by email or chat, and have them sign in the same day. `GET /api/platform/tenants` lists the tenants.
 
-Two gaps to know about: nothing moves a tenant from `TRIAL` to `ACTIVE` (no endpoint exists; `TRIAL` restricts nothing today), and a lost or expired Owner invitation has no recovery path: the console cannot regenerate it, and an Owner who has never signed in cannot be impersonated (the API refuses with "Only an active staff member can be impersonated", checked). Until that is built, the operator's only recourse is a hand-made change in the database, which this runbook does not describe: ask before doing it.
+If the Owner loses the password before the first sign-in, or the 72 hours pass: `POST $API/api/platform/tenants/<tenant id>/staff/<owner staff id>/invitation` (the staff id is in the creation answer, or `GET …/tenants/<tenant id>/staff`) returns a new temporary password, shown once; it works only for a member who has never signed in, and an Owner who has cannot be impersonated or reset from the console: that is the tenant's own business. The tenant stays `TRIAL` until `POST …/tenants/<tenant id>/activate`, which changes nothing in what the tenant can do (docs/07, Platform layer); do it at go-live so the platform's own records are right. `…/suspend` with a reason refuses the tenant's sign-ins and stops its jobs without touching its customers' connections; `…/reinstate` undoes it.
 
 ## 2. The Owner's first sign-in and the account settings (Owner, admin app)
 
@@ -180,7 +180,7 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 ## Not built yet, and open items
 
 - The onboarding-script generator in the admin app (docs/06) and a screen for the platform console; both are API and template work by hand today.
-- A tenant's path from `TRIAL` to `ACTIVE`, and a way to regenerate an Owner invitation that was lost before the first sign-in (step 1).
+- A reason to be `ACTIVE` rather than `TRIAL`: the status changes nothing yet; it waits for the platform's own billing (Q1).
 - Hub peers are added by hand on the host, and a router's WireGuard public key lives only in the hub's peer files (hence the escrowed export).
 - An import with each line's current expiry, for a lossless one-day cutover (step 6).
 - The template's PPPoE server step on a router that already has one (step 5).

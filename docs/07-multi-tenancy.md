@@ -47,7 +47,8 @@ The apps load branding after sign-in, each for the tenant of its own token: staf
 
 Corebalt staff use a separate platform console, with its own roles, for:
 
-- Tenant onboarding and suspension, trial periods
+- Tenant onboarding and suspension, trial periods. A tenant is created in `TRIAL` and moved to `ACTIVE` by the console (`POST /api/platform/tenants/{id}/activate`); `TRIAL` restricts nothing today, the status is bookkeeping for the platform's own billing (Q1). A suspension (`…/suspend`, with a reason; `…/reinstate` to come back as `ACTIVE`) does exactly what reads the status: staff and portal sign-ins are refused and the scheduled jobs skip the tenant; M-Pesa callbacks, events in flight and RADIUS logins continue, so the ISP's customers stay online. Cutting a suspended ISP's customers off is a product decision not taken. Every transition is in the tenant's own audit log and the platform's.
+- An Owner's invitation lost before the first sign-in is reissued from the console (`…/staff/{id}/invitation`: a new temporary password shown once, valid 72 hours); once a member has signed in, only the tenant's own staff reset them, or the console through an impersonation.
 - Router onboarding scripts and fleet-wide router status
 - Platform monitoring: RADIUS success rates per tenant, callback gaps, queue depth
 - Billing the ISPs for the platform itself (per active subscriber or flat tiers; open question)

@@ -168,6 +168,28 @@ public class StaffAdmin {
             throw new ConflictException("Enable this staff member first.");
         }
         notSelf(id, "reset your own password here; use Change password");
+        final Invitation invitation = issueTemporary(id);
+        audit.record(AuditEntry.of("INVITED".equals(staff.status()) ? "identity.invitation_regenerated"
+                : "identity.password_reset", "staff_user", id));
+        return invitation;
+    }
+
+    /**
+     * The platform console's version, for an Owner whose invitation was lost before the first sign-in
+     * (docs/07 onboarding step 1): only an invitation never used can be reissued from outside the
+     * tenant; an active member is reset by the tenant's own staff. The caller audits in both logs.
+     */
+    @Transactional
+    public Invitation reissueInvitation(final UUID id) {
+        final StaffDto staff = get(id);
+        if (!"INVITED".equals(staff.status())) {
+            throw new ConflictException("Only an invitation that was never used can be reissued from the platform; "
+                    + "an active member's password is reset by the tenant's own staff.");
+        }
+        return issueTemporary(id);
+    }
+
+    private Invitation issueTemporary(final UUID id) {
         final Instant now = clock.instant();
         final String temporary = Credentials.readable(TEMPORARY_LENGTH);
         jdbc.sql("""
@@ -181,8 +203,6 @@ public class StaffAdmin {
                 .param("id", id)
                 .update();
         endSessions(id);
-        audit.record(AuditEntry.of("INVITED".equals(staff.status()) ? "identity.invitation_regenerated"
-                : "identity.password_reset", "staff_user", id));
         return new Invitation(get(id), temporary, now.plus(INVITATION_TTL));
     }
 

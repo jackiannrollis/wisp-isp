@@ -535,6 +535,88 @@ class IdentityIT extends IntegrationTest {
                 .json().get("status").asString()).isEqualTo("CHANGE_PASSWORD");
     }
 
+    @Test
+    void A1_platformTenantStatusTransitionsAreAuditedAndASuspendedTenantRefusesSignIns() {
+        final Api platform = platformAdmin();
+        final String code = "S" + (char) ('A' + PHONES.incrementAndGet() % 26) + (char) ('A' + (System.nanoTime() % 26));
+        final JsonNode created = platform.post("/api/platform/tenants", """
+                {"code":"%s","name":"Status Net","subdomain":"%s","ownerEmail":"boss@status.example.test","ownerName":"Boss"}
+                """.formatted(code, code.toLowerCase() + "net")).json();
+        final String tenantId = created.get("tenant").get("id").asString();
+        final String password = created.get("owner").get("temporaryPassword").asString();
+        final String base = "/api/platform/tenants/" + tenantId;
+        final Map<String, String> login = Map.of("tenant", code, "email", "boss@status.example.test", "password", password);
+        assertThat(created.get("tenant").get("status").asString()).isEqualTo("TRIAL");
+
+        assertThat(platform.post(base + "/reinstate").status()).as("only a suspended tenant is reinstated").isEqualTo(409);
+        assertThat(platform.post(base + "/activate").json().get("status").asString()).isEqualTo("ACTIVE");
+        assertThat(platform.post(base + "/activate").status()).as("already active").isEqualTo(409);
+        assertThat(platform.post(base + "/suspend", "{\"reason\":\" \"}").status()).as("a reason is required").isEqualTo(400);
+        assertThat(platform.post(base + "/suspend", "{\"reason\":\"invoice unpaid\"}").json().get("status").asString()).isEqualTo("SUSPENDED");
+        assertThat(post("/api/v1/auth/login", login).status()).as("staff cannot sign in while suspended").isEqualTo(401);
+        // The SMS-code request answers 202 whatever it finds (no enumeration) and sends nothing; the PIN
+        // sign-in is where a customer of a suspended tenant is refused.
+        assertThat(post("/api/v1/portal-auth/login", Map.of("tenant", code, "account", code + "000001", "pin", "4071")).status())
+                .as("nor can customers sign in").isEqualTo(401);
+        assertThat(platform.post(base + "/reinstate").json().get("status").asString()).isEqualTo("ACTIVE");
+        assertThat(post("/api/v1/auth/login", login).json().get("status").asString()).isEqualTo("CHANGE_PASSWORD");
+
+        assertThat(OwnerSql.client().sql("""
+                        select action from identity_audit_log
+                        where tenant_id = :t and actor_type = 'PLATFORM' and target_type = 'tenant' order by id
+                        """).param("t", UUID.fromString(tenantId)).query(String.class).list())
+                .containsExactly("identity.tenant_created", "identity.tenant_activated", "identity.tenant_suspended",
+                        "identity.tenant_reinstated");
+        assertThat(OwnerSql.client().sql("""
+                        select detail->>'reason' from identity_platform_audit_log
+                        where action = 'platform.tenant_suspended' and target_id = :t
+                        """).param("t", UUID.fromString(tenantId)).query(String.class).list()).containsExactly("invoice unpaid");
+    }
+
+    @Test
+    void platformReissuesAnUnusedInvitationButNeverAnActiveMembersPassword() {
+        final Api platform = platformAdmin();
+        final String code = "R" + (char) ('A' + PHONES.incrementAndGet() % 26) + (char) ('A' + (System.nanoTime() % 26));
+        final JsonNode created = platform.post("/api/platform/tenants", """
+                {"code":"%s","name":"Reissue Net","subdomain":"%s","ownerEmail":"boss@reissue.example.test","ownerName":"Boss"}
+                """.formatted(code, code.toLowerCase() + "net")).json();
+        final String tenantId = created.get("tenant").get("id").asString();
+        final String ownerId = created.get("owner").get("staff").get("id").asString();
+        final String first = created.get("owner").get("temporaryPassword").asString();
+        final String path = "/api/platform/tenants/" + tenantId + "/staff/" + ownerId + "/invitation";
+
+        final Api.Response reissued = platform.post(path);
+        assertThat(reissued.status()).as(reissued.body()).isEqualTo(200);
+        assertThat(reissued.header("Cache-Control")).contains("no-store");
+        final String second = reissued.json().get("temporaryPassword").asString();
+        assertThat(second).isNotEqualTo(first).hasSize(14);
+        assertThat(post("/api/v1/auth/login", Map.of("tenant", code, "email", "boss@reissue.example.test", "password", first)).status())
+                .as("the lost password is dead").isEqualTo(401);
+        final JsonNode change = post("/api/v1/auth/login", Map.of("tenant", code, "email", "boss@reissue.example.test", "password", second)).json();
+        assertThat(change.get("status").asString()).isEqualTo("CHANGE_PASSWORD");
+
+        // The Owner finishes the first sign-in (new password, TOTP: the role requires it): now active, the
+        // console cannot reset them any more; that is the tenant's own business, or an impersonation.
+        final JsonNode enrol = post("/api/v1/auth/password", Map.of("challenge", change.get("challenge").asString(),
+                "newPassword", NEW_PASSWORD)).json();
+        assertThat(enrol.get("status").asString()).isEqualTo("TOTP_ENROLL");
+        assertThat(post("/api/v1/auth/totp/enroll", Map.of("challenge", enrol.get("challenge").asString(),
+                "code", totp(enrol.get("totpSecret").asString()))).json().get("status").asString()).isEqualTo("SIGNED_IN");
+        assertThat(platform.post(path).status()).as("an active member is not reset from the platform").isEqualTo(409);
+        assertThat(platform.post("/api/platform/tenants/" + tenantId + "/staff/" + UUID.randomUUID() + "/invitation").status())
+                .isEqualTo(404);
+
+        final List<String> tenantLog = OwnerSql.client().sql("""
+                        select action || ' ' || actor_type || ' ' || coalesce(after_state::text, '') from identity_audit_log
+                        where tenant_id = :t and action = 'identity.invitation_regenerated'
+                        """).param("t", UUID.fromString(tenantId)).query(String.class).list();
+        assertThat(tenantLog).hasSize(1);
+        assertThat(tenantLog.get(0)).startsWith("identity.invitation_regenerated PLATFORM").doesNotContain(second);
+        assertThat(OwnerSql.client().sql("""
+                        select detail::text from identity_platform_audit_log where action = 'platform.invitation_reissued' and target_id = :s
+                        """).param("s", UUID.fromString(ownerId)).query(String.class).single()).contains(code).doesNotContain(second);
+    }
+
     // --- helpers ---
 
     record Invited(UUID id, String email, String temporaryPassword) {}

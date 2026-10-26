@@ -4,6 +4,7 @@ import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.ConflictException;
 import com.corebalt.isp.shared.web.InvalidRequestException;
+import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
 import com.corebalt.isp.tenancy.api.TenantRegistry.TenantRef;
 import java.util.List;
@@ -81,5 +82,69 @@ public class PlatformTenants {
             return invitation;
         }));
         return new Created(tenant, owner);
+    }
+
+    /** TRIAL to ACTIVE (docs/07 Platform layer). */
+    public TenantRef activate(final UUID adminId, final UUID tenantId) {
+        final TenantRef before = tenant(tenantId);
+        final TenantRef after = tenants.activate(tenantId);
+        auditStatus(adminId, before, after, "activated", null);
+        return after;
+    }
+
+    /**
+     * Suspends a tenant with a reason: staff and portal sign-ins are refused and scheduled jobs skip
+     * the tenant; its callbacks, events and RADIUS logins continue (docs/07), so cutting the ISP's
+     * customers off is a separate decision, not taken here.
+     */
+    public TenantRef suspend(final UUID adminId, final UUID tenantId, final String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw InvalidRequestException.of("reason", "required");
+        }
+        final TenantRef before = tenant(tenantId);
+        final TenantRef after = tenants.suspend(tenantId);
+        auditStatus(adminId, before, after, "suspended", reason.strip());
+        return after;
+    }
+
+    /** SUSPENDED to ACTIVE. */
+    public TenantRef reinstate(final UUID adminId, final UUID tenantId) {
+        final TenantRef before = tenant(tenantId);
+        final TenantRef after = tenants.reinstate(tenantId);
+        auditStatus(adminId, before, after, "reinstated", null);
+        return after;
+    }
+
+    /**
+     * A new temporary password for an invitation that was never used (docs/07 onboarding step 1: the
+     * Owner lost theirs before the first sign-in), shown once; an active member cannot be reset from
+     * here. Audited in the tenant's log (A1) and the platform's.
+     */
+    public StaffAdmin.Invitation reissueInvitation(final UUID adminId, final UUID tenantId, final UUID staffId) {
+        final TenantRef tenant = tenant(tenantId);
+        return TenantContext.callAsTenant(tenant.id(), () -> tx.execute(s -> {
+            final StaffAdmin.Invitation invitation = staff.reissueInvitation(staffId);
+            tenantAudit.recordPlatform(adminId, null, AuditEntry.of("identity.invitation_regenerated", "staff_user", staffId,
+                    Map.of("email", invitation.staff().email())));
+            platformAudit.record(adminId, "platform.invitation_reissued", "staff_user", staffId,
+                    Map.of("tenantId", tenant.id().toString(), "code", tenant.code()));
+            return invitation;
+        }));
+    }
+
+    private TenantRef tenant(final UUID tenantId) {
+        return tenants.find(tenantId).orElseThrow(() -> new NotFoundException("Tenant"));
+    }
+
+    private void auditStatus(final UUID adminId, final TenantRef before, final TenantRef after, final String verb,
+                             final String reason) {
+        TenantContext.callAsTenant(after.id(), () -> tx.execute(s -> {
+            tenantAudit.recordPlatform(adminId, null, new AuditEntry("identity.tenant_" + verb, "tenant", after.id(),
+                    Map.of("status", before.status()), Map.of("status", after.status()), reason));
+            platformAudit.record(adminId, "platform.tenant_" + verb, "tenant", after.id(),
+                    reason == null ? Map.of("code", after.code(), "status", after.status())
+                            : Map.of("code", after.code(), "status", after.status(), "reason", reason));
+            return null;
+        }));
     }
 }
