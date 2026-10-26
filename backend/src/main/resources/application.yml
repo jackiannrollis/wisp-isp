@@ -111,7 +111,7 @@ isp:
       # kid=base64 X.509 public key, comma-separated: still verified, no longer used to sign.
       retired-keys: ${ISP_JWT_RETIRED_KEYS:}
     # Browser origins allowed to use the refresh cookie (the refresh endpoints check Origin).
-    allowed-origins: ${ISP_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
+    allowed-origins: ${ISP_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201,http://localhost:4202}
   # First platform admin, created only while there is none (ADR 0010); remove after first start.
   bootstrap:
     admin-email: ${ISP_BOOTSTRAP_ADMIN_EMAIL:}

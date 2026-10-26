@@ -1,9 +1,10 @@
 # Corebalt frontend
 
-One Angular 22 workspace with two applications:
+One Angular 22 workspace with three applications:
 
 - `admin/` – ISP staff dashboard (dev server on port 4200)
 - `portal/` – customer self-service portal (dev server on port 4201)
+- `console/` – Corebalt's platform console, for platform admins only (dev server on port 4202, ADR 0016)
 
 Both proxy `/api` to the backend at `http://localhost:8080` (`<app>/proxy.conf.json`).
 Conventions: `../context/conventions.md` (Frontend and API sections).
@@ -15,9 +16,10 @@ npm ci                    # install
 npm start                 # same as start:admin
 npm run start:admin       # ng serve admin  -> http://localhost:4200
 npm run start:portal      # ng serve portal -> http://localhost:4201
-npm run build             # production build of both apps (dist/admin, dist/portal)
-npm run test              # unit tests for both apps, single run (Vitest + jsdom)
-npm run lint              # angular-eslint for both apps
+npm run start:console     # ng serve console -> http://localhost:4202
+npm run build             # production build of every app (dist/admin, dist/portal, dist/console)
+npm run test              # unit tests for every app, single run (Vitest + jsdom)
+npm run lint              # angular-eslint for every app
 npm run format            # prettier --write
 npm run format:check      # prettier --check (CI)
 npm run api:generate      # regenerate shared-api/schema.d.ts from the backend OpenAPI spec

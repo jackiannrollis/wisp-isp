@@ -14,7 +14,7 @@ passed (`.github/workflows/ci.yml`, job `publish`):
 | `ghcr.io/<owner>/corebalt-isp-backend` | `backend/` (API and tunnel worker) |
 | `ghcr.io/<owner>/corebalt-isp-freeradius` | `radius/` |
 | `ghcr.io/<owner>/corebalt-isp-wireguard` | `infra/wireguard/` (local development only; hosts run the same script as a service) |
-| `ghcr.io/<owner>/corebalt-isp-web` | `infra/web/` from the repository root: both Angular apps and Caddy with the DNS plugins |
+| `ghcr.io/<owner>/corebalt-isp-web` | `infra/web/` from the repository root: the three Angular apps (admin, portal, platform console) and Caddy with the DNS plugins |
 | `ghcr.io/<owner>/corebalt-isp-postgres` | `infra/postgres/`: the official PostgreSQL 17 image plus pgBackRest (backups) |
 
 - **Tags.** Each image is tagged `sha-<full commit SHA>`, never `latest`. The job summary lists each digest.
@@ -193,7 +193,7 @@ What the stack test proves about this (`infra/stack/test.sh`, also in CI): every
 
 | Service | Image | Reachable from |
 |---|---|---|
-| `web` | `corebalt-isp-web`: Caddy with the Cloudflare and Hetzner DNS plugins, serving both Angular apps and proxying the API | the internet, 80 and 443 |
+| `web` | `corebalt-isp-web`: Caddy with the Cloudflare and Hetzner DNS plugins, serving the three Angular apps and proxying the API | the internet, 80 and 443 |
 | `api-1`, `api-2` | `corebalt-isp-backend` | `web` only. `api-1` runs the migrations, the scheduled jobs and the outbox relay; `api-2` serves requests and consumes events, so no job runs twice |
 | `tunnel-worker` | `corebalt-isp-backend`, profile `worker` (ADR 0011) | nothing; it reaches routers through the host's hub |
 | `freeradius` | `corebalt-isp-freeradius` | routers, on the hub's tunnel address only (1812/1813 UDP) |
@@ -210,11 +210,12 @@ Docker's published ports bypass ufw, so the rule is: `web` publishes 80 and 443,
 |---|---|
 | `<domain>` | M-Pesa and SMS callbacks (`/callbacks/*`); anything else redirects to the admin app |
 | `admin.<domain>` | the admin app and its API |
+| `console.<domain>` | Corebalt's platform console (ADR 0016) and its API; tenant subdomains may not take this or the other platform names |
 | `pay.<domain>` | the portal for any provider: the pay page restricted customers reach (sign-in takes the provider from the account number) |
 | `<tenant>.<domain>` | a tenant's portal, under the wildcard certificate |
 | any other name over plain HTTP | a restricted customer's redirected browsing: sent to `pay.<domain>` |
 
-Certificates come from Let's Encrypt through the ACME DNS-01 challenge, which the wildcard needs; `stack_acme_dns_provider` (cloudflare or hetzner) and the vault's API token drive it. The main domain, `admin` and `pay` get their own certificates. Caddy keeps them in `/srv/corebalt/caddy`.
+Certificates come from Let's Encrypt through the ACME DNS-01 challenge, which the wildcard needs; `stack_acme_dns_provider` (cloudflare or hetzner) and the vault's API token drive it. The main domain, `admin`, `console` and `pay` get their own certificates. Caddy keeps them in `/srv/corebalt/caddy`.
 
 The web front also sets the security headers (HSTS, CSP, no framing) and hides `/actuator`, so metrics stay internal.
 

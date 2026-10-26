@@ -214,7 +214,7 @@ receivers:
 EOF
 cat > "$MON/targets.d/web.yml" <<'EOF'
 - labels: { module: https_internal }
-  targets: [https://admin.corebalt.localhost/, https://pay.corebalt.localhost/, https://corebalt.localhost/]
+  targets: [https://admin.corebalt.localhost/, https://console.corebalt.localhost/, https://pay.corebalt.localhost/, https://corebalt.localhost/]
 EOF
 cp "$MON/test.override.yml" "$MON/compose.override.yml"
 cp "$MON/monitorctl.sh" "$MON/monitorctl" && chmod +x "$MON/monitorctl"
@@ -234,6 +234,9 @@ check "admin app"                 200 https://admin.corebalt.localhost:8443/
 check "admin deep link (SPA)"     200 https://admin.corebalt.localhost:8443/customers/123
 check "API through the admin host" 401 https://admin.corebalt.localhost:8443/api/v1/dashboard
 check "tenant portal (wildcard)"  200 https://cb.corebalt.localhost:8443/status
+check "platform console"          200 https://console.corebalt.localhost:8443/
+check "console deep link (SPA)"   200 https://console.corebalt.localhost:8443/tenants/123
+check "platform API through the console host" 401 https://console.corebalt.localhost:8443/api/platform/tenants
 check "pay page"                  200 https://pay.corebalt.localhost:8443/
 # A fresh number each run; 429 is the sign-in code limit (ADR 0010) after many runs, the API reached all the same.
 check "portal sign-in API"        '202|429' https://pay.corebalt.localhost:8443/api/v1/portal-auth/code \
@@ -317,6 +320,7 @@ groups=$(prom rules | "$PY" -I -c 'import json, sys; print(len(json.load(sys.std
 until_ok "text-file metrics readable (node_textfile_scrape_error 0)" 30 q_eq node_textfile_scrape_error 0
 until_ok "Watchdog received by Alertmanager" 90 watchdog_in_alertmanager
 until_ok "admin app probed through the front (probe_success 1)" 60 q_eq 'probe_success{instance="https://admin.corebalt.localhost/"}' 1
+until_ok "platform console probed through the front (probe_success 1)" 60 q_eq 'probe_success{instance="https://console.corebalt.localhost/"}' 1
 until_ok "certificate expiry read from the probe" 30 q_nonempty 'probe_ssl_earliest_cert_expiry{instance="https://pay.corebalt.localhost/"} > time()'
 until_ok "the internal CA's 12-hour certificate raises CorebaltCertificateExpiring (pending or firing)" 60 cert_alert_pending
 until_ok "both API instances scraped, with request metrics" 30 api_scraped

@@ -5,6 +5,7 @@ import com.corebalt.isp.identity.application.PlatformTenants;
 import com.corebalt.isp.identity.application.StaffAdmin;
 import com.corebalt.isp.shared.security.CurrentActor;
 import com.corebalt.isp.shared.tenant.TenantContext;
+import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.shared.web.PageRequests;
 import com.corebalt.isp.shared.web.PageResponse;
 import com.corebalt.isp.tenancy.api.TenantRegistry.TenantRef;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** The platform console API (PLATFORM tokens only): tenants and impersonation. */
@@ -105,9 +107,13 @@ class PlatformController {
     }
 
     @GetMapping("/tenants/{tenantId}/staff")
-    @Operation(summary = "A tenant's staff, to choose whom to impersonate")
-    PageResponse<StaffAdmin.StaffDto> staff(@PathVariable final UUID tenantId) {
-        return TenantContext.callAsTenant(tenantId, () -> staff.list("ACTIVE", null,
+    @Operation(summary = "A tenant's staff, every status unless one is asked for (ACTIVE to choose whom to impersonate, "
+            + "INVITED to find an Owner whose invitation to reissue)")
+    PageResponse<StaffAdmin.StaffDto> staff(@PathVariable final UUID tenantId,
+                                            @RequestParam(required = false) final String status) {
+        tenants.list().stream().filter(t -> t.id().equals(tenantId)).findAny()
+                .orElseThrow(() -> new NotFoundException("Tenant"));
+        return TenantContext.callAsTenant(tenantId, () -> staff.list(status, null,
                 PageRequests.of(0, 200, null, Set.of(), Sort.by("createdAt"))));
     }
 

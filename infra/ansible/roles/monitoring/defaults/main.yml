@@ -32,6 +32,7 @@ monitoring_deadman_interval: 5m
 monitoring_probe_urls:
   - "https://{{ platform_domain }}/"
   - "https://admin.{{ platform_domain }}/"
+  - "https://console.{{ platform_domain }}/"
   - "https://pay.{{ platform_domain }}/"
 # The probes timer (FreeRADIUS status counters, the hub's peers): every minute.
 monitoring_probes_on_calendar: "*-*-* *:*:00"

@@ -29,6 +29,12 @@ class TenantRegistryService implements TenantRegistry {
 
     private static final String SELECT = "select id, code, name, subdomain, status, cutover_window_until from tenancy_tenant ";
 
+    /**
+     * Names the platform serves itself under the domain (infra/web/Caddyfile, ADR 0016): a tenant
+     * portal there would never be reached, since the web front answers those names first.
+     */
+    static final Set<String> RESERVED_SUBDOMAINS = Set.of("admin", "pay", "console", "www", "api", "hub-a", "hub-b");
+
     /** The longest cutover window the console may open (ADR 0014). */
     static final Duration MAX_CUTOVER_WINDOW = Duration.ofDays(30);
 
@@ -74,6 +80,10 @@ class TenantRegistryService implements TenantRegistry {
         }
         if (!normalisedSubdomain.matches("[a-z0-9][a-z0-9-]{1,40}")) {
             throw InvalidRequestException.of("subdomain", "lower-case letters, digits and hyphens");
+        }
+        if (RESERVED_SUBDOMAINS.contains(normalisedSubdomain)) {
+            throw InvalidRequestException.of("subdomain", "reserved for the platform: "
+                    + String.join(", ", RESERVED_SUBDOMAINS.stream().sorted().toList()));
         }
         return inScope(() -> {
             if (findByCodeOrSubdomain(normalisedCode).isPresent() || findByCodeOrSubdomain(normalisedSubdomain).isPresent()) {

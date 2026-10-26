@@ -19,6 +19,8 @@ Each record states the context, the decision and its consequences at the time it
 | [0013](0013-router-onboarding-keys-from-the-platform.md) | Router onboarding: the platform generates the router keys, the hub learns peers from the database | Accepted |
 | [0014](0014-cutover-import-with-current-expiry.md) | Cutover import: an imported line activated with the expiry the customer already paid for, kept credentials and old references | Accepted |
 | [0015](0015-router-retirement.md) | Router retirement: the platform revokes, the host's sync removes the peer | Accepted |
+| [0016](0016-platform-console-app.md) | The platform console: a third Angular app at `console.<domain>` | Accepted |
+| [0017](0017-impersonation-hand-off.md) | Impersonation hand-off from the console to the admin app | Proposed (Q17) |
 
 ## Writing a new record
 

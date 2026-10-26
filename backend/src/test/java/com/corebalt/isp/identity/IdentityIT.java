@@ -590,6 +590,35 @@ class IdentityIT extends IntegrationTest {
                         """).param("t", UUID.fromString(tenantId)).query(String.class).list()).containsExactly("invoice unpaid");
     }
 
+    /**
+     * ADR 0016: the names the web front serves itself (admin, pay, console, ...) cannot be a tenant's
+     * portal subdomain; the console lists a tenant's staff of every status, so an Owner who never signed
+     * in can be found and their invitation reissued.
+     */
+    @Test
+    void ADR0016_platformNamesAreReservedAndTheConsoleSeesInvitedStaff() {
+        final Api platform = platformAdmin();
+        for (final String reserved : List.of("admin", "pay", "console", "hub-a")) {
+            final Api.Response refused = platform.post("/api/platform/tenants", """
+                    {"code":"RSV","name":"Reserved Net","subdomain":"%s","ownerEmail":"boss@reserved.example.test","ownerName":"Boss"}
+                    """.formatted(reserved));
+            assertThat(refused.status()).as(reserved).isEqualTo(400);
+            assertThat(refused.body()).contains("reserved for the platform");
+        }
+        assertThat(platform.get("/api/platform/tenants").body()).doesNotContain("\"code\":\"RSV\"");
+
+        final String code = "S" + (char) ('A' + PHONES.incrementAndGet() % 26) + (char) ('A' + (System.nanoTime() % 26));
+        final JsonNode created = platform.post("/api/platform/tenants", """
+                {"code":"%s","name":"Staff Net","subdomain":"%s","ownerEmail":"boss@staff.example.test","ownerName":"Boss"}
+                """.formatted(code, code.toLowerCase() + "net")).json();
+        final String tenantId = created.get("tenant").get("id").asString();
+        final JsonNode all = platform.get("/api/platform/tenants/" + tenantId + "/staff").json();
+        assertThat(all.get("total").asLong()).isOne();
+        assertThat(all.get("items").get(0).get("status").asString()).isEqualTo("INVITED");
+        assertThat(platform.get("/api/platform/tenants/" + tenantId + "/staff?status=ACTIVE").json().get("total").asLong()).isZero();
+        assertThat(platform.get("/api/platform/tenants/" + UUID.randomUUID() + "/staff").status()).isEqualTo(404);
+    }
+
     /** ADR 0014: the console opens a tenant's cutover window for at most 30 days; both audit logs record it. */
     @Test
     void ADR0014_thePlatformOpensAndClosesTheCutoverWindowWithinThirtyDays() {

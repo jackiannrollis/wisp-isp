@@ -23,7 +23,9 @@ How a tenant ISP goes from a signed agreement to customers paying and getting on
 
 ## 1. Create the tenant (operator, platform console)
 
-The platform console is an API without a screen; use `curl` from your machine against `https://admin.<domain>`. A platform access token lasts 15 minutes (ADR 0010); sign in again when it expires.
+Open the platform console at `https://console.<domain>` (ADR 0016) and sign in with the platform admin's email and password: a first sign-in, or one after a break-glass reset, asks for a new password, then sets up the authenticator and shows the **recovery codes once** (put them in the password manager). Under Tenants, **New tenant** takes the code, the portal subdomain, the name and the Owner's name, email and phone; the next screen shows the Owner's **temporary password once**. The tenant's page then does the rest of this step and those that follow: activate, suspend with a reason and reinstate; open, move or close the cutover window (step 6); list the staff and reissue an invitation never used; see and end impersonations. Subdomains the platform serves itself (`admin`, `pay`, `console`, `www`, `api`, `hub-a`, `hub-b`) are refused.
+
+Everything the console does is the platform API, so the same works with `curl` from your machine, against `https://console.<domain>` or `https://admin.<domain>` (starting an impersonation is API-only for now). A platform access token lasts 15 minutes (ADR 0010); sign in again when it expires.
 
 ```sh
 API=https://admin.<domain>
@@ -165,7 +167,7 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 
 ## Not built yet, and open items
 
-- A screen for the platform console: creating, activating or suspending a tenant and reissuing an invitation are API calls by hand today.
+- Starting an impersonation from the console and opening the admin app as that staff member: API-only today (`POST /api/platform/tenants/<id>/impersonations` returns a token for curl); the hand-off into the admin app is proposed in ADR 0017 (open question Q17).
 - A reason to be `ACTIVE` rather than `TRIAL`: the status changes nothing yet; it waits for the platform's own billing (Q1).
 - RouterOS steps of the lossless cutover (the profile switch, disabling the old RADIUS entry, clearing sessions) and PAP/CHAP against kept passwords on real customer devices are unproven until the network lab runs.
 - The script's SNMP community is set on the router and not kept by the platform (docs/03 planned it encrypted): nothing reads SNMP in v1, and the next script sets a new one.

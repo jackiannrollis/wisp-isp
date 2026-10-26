@@ -65,8 +65,11 @@ password (T2 widened: unique per tenant) and the old M-Pesa reference (P3, match
 normalisation); a "we've moved" SMS goes to the batch on request; the runbook has the lossless
 one-day cutover. Router retirement (ADR 0015, N10): final, from the router's page; its live lines move
 to a replacement, its secret, REST login and open sessions go at once, and the host's routersync removes
-its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-peer`). Not yet: the
-Nairobi node (pending Q2).
+its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-peer`). The platform
+console (ADR 0016) is a third Angular app at `console.<domain>`: platform sign-in, tenants (create,
+activate, suspend, reinstate), the cutover window, staff with invitation reissue, impersonations with
+"end"; tenant subdomains may not take the platform's names. Starting an impersonation is API-only
+(hand-off proposed in ADR 0017, Q17). Not yet: the Nairobi node (pending Q2).
 
 ## Commands
 
@@ -97,7 +100,7 @@ After `infra/lab/seed.sql` the local stack has a lab admin: tenant `CB`,
 | Task | Command |
 |---|---|
 | Install | `npm ci` |
-| Dev servers (proxy `/api` to :8080) | `npm run start:admin` (4200), `npm run start:portal` (4201) |
+| Dev servers (proxy `/api` to :8080) | `npm run start:admin` (4200), `npm run start:portal` (4201), `npm run start:console` (4202, the platform console) |
 | Lint, format check | `npm run lint`, `npm run format:check` (fix with `npm run format`) |
 | Build both apps | `npm run build` |
 | Test both apps (Vitest, jsdom, no browser) | `npm run test` |

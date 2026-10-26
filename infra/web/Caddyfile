@@ -7,6 +7,7 @@
 #
 #   https://<PLATFORM_DOMAIN>/callbacks/*   M-Pesa and SMS callbacks (the main domain only)
 #   https://admin.<PLATFORM_DOMAIN>         the admin app and its API
+#   https://console.<PLATFORM_DOMAIN>       Corebalt's platform console and its API (ADR 0016)
 #   https://pay.<PLATFORM_DOMAIN>           the portal for any provider: the pay page restricted
 #                                           customers reach (sign-in takes the provider from the
 #                                           account number, T2)
@@ -99,6 +100,13 @@ admin.{$PLATFORM_DOMAIN} {
 	import common
 	import api
 	import spa /srv/admin
+}
+
+console.{$PLATFORM_DOMAIN} {
+	import tls_{$TLS_MODE}
+	import common
+	import api
+	import spa /srv/console
 }
 
 pay.{$PLATFORM_DOMAIN} {

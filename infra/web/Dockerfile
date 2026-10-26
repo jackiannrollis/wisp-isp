@@ -20,6 +20,7 @@ COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
 COPY infra/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=apps /src/dist/admin/browser /srv/admin
 COPY --from=apps /src/dist/portal/browser /srv/portal
+COPY --from=apps /src/dist/console/browser /srv/console
 # Ports 80 and 443 without root: the binary keeps only the bind capability.
 RUN apk add --no-cache libcap \
     && setcap cap_net_bind_service=+ep /usr/bin/caddy \

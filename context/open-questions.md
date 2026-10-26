@@ -18,6 +18,7 @@ Decisions still pending. Do not invent an answer in code; pick the stated defaul
 | Q13 | Fair use: what resets the allowance? | Only a renewal (a new cycle); a top-up that does not renew, a pause or a package change does not | Product | docs/09 step 8b |
 | Q14 | Hard data cap (`data_cap_bytes`): what happens when it is reached? | RESTRICTED (walled garden with the pay page) until the next renewal; never rejected (N3) | Product | docs/09 step 8b |
 | Q15 | Fair-use messages: when does the customer hear? | One SMS when the allowance is passed (dedupe per line and cycle, M1); no warning before it | Product | docs/09 step 8b |
+| Q17 | How does an impersonation started in the platform console reach the admin app ([ADR 0017](../docs/adr/0017-impersonation-hand-off.md), proposed)? | API-only: the console lists and ends impersonations; one is started and used with `curl` | Corebalt | Before Corebalt support works inside a pilot's admin app |
 
 ## Resolved
 

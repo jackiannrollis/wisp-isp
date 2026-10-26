@@ -1,0 +1,123 @@
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-space-4);
+  margin-bottom: var(--app-space-4);
+
+  h1 {
+    font: var(--mat-sys-headline-small);
+    margin: 0;
+  }
+
+  p {
+    margin: var(--app-space-1) 0 0;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.panel {
+  margin-bottom: var(--app-space-5);
+}
+
+.section {
+  padding: var(--app-space-4) var(--app-space-5);
+
+  h2 {
+    font: var(--mat-sys-title-small);
+    font-weight: 600;
+    margin: 0 0 var(--app-space-2);
+  }
+
+  p {
+    margin: 0 0 var(--app-space-3);
+  }
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--mat-sys-body-medium);
+
+  th,
+  td {
+    text-align: left;
+    padding: var(--app-space-2) var(--app-space-4);
+    border-bottom: var(--app-border);
+  }
+
+  th {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.key {
+  font-weight: 600;
+  color: var(--mat-sys-primary);
+  text-decoration: none;
+}
+
+.empty,
+.empty-row {
+  padding: var(--app-space-5);
+  text-align: center;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--app-space-3);
+  margin: 0;
+  padding: var(--app-space-4) var(--app-space-5);
+
+  dt {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.notice {
+  padding: var(--app-space-3) var(--app-space-4);
+  border-radius: var(--app-radius-m);
+  background: var(--app-error-soft);
+  color: var(--app-error);
+  margin-bottom: var(--app-space-4);
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: var(--app-space-3);
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+  font: var(--mat-sys-label-large);
+}
+
+h1 app-status-chip {
+  vertical-align: middle;
+  margin-left: var(--app-space-2);
+}

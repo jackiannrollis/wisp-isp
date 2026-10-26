@@ -1,0 +1,148 @@
+<a routerLink="/tenants" class="back">← Tenants</a>
+
+@if (tenant.error()) {
+  <div class="panel empty">
+    <p>This tenant could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="tenant.reload()">Try again</button>
+  </div>
+} @else if (tenant.isLoading() && !tenant.value()) {
+  <p class="muted">Loading…</p>
+} @else if (!tenant.value()) {
+  <div class="panel empty"><p>No tenant with this id.</p></div>
+}
+
+@if (tenant.value(); as t) {
+  <header class="head">
+    <div>
+      <h1>{{ t.name }} <app-status-chip [status]="t.status" /></h1>
+      <p class="muted">Code {{ t.code }} · portal {{ t.subdomain }}</p>
+    </div>
+    <div class="actions">
+      @if (t.status === 'TRIAL') {
+        <button mat-stroked-button type="button" (click)="activate(t)">Activate</button>
+      }
+      @if (t.status === 'TRIAL' || t.status === 'ACTIVE') {
+        <button mat-stroked-button type="button" (click)="suspend(t)">Suspend</button>
+      }
+      @if (t.status === 'SUSPENDED') {
+        <button mat-flat-button type="button" (click)="reinstate(t)">Reinstate</button>
+      }
+    </div>
+  </header>
+
+  @if (t.status === 'SUSPENDED') {
+    <p class="notice" role="status">
+      Suspended: its staff and customers cannot sign in and its jobs are skipped. Its customers stay
+      online.
+    </p>
+  }
+
+  <section class="panel section" aria-labelledby="window-title">
+    <div class="section-head">
+      <h2 id="window-title">Cutover window</h2>
+      <div class="actions">
+        <button mat-stroked-button type="button" (click)="openWindow(t)">
+          {{ windowOpen() ? 'Move the end' : 'Open window' }}
+        </button>
+        @if (windowOpen()) {
+          <button mat-button type="button" (click)="closeWindow(t)">Close now</button>
+        }
+      </div>
+    </div>
+    <p>
+      <strong>{{ window(t.cutoverWindowUntil) }}</strong
+      >. While it is open, the tenant's Owner may import customers already active with the expiry
+      they paid for in their old system (ADR 0014).
+    </p>
+  </section>
+
+  <section class="panel" aria-labelledby="staff-title">
+    <div class="section">
+      <h2 id="staff-title">Staff</h2>
+      <p class="muted">
+        An invitation never used can be reissued here; a member who has signed in is reset by the
+        tenant's own staff.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Last sign-in</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of staff.value() ?? []; track member.id) {
+            <tr>
+              <td>{{ member.displayName }}</td>
+              <td>{{ member.email }}</td>
+              <td>{{ member.roleName }}</td>
+              <td><app-status-chip [status]="member.status" /></td>
+              <td>{{ date(member.lastLoginAt) }}</td>
+              <td>
+                @if (member.status === 'INVITED') {
+                  <button mat-button type="button" (click)="reissue(t, member)">
+                    Reissue invitation
+                  </button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="muted empty-row">
+                {{ staff.isLoading() ? 'Loading…' : 'No staff.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="imp-title">
+    <div class="section">
+      <h2 id="imp-title">Impersonations</h2>
+      <p class="muted">
+        Corebalt acting as one of its staff, at most 30 minutes, visible in the tenant's own audit
+        log. Starting one from here comes next; today it is started through the API.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>As</th>
+            <th>Reason</th>
+            <th>Started</th>
+            <th>Until</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (i of impersonations(); track i.id) {
+            <tr>
+              <td>{{ staffName(i.staffUserId) }}</td>
+              <td>{{ i.reason }}</td>
+              <td>{{ date(i.startedAt) }}</td>
+              <td>{{ i.endedAt ? 'ended ' + date(i.endedAt) : date(i.expiresAt) }}</td>
+              <td>
+                @if (isLive(i)) {
+                  <button mat-button type="button" (click)="end(i)">End now</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="muted empty-row">None.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

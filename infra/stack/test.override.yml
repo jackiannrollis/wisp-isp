@@ -6,10 +6,10 @@ services:
   # answers on 443, this test on 8443, so the origins carry the port here or a page reload signs out.
   api-1:
     environment:
-      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
+      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://console.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
   api-2:
     environment:
-      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
+      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://console.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
   postgres:
     volumes:
       - pg:/var/lib/postgresql/data
@@ -28,7 +28,7 @@ services:
     # blackbox probes reach it the way a host's reach the real names (infra/monitoring).
     networks:
       default:
-        aliases: [corebalt.localhost, admin.corebalt.localhost, pay.corebalt.localhost, cb.corebalt.localhost]
+        aliases: [corebalt.localhost, admin.corebalt.localhost, console.corebalt.localhost, pay.corebalt.localhost, cb.corebalt.localhost]
   # The certificate and the bucket (a directory, for versitygw's posix backend), made once.
   s3-init:
     image: corebalt-stacktest/postgres
