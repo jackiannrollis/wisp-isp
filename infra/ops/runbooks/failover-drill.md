@@ -40,7 +40,7 @@ sudo --preserve-env=RADIUS_LAB_SECRET docker compose --env-file .env --env-file 
 unset RADIUS_LAB_SECRET
 ```
 
-`Received Access-Accept` with the line's profile is a pass; `radtest` exits 1 on a reject and reports no reply when FreeRADIUS is down or does not know the client. The secret is read at a prompt so it stays out of the shell history and the process list. The auth log is the other witness: in Grafana's `Logs` dashboard, service `freeradius`, or in Explore:
+`Received Access-Accept` with the line's profile is a pass; `radtest` exits 1 on a reject and reports no reply when FreeRADIUS is down or does not know the client. The secret is read at a prompt so it stays out of the shell history and the process list; `sudo --preserve-env` relies on the operator's `NOPASSWD: ALL` entry, which implies `SETENV`, and is unproven on a host until the first staging run (the same command works on the local test stack without sudo). The auth log is the other witness: in Grafana's `Logs` dashboard, service `freeradius`, or in Explore:
 
 ```
 {service="freeradius"} |= "<number>"
@@ -71,7 +71,7 @@ Expected on a single hub: `systemctl stop corebalt-wg-hub` deletes `wg0`, so eve
 2. T0: `sudo systemctl stop corebalt-wg-hub`. `ip link show wg0` says the interface is gone.
 3. Login check: no reply. After 5 minutes `CorebaltHubDown` fires; with a peered router, `CorebaltRouterTunnelStale` too, and the router page shows `OFFLINE`. Record the times and the staff alerts opened.
 4. T1 (after 10 minutes): `sudo systemctl start corebalt-wg-hub`. `journalctl -u corebalt-wg-hub -n 5` shows `wg0` up with its public key and the peers loaded; `sudo corebalt-wg-hub public-key` is unchanged.
-5. With a peered router: `sudo wg show wg0 latest-handshakes` shows a fresh handshake within a minute without anyone touching the router; the router page returns to `ONLINE` within two polls; the staff alerts clear.
+5. With a peered router: `sudo wg show wg0 latest-handshakes` shows a fresh handshake within a minute without anyone touching the router (expected from the router's 25-second keepalive; unproven until a real router is peered, the network lab's Hyper-V half has not run); the router page returns to `ONLINE` within two polls; the staff alerts clear.
 6. Login check: accepted. The alerts resolve; record the times.
 
 Pass: no router was touched, the hub's public key is the same, the alerts fired and resolved within their windows, a login was accepted within 2 minutes of T1.
@@ -86,7 +86,7 @@ What must be in escrow before this can work, kept current by the onboarding runb
 2. Restore the database: `backups.md` A, steps 2 to 6 (deploy the running release, empty the data directory, `backupctl restore`, start, check, `ops backup`).
 3. Restore the hub: `sudo systemctl stop corebalt-wg-hub`, write the escrowed key to `/var/lib/wireguard/hub.key` (root, mode 0600), start it, and compare `sudo corebalt-wg-hub public-key` with the escrow note. Then replay the escrowed peer list, one `sudo corebalt-wg-hub add-peer …` per line.
 4. Move the names: `hub-a.<domain>` and the web names (`<domain>`, `admin`, `pay`, `*`) to the new address. Caddy obtains its certificates again by DNS-01. A router whose script was rendered with an IP address as `HUB_A_ENDPOINT` instead of the name needs, once, on the router: `/interface wireguard peers set [find name=corebalt-hub-a] endpoint-address=<new address>`.
-5. Routers reconnect by themselves once the name resolves (their next keepalive after the DNS TTL): `sudo wg show wg0 latest-handshakes` on the new host, the router page `ONLINE`, `CorebaltRouterNeverConnected` does not fire. Login check: accepted, with the drill line's state as it was.
+5. Routers reconnect by themselves once the name resolves (RouterOS 7 resolves a DNS `endpoint-address` and is expected to re-resolve it; unproven here until the network lab runs on real routers, so the first drill C on staging checks it with the lab router, or runs the `peers set` command below on every router): `sudo wg show wg0 latest-handshakes` on the new host, the router page `ONLINE`, `CorebaltRouterNeverConnected` does not fire. Login check: accepted, with the drill line's state as it was.
 6. Monitoring: `ops monitoring staging` clean; Grafana's Backups dashboard shows the restore and the new backup.
 7. Destroy the old server and its volume. Its data disk is encrypted and that passphrase is retired in escrow; its hub key is the same key that now runs on the new host, so the old machine must not stay anywhere you do not control.
 

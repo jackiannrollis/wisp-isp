@@ -92,7 +92,7 @@ Every router joins the platform over WireGuard with a per-router RADIUS secret (
    |---|---|
    | `ROUTER_NAME`, `ROUTER_ID` | the router page |
    | `HUB_A_PUBLIC_KEY` | `sudo corebalt-wg-hub public-key` on the core host |
-   | `HUB_A_ENDPOINT` | `hub-a.<domain>`: an A record for the core host's public address, so a replacement host is one record change (`failover-drill.md`, drill C); never the bare address |
+   | `HUB_A_ENDPOINT` | `hub-a.<domain>`: an A record for the core host's public address, so a replacement host is one record change (`failover-drill.md`, drill C); never the bare address. That RouterOS re-resolves the name after a change is expected, not yet proven on a real router |
    | `HUB_A_PORT`, `HUB_A_TUNNEL_IP` | `wireguard_port` (51820) and the hub's address without its prefix |
    | `TUNNEL_ADDRESS`, `TUNNEL_IP` | the router's address with the hub's prefix (`10.200.0.11/24`), and without it |
    | `RADIUS_SECRET` | the secret shown at registration |

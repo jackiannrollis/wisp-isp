@@ -393,8 +393,9 @@ check "API after the restore"     401 https://admin.corebalt.localhost:8443/api/
 echo "== RADIUS: stackctl reload-radius (what a router registration needs), a lab login and a suspended one through FreeRADIUS, the status probe, the auth log"
 if out=$(./stackctl reload-radius 2>&1) && echo "$out" | grep -q 'FreeRADIUS restarted'; then echo "   ok   $out"; else echo "$out"; echo "   FAIL stackctl reload-radius"; fail=1; fi
 rad() { compose exec -T -e RADIUS_LAB_SECRET=stacktest-lab-secret freeradius corebalt-radtest "$@" 2>&1; }
-if out=$(rad CB000001 lab-password) && echo "$out" | grep -q 'Access-Accept'; then echo "   ok   CB000001 accepted"
-else echo "$out" | tail -5; echo "   FAIL CB000001 login"; fail=1; fi
+# The restart returns when the process starts, not when it listens: the first login waits for it.
+rad_accepts() { local out; out=$(rad "$1" lab-password) && echo "$out" | grep -q 'Access-Accept'; }
+until_ok "CB000001 accepted (FreeRADIUS answering again after reload-radius)" 60 rad_accepts CB000001
 if out=$(rad CB000006 lab-password); then echo "$out" | tail -3; echo "   FAIL CB000006 (suspended) was accepted"; fail=1
 elif echo "$out" | grep -q 'Access-Reject'; then echo "   ok   CB000006 rejected (suspended, N3)"
 else echo "$out" | tail -5; echo "   FAIL CB000006: no reply"; fail=1; fi
@@ -416,7 +417,7 @@ until_ok "the tunnel worker runs no API job (no 'failed for tenant' lines in its
 
 echo "== onboarding (infra/ops/runbooks/pilot-onboarding.md, by its recipes): break-glass reset of the platform admin, its first sign-in, a tenant with its Owner, the Owner's first sign-in, a router, a package, a CSV import"
 API=https://admin.corebalt.localhost:8443
-jf() { "$PY" -I -c "import json, sys; d = json.load(sys.stdin); print($1)" 2>/dev/null; }
+jf() { "$PY" -I -c "import json, sys; d = json.load(sys.stdin); print($1)" 2>/dev/null || true; }   # empty, not fatal, when a key is missing (set -e)
 totp() { "$PY" -I -c 'import base64, hashlib, hmac, struct, sys, time
 s = sys.argv[1]; key = base64.b32decode(s + "=" * (-len(s) % 8))
 h = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest(); o = h[-1] & 15
@@ -433,7 +434,7 @@ admin_email=$(envval ISP_BOOTSTRAP_ADMIN_EMAIL)
 # The break-glass reset (ADR 0010; infra/scripts/reset-platform-admin.sh runs the same on the local stack)
 # prints a temporary password once and clears TOTP, so this section runs the same on every run. The
 # password is read into a variable, never printed.
-tmp=$(compose exec -T -e ISP_OPERATOR=stacktest api-1 java -jar /app/app.jar reset-platform-admin "$admin_email" 2>/dev/null | sed -n 's/^    \([^ ]\{8,\}\)$/\1/p' | tail -1)
+tmp=$(compose exec -T -e ISP_OPERATOR=stacktest api-1 java -jar /app/app.jar reset-platform-admin "$admin_email" 2>/dev/null | sed -n 's/^    \([^ ]\{8,\}\)$/\1/p' | tail -1 || true)
 [ -n "$tmp" ] && echo "   ok   platform admin reset by the break-glass command (temporary password printed once, not here)" || { echo "   FAIL the break-glass reset printed no temporary password"; fail=1; }
 r=$(post /api/platform/auth/login "{\"email\":\"$admin_email\",\"password\":\"$tmp\"}")
 if step "platform sign-in asks for a new password" CHANGE_PASSWORD "$r"; then
