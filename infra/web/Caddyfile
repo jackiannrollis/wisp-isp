@@ -15,6 +15,11 @@
 {
 	admin off
 	email {$ACME_EMAIL}
+	# Request metrics per server and handler for Prometheus (served on :9080 below). Not per host: the
+	# plain-HTTP catch-all receives whatever site a restricted customer typed, which would become a label.
+	servers {
+		metrics
+	}
 }
 
 (tls_dns) {
@@ -113,4 +118,10 @@ pay.{$PLATFORM_DOMAIN} {
 # The router sends a restricted customer's plain HTTP here, whatever site they asked for (docs/06).
 http:// {
 	redir https://pay.{$PLATFORM_DOMAIN}/ 302
+}
+
+# Prometheus scrapes this on the stack's internal network (infra/monitoring/prometheus.yml, job caddy);
+# the port is never published (infra/stack/compose.yml).
+http://:9080 {
+	metrics /metrics
 }

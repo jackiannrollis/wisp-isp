@@ -1,0 +1,13 @@
+# Always firing. Alertmanager routes it to the dead man's switch (an external service that alerts when
+# the heartbeat stops), which is the only way a single host can tell anyone that it, or its
+# monitoring, is down. Unit tests: tests/watchdog.yml.
+groups:
+  - name: corebalt-watchdog
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "The alert pipeline is alive"
+          description: "This alert fires all the time. If the dead man's switch stops receiving it, Prometheus, Alertmanager or the host is down (infra/ops/runbooks/monitoring.md)."

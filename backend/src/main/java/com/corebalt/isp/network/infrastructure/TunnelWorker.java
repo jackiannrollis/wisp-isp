@@ -54,14 +54,15 @@ class TunnelWorker {
         return EventQueues.declare(POLL_QUEUE, EventQueues.routingKey(RouterPollRequested.class, 1));
     }
 
-    /** Every request but health is a 404: the worker is not an API. */
+    /** Every request but health and metrics (Prometheus, internal network) is a 404: the worker is not an API. */
     @Bean
     FilterRegistrationBean<OncePerRequestFilter> workerHttpGuard() {
         final FilterRegistrationBean<OncePerRequestFilter> registration = new FilterRegistrationBean<>(new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(final HttpServletRequest request, final HttpServletResponse response,
                                             final FilterChain chain) throws ServletException, IOException {
-                if (request.getRequestURI().startsWith("/actuator/health")) {
+                final String uri = request.getRequestURI();
+                if (uri.startsWith("/actuator/health") || uri.equals("/actuator/prometheus")) {
                     chain.doFilter(request, response);
                 } else {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND);

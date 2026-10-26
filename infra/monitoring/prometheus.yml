@@ -1,0 +1,104 @@
+# Prometheus of a stack host (docs/08 Monitoring and alerts). The same file on every host and in the
+# local test: what differs comes from the environment (external labels) and from targets.d/ (the
+# public names to probe, written by Ansible). Rules: rules/*.yml, unit-tested in tests/ with promtool.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: ${MONITORING_ENV}
+    host: ${MONITORING_HOST}
+
+rule_files:
+  - rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  # The API instances and the tunnel worker: Spring Boot's Micrometer registry, JVM, HikariCP, HTTP
+  # request histogram, the business gauges (wallet drift, uncredited payments, silent tenants, dead
+  # notifications, open staff alerts) and the CoA failure counter.
+  - job_name: api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [api-1:8080, api-2:8080]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: instance
+  - job_name: tunnel-worker
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [tunnel-worker:8090]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: instance
+
+  # The web front (Caddy): requests per server and handler, upstream health of the API instances.
+  - job_name: caddy
+    static_configs:
+      - targets: [web:9080]
+
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres-exporter:9187]
+  - job_name: redis
+    static_configs:
+      - targets: [redis-exporter:9121]
+
+  # RabbitMQ's own plugin: aggregated metrics, and per-queue depth and consumers (the dead-letter and
+  # queue-growth alerts) from the detailed endpoint.
+  - job_name: rabbitmq
+    static_configs:
+      - targets: [rabbitmq:15692]
+  - job_name: rabbitmq-queues
+    metrics_path: /metrics/detailed
+    params:
+      family: [queue_coarse_metrics, queue_consumer_count]
+    static_configs:
+      - targets: [rabbitmq:15692]
+
+  # The host: node_exporter plus the textfiles written by backupctl (backups, the restore drill) and
+  # probes (FreeRADIUS counters and round trip, WireGuard peers).
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]
+
+  # The public names, probed through the blackbox exporter; the module (strict TLS on a host, the
+  # internal CA in the local test) is a label on each target in targets.d/.
+  - job_name: web-probes
+    metrics_path: /probe
+    file_sd_configs:
+      - files: [targets.d/*.yml]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # The monitoring stack itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+  - job_name: alertmanager
+    static_configs:
+      - targets: [alertmanager:9093]
+  - job_name: loki
+    static_configs:
+      - targets: [loki:3100]
+  - job_name: alloy
+    static_configs:
+      - targets: [alloy:12345]
+  - job_name: grafana
+    static_configs:
+      - targets: [grafana:3000]
+  - job_name: blackbox-exporter
+    static_configs:
+      - targets: [blackbox-exporter:9115]

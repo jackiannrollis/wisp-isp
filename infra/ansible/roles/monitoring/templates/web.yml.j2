@@ -1,0 +1,7 @@
+# Managed by Ansible (roles/monitoring): the public names of {{ platform_domain }}, probed from this host
+# through the blackbox exporter with the strict https module (prometheus.yml, job web-probes).
+- labels: { module: https }
+  targets:
+{% for url in monitoring_probe_urls %}
+    - {{ url }}
+{% endfor %}

@@ -79,6 +79,12 @@ management:
       probes:
         enabled: true
       show-details: never
+  metrics:
+    distribution:
+      # Latency buckets for the API's request histogram (histogram_quantile in infra/monitoring/rules/api.yml):
+      # a few fixed boundaries instead of the full percentile histogram, which multiplies every URI's series.
+      slo:
+        http.server.requests: 25ms,50ms,100ms,200ms,500ms,1s,2s,5s,10s
 
 springdoc:
   api-docs:

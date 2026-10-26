@@ -1,0 +1,63 @@
+# promtool unit tests for rules/services.yml.
+rule_files:
+  - ../rules/services.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="api",instance="api-1"}'
+        values: "0+0x20"
+      - series: 'up{job="api",instance="api-2"}'
+        values: "1+0x20"
+      - series: 'up{job="loki",instance="loki:3100"}'
+        values: "0+0x20"
+      - series: 'caddy_reverse_proxy_upstreams_healthy{upstream="api-2:8080"}'
+        values: "0+0x20"
+      - series: 'caddy_reverse_proxy_upstreams_healthy{upstream="api-1:8080"}'
+        values: "1+0x20"
+      - series: 'alertmanager_notifications_failed_total{integration="email"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1"
+      - series: 'prometheus_rule_evaluation_failures_total{rule_group="/etc/prometheus/rules/api.yml;corebalt-api"}'
+        values: "0 0 2 2 2 2 2 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: CorebaltServiceDown
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: CorebaltServiceDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: api, instance: api-1 }
+            exp_annotations:
+              summary: "api (api-1) is not answering its metrics endpoint"
+              description: "Prometheus could not scrape api at api-1 for 10 minutes: the service is down or unhealthy. stackctl status and docker compose logs on the host; infra/ops/runbooks/monitoring.md."
+      - eval_time: 11m
+        alertname: CorebaltMonitoringTargetDown
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: CorebaltMonitoringTargetDown
+        exp_alerts:
+          - exp_labels: { severity: warning, job: loki, instance: "loki:3100" }
+            exp_annotations:
+              summary: "loki of the monitoring stack is down"
+              description: "loki at loki:3100 has not been scraped for 15 minutes. monitorctl status on the host."
+      - eval_time: 11m
+        alertname: CorebaltApiUpstreamUnhealthy
+        exp_alerts:
+          - exp_labels: { severity: warning, upstream: "api-2:8080" }
+            exp_annotations:
+              summary: "The web front has no healthy answer from api-2:8080"
+              description: "Caddy's health check of api-2:8080 has failed for 10 minutes; requests go to the other instance. docker compose logs api-2 on the host."
+      - eval_time: 5m
+        alertname: CorebaltAlertNotificationsFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, integration: email }
+            exp_annotations:
+              summary: "Alertmanager could not deliver email notifications"
+              description: "A notification through email failed in the last 30 minutes (docker compose logs alertmanager in /srv/corebalt/monitoring): SMTP settings, the webhook URL."
+      - eval_time: 5m
+        alertname: CorebaltRuleEvaluationFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, rule_group: "/etc/prometheus/rules/api.yml;corebalt-api" }
+            exp_annotations:
+              summary: "A Prometheus rule group fails to evaluate"
+              description: "Rule group /etc/prometheus/rules/api.yml;corebalt-api had evaluation errors in the last 15 minutes; its alerts are blind. Prometheus UI, Status, Rules."

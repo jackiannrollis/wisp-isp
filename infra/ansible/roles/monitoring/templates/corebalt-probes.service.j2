@@ -1,0 +1,13 @@
+# Managed by Ansible (roles/monitoring). The text-file probes (FreeRADIUS status counters, the hub's
+# WireGuard peers; infra/monitoring/probes.sh), started by corebalt-probes.timer every minute; skipped
+# while the data disk is locked. The RADIUS probe does nothing until a release is deployed.
+[Unit]
+Description=Corebalt monitoring probes (FreeRADIUS status, WireGuard peers)
+Requires=docker.service
+After=docker.service corebalt-stack.service
+ConditionPathIsMountPoint={{ monitoring_data_dir }}
+
+[Service]
+Type=oneshot
+ExecStart={{ monitoring_dir }}/probes all
+TimeoutStartSec=60

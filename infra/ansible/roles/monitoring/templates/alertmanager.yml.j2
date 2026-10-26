@@ -1,0 +1,66 @@
+# Managed by Ansible (roles/monitoring; infra/ops/runbooks/monitoring.md, Alert delivery). No secret in
+# this file: the SMTP password and the webhook URLs are read from the files in secrets/.
+global:
+  resolve_timeout: 5m
+{% if monitoring_smtp_host | length > 0 %}
+  smtp_smarthost: {{ monitoring_smtp_host }}
+  smtp_from: {{ monitoring_smtp_from }}
+  smtp_auth_username: {{ monitoring_smtp_user }}
+  smtp_auth_password_file: /etc/alertmanager/secrets/smtp_password
+  smtp_require_tls: true
+{% endif %}
+
+route:
+  receiver: operators
+  group_by: [alertname, environment, host]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # The heartbeat: to the dead man's switch only, every {{ monitoring_deadman_interval }}.
+    - matchers: ['alertname = Watchdog']
+      receiver: {{ 'deadman' if vault_deadman_url | default('') | length > 0 else 'none' }}
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: {{ monitoring_deadman_interval }}
+    - matchers: ['severity = critical']
+      receiver: operators
+      repeat_interval: 4h
+
+receivers:
+  - name: none
+  - name: operators
+{% if monitoring_smtp_host | length > 0 %}
+    email_configs:
+      - to: {{ monitoring_alert_email }}
+        send_resolved: true
+{% endif %}
+{% if vault_alert_webhook_url | default('') | length > 0 %}
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/webhook_url
+        send_resolved: true
+{% endif %}
+{% if vault_deadman_url | default('') | length > 0 %}
+  - name: deadman
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/deadman_url
+        send_resolved: false
+{% endif %}
+
+inhibit_rules:
+  # The cause pages once; its consequences stay visible in the UI without their own notifications.
+  - source_matchers: ['alertname = CorebaltServiceDown', 'job = postgres']
+    target_matchers: ['alertname =~ "CorebaltPostgres.*|CorebaltDbPoolSaturated"']
+    equal: [host]
+  - source_matchers: ['alertname = CorebaltBackupStale']
+    target_matchers: ['alertname = CorebaltBackupFailed']
+    equal: [host]
+  - source_matchers: ['alertname = CorebaltCertificateExpiringSoon']
+    target_matchers: ['alertname = CorebaltCertificateExpiring']
+    equal: [host, instance]
+  - source_matchers: ['alertname = CorebaltDiskCritical']
+    target_matchers: ['alertname =~ "CorebaltDiskLow|CorebaltDiskFillingUp"']
+    equal: [host, mountpoint]
+  - source_matchers: ['alertname = CorebaltHubDown']
+    target_matchers: ['alertname =~ "CorebaltRouterTunnelStale|CorebaltRouterNeverConnected"']
+    equal: [host]

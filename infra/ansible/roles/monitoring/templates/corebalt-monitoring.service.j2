@@ -1,0 +1,20 @@
+# Managed by Ansible (roles/monitoring). Starts with the stack (WantedBy, After), stops and restarts with
+# it (PartOf), on the stack's network. Skipped, not failed, while the data disk is locked or nothing is
+# deployed, like the stack unit. No WorkingDirectory: see corebalt-stack.service.
+[Unit]
+Description=Corebalt monitoring (Prometheus, Alertmanager, Grafana, Loki)
+Requires=docker.service
+After=docker.service network-online.target corebalt-stack.service
+PartOf=corebalt-stack.service
+ConditionPathIsMountPoint={{ monitoring_data_dir }}
+ConditionPathExists={{ monitoring_stack_dir }}/images.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{ monitoring_dir }}/monitorctl up
+ExecStop={{ monitoring_dir }}/monitorctl stop
+TimeoutStartSec=400
+
+[Install]
+WantedBy=corebalt-stack.service

@@ -1,0 +1,39 @@
+# LogQL alerts, evaluated by Loki's ruler and sent to Alertmanager (loki/config.yml). "fake" is the
+# tenant directory when multi-tenancy is off. These need the logs: FreeRADIUS's auth lines ("Login OK:
+# [CB000001] ..." and "Login incorrect (...): [CB000006] ...", radius/Dockerfile turns them on), where
+# the username's prefix is the tenant code (T2), and the API's JSON lines.
+groups:
+  - name: corebalt-logs
+    interval: 1m
+    rules:
+      - alert: CorebaltRadiusTenantRejectRateHigh
+        expr: |
+          (
+            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome="incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m]))
+              /
+            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m]))
+          ) > 0.1
+          and
+          sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tenant {{ $labels.tenant }}: over 10% of RADIUS logins rejected for 5 minutes"
+          description: "docs/08: {{ $value | humanizePercentage }} of tenant {{ $labels.tenant }}'s Access-Requests were rejected (N3: only PENDING, SUSPENDED, TERMINATED lines and wrong credentials are). A bulk suspension, a router with stale credentials, or a misconfigured NAS. Grafana, Logs dashboard, service freeradius."
+      - alert: CorebaltRadiusUnknownClient
+        expr: sum(count_over_time({service="freeradius"} |= "unknown client" [5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RADIUS requests from a router FreeRADIUS does not know"
+          description: "A router reaches this node from a tunnel address that is not in radius_client (a router not onboarded, a changed tunnel address, or FreeRADIUS not restarted since the router row was added). The log line names the address."
+      - alert: CorebaltApiErrorLogs
+        expr: sum by (service) (count_over_time({project="corebalt", service=~"api-1|api-2|tunnel-worker", level="ERROR"}[5m])) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} logs more than 10 errors every 5 minutes"
+          description: "Sustained ERROR lines from {{ $labels.service }}. Grafana, Logs dashboard, service {{ $labels.service }}, level ERROR; the correlation_id links a request's lines."

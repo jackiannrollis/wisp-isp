@@ -67,7 +67,7 @@ last = ok[-1] if ok else None
 info = (last or {}).get("info", {})
 repo = info.get("repository", {})
 print(last["label"] if last else "-", last["timestamp"]["stop"] if last else 0, len(ok),
-      info.get("size", 0), repo.get("size") or repo.get("delta") or 0, s.get("status", {}).get("code", 99))'
+      info.get("size", 0), repo.get("size") or repo.get("delta") or 0, s.get("status", {}).get("code", 99))' | tr -d '\r'
 }
 backup_annotations() { # <label>: "key value" lines
     pgbr --output=json info | "$PY" -I -c '
@@ -75,7 +75,7 @@ import json, sys
 for b in json.load(sys.stdin)[0].get("backup", []):
     if b["label"] == sys.argv[1]:
         for k, v in sorted(b.get("annotation", {}).items()):
-            print(k, v)' "$1"
+            print(k, v)' "$1" | tr -d '\r'
 }
 write_metrics() { # <file>; the content on stdin, swapped in whole
     mkdir -p "$METRICS_DIR"

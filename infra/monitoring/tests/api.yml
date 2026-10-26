@@ -1,0 +1,64 @@
+# promtool unit tests for rules/api.yml. api-1 fails 6 of every 66 requests a minute; api-2's 95th
+# percentile sits between the 1 s and 2 s buckets.
+rule_files:
+  - ../rules/api.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="api",instance="api-1",status="500",uri="/api/v1/x",method="GET"}'
+        values: "0+6x30"
+      - series: 'http_server_requests_seconds_count{job="api",instance="api-1",status="200",uri="/api/v1/x",method="GET"}'
+        values: "0+60x30"
+      - series: 'http_server_requests_seconds_count{job="api",instance="api-2",status="200",uri="/api/v1/x",method="GET"}'
+        values: "0+60x30"
+      - series: 'http_server_requests_seconds_bucket{job="api",instance="api-2",uri="/api/v1/x",le="0.5"}'
+        values: "0+80x30"
+      - series: 'http_server_requests_seconds_bucket{job="api",instance="api-2",uri="/api/v1/x",le="1.0"}'
+        values: "0+85x30"
+      - series: 'http_server_requests_seconds_bucket{job="api",instance="api-2",uri="/api/v1/x",le="2.0"}'
+        values: "0+100x30"
+      - series: 'http_server_requests_seconds_bucket{job="api",instance="api-2",uri="/api/v1/x",le="+Inf"}'
+        values: "0+100x30"
+      - series: 'hikaricp_connections_pending{job="api",instance="api-1",pool="HikariPool-1"}'
+        values: "2+0x30"
+      - series: 'jvm_memory_used_bytes{job="api",instance="api-1",area="heap",id="G1 Old Gen"}'
+        values: "9.5e8+0x30"
+      - series: 'jvm_memory_max_bytes{job="api",instance="api-1",area="heap",id="G1 Old Gen"}'
+        values: "1e9+0x30"
+      - series: 'jvm_memory_used_bytes{job="api",instance="api-1",area="heap",id="G1 Eden Space"}'
+        values: "0+0x30"
+      - series: 'jvm_memory_max_bytes{job="api",instance="api-1",area="heap",id="G1 Eden Space"}'
+        values: "-1+0x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: CorebaltApiErrorRate
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: CorebaltApiErrorRate
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: api-1 }
+            exp_annotations:
+              summary: "api-1 answers more than 5% of requests with a 5xx"
+              description: "9.091% of api-1's requests failed over the last 5 minutes. Logs: Grafana, Logs dashboard, service api-1, level ERROR."
+      - eval_time: 16m
+        alertname: CorebaltApiSlow
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: api-2 }
+            exp_annotations:
+              summary: "api-2: the 95th percentile of request time is above 1 s"
+              description: "Slow requests on api-2 for 10 minutes (p95 1.667s). The database (connections, locks) and the JVM heap are the usual causes; API and JVM dashboard."
+      - eval_time: 6m
+        alertname: CorebaltDbPoolSaturated
+        exp_alerts:
+          - exp_labels: { severity: warning, job: api, instance: api-1, pool: HikariPool-1 }
+            exp_annotations:
+              summary: "api-1 has requests waiting for a database connection"
+              description: "HikariCP on api-1 has had threads waiting for a connection for 5 minutes: long transactions or too small a pool. pg_stat_activity (Data stores dashboard)."
+      - eval_time: 16m
+        alertname: CorebaltJvmHeapHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: api-1 }
+            exp_annotations:
+              summary: "api-1 uses more than 90% of its heap"
+              description: "The JVM on api-1 has stayed above 90% of its maximum heap for 15 minutes; the next step is an OutOfMemoryError and a restart. Heap dump or a larger MaxRAMPercentage."

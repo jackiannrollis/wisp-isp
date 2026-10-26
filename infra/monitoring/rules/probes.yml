@@ -1,0 +1,30 @@
+# The public names, probed from the host through the blackbox exporter (targets.d/web.yml): the apps
+# answer, TLS verifies, and the certificates are not about to expire (docs/08: certificates).
+# Unit tests: tests/probes.yml.
+groups:
+  - name: corebalt-probes
+    rules:
+      - alert: CorebaltSiteDown
+        expr: probe_success{job="web-probes"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} does not answer"
+          description: "The probe of {{ $labels.instance }} from the host has failed for 5 minutes: DNS, the web container, its certificate or the API behind it. Grafana, Platform dashboard, probes; docker compose logs web."
+      - alert: CorebaltCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="web-probes"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "The certificate of {{ $labels.instance }} expires in under 14 days"
+          description: "Caddy renews 30 days before expiry, so a certificate this close means renewal fails: the DNS provider token (vault_acme_dns_api_token), the zone, or Let's Encrypt. docker compose logs web, lines with 'acme'."
+      - alert: CorebaltCertificateExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job="web-probes"} - time() < 3 * 86400
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The certificate of {{ $labels.instance }} expires in under 3 days"
+          description: "Renewal has been failing for weeks (CorebaltCertificateExpiring came first). Fix the DNS token or the zone today; infra/ops/runbooks/monitoring.md."

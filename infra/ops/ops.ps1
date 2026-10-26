@@ -14,13 +14,14 @@
 #   infra\ops\ops.ps1 backup staging                             a database backup now (the first one after a deploy)
 #   infra\ops\ops.ps1 drill staging                              the restore drill now
 #   infra\ops\ops.ps1 backup-status staging                      the backup repository and the last results
+#   infra\ops\ops.ps1 monitoring staging                         scrape targets down and alerts firing on each host
 #   infra\ops\ops.ps1 shell                                      a shell in the toolbox
 #
 # Inventories live in infra/ansible/inventories/<name>/ (only "example" is committed). Secrets are
 # never arguments: the vault password and passphrases are prompted for.
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet("lint", "secrets", "bootstrap", "provision", "init-disk", "unlock", "deploy", "rollback", "backup", "drill", "backup-status", "shell", "build")]
+    [ValidateSet("lint", "secrets", "bootstrap", "provision", "init-disk", "unlock", "deploy", "rollback", "backup", "drill", "backup-status", "monitoring", "shell", "build")]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Inventory,
@@ -68,7 +69,7 @@ function Playbook([string]$playbook) {
 }
 
 switch ($Command) {
-    "lint" { docker @run sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml deploy.yml rollback.yml backup.yml --syntax-check -e release=0000000000000000000000000000000000000000" }
+    "lint" { docker @run sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml deploy.yml rollback.yml backup.yml monitoring.yml --syntax-check -e release=0000000000000000000000000000000000000000" }
     "secrets" {
         Require-Inventory
         docker @run bash /repo/infra/ops/secrets-init.sh $Inventory
@@ -99,6 +100,7 @@ switch ($Command) {
     "backup" { docker @run @((Playbook "backup.yml") + @("-e", "backup_action=backup")) }
     "drill" { docker @run @((Playbook "backup.yml") + @("-e", "backup_action=drill")) }
     "backup-status" { docker @run @((Playbook "backup.yml") + @("-e", "backup_action=status")) }
+    "monitoring" { docker @run @(Playbook "monitoring.yml") }
     "shell" { docker @run bash }
 }
 exit $LASTEXITCODE

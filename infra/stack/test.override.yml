@@ -16,6 +16,11 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+    # The public names resolve to the web container on this network, so the monitoring project's
+    # blackbox probes reach it the way a host's reach the real names (infra/monitoring).
+    networks:
+      default:
+        aliases: [corebalt.localhost, admin.corebalt.localhost, pay.corebalt.localhost, cb.corebalt.localhost]
   # The certificate and the bucket (a directory, for versitygw's posix backend), made once.
   s3-init:
     image: corebalt-stacktest/postgres

@@ -111,6 +111,19 @@ docker exec "$TARGET" sh -c 'test -x /srv/corebalt/stack/backupctl && test "$(st
 docker exec "$TARGET" sh -c 'test "$(stat -c %a:%u /srv/corebalt/drill)" = 700:999 && test -d /srv/corebalt/metrics && echo "   drill and metrics directories on the data disk"'
 docker exec "$TARGET" systemctl is-active corebalt-backup.timer corebalt-restore-drill.timer | tr '\n' ' ' && echo "(backup and drill timers)"
 docker exec "$TARGET" /srv/corebalt/stack/backupctl status | grep -q 'not deployed' && echo "   backupctl: nothing deployed yet"
+docker exec "$TARGET" sh -c 'test -x /srv/corebalt/monitoring/monitorctl && test -x /srv/corebalt/monitoring/probes \
+    && test "$(stat -c %a /srv/corebalt/monitoring/.env)" = 600 && grep -q "^GRAFANA_ADMIN_PASSWORD=" /srv/corebalt/monitoring/.env \
+    && test -f /srv/corebalt/monitoring/alertmanager.yml && ! grep -q converge-fake /srv/corebalt/monitoring/alertmanager.yml \
+    && grep -q "url_file: /etc/alertmanager/secrets/deadman_url" /srv/corebalt/monitoring/alertmanager.yml \
+    && test "$(stat -c %a:%u /srv/corebalt/monitoring/secrets/smtp_password)" = 400:65534 \
+    && test "$(stat -c %u /srv/corebalt/prometheus)" = 65534 && test "$(stat -c %u /srv/corebalt/grafana)" = 472 && test "$(stat -c %u /srv/corebalt/loki)" = 10001 \
+    && test -f /srv/corebalt/monitoring/rules/backups.yml && test -f /srv/corebalt/monitoring/grafana/dashboards/platform.json \
+    && grep -q "https://admin.example.test/" /srv/corebalt/monitoring/targets.d/web.yml \
+    && echo "   monitoring installed: .env root-only, secrets for uid 65534 only, data directories owned as the images expect"'
+docker exec "$TARGET" systemctl is-enabled corebalt-monitoring
+docker exec "$TARGET" systemctl is-active corebalt-probes.timer && echo "(probes timer)"
+docker exec "$TARGET" /srv/corebalt/monitoring/probes wireguard && docker exec "$TARGET" grep -q '^corebalt_wireguard_up 1' /srv/corebalt/metrics/corebalt_wireguard.prom \
+    && echo "   probes: the hub's wg0 written to the metrics directory"
 root_login=$(docker run --rm --network "$NET" -v "$KEYS:/run/secrets:ro" --entrypoint sh "$OPS_IMAGE" -c \
     'cp /run/secrets/ssh_key /tmp/k && chmod 600 /tmp/k && ssh -i /tmp/k -o BatchMode=yes -o StrictHostKeyChecking=no root@172.31.250.10 true 2>&1; echo "exit $?"' | tail -1)
 [ "$root_login" != "exit 0" ] || { echo "FAIL: root can still log in"; exit 1; }

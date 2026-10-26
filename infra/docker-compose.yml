@@ -132,6 +132,9 @@ services:
       RADIUS_DB_USER: isp_radius
       RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD}
       RADIUS_LAB_SECRET: ${RADIUS_LAB_SECRET:?set in infra/.env}
+      # The Status-Server site on the container's loopback (radius/raddb/sites-available/corebalt-status),
+      # asked by the monitoring probe on a host; locally nothing asks, so a placeholder will do.
+      RADIUS_STATUS_SECRET: ${RADIUS_STATUS_SECRET:-local-status-probe-not-a-secret}
     depends_on:
       wireguard:
         condition: service_healthy

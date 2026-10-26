@@ -47,6 +47,14 @@ class ApiSecurityIT extends IntegrationTest {
     }
 
     @Test
+    void prometheusMetricsNeedNoToken() throws Exception {
+        // Scraped on the internal network; the web front hides /actuator from the internet (infra/stack/test.sh).
+        final HttpResponse<String> response = get("/actuator/prometheus", null);
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("jvm_memory_used_bytes").contains("http_server_requests_seconds_bucket");
+    }
+
+    @Test
     void openApiDocsArePublic() throws Exception {
         final HttpResponse<String> response = get("/api/docs", null);
         assertThat(response.statusCode()).isEqualTo(200);

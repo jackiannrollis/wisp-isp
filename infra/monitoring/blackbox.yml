@@ -1,0 +1,23 @@
+# Blackbox exporter modules (prometheus.yml, job web-probes). A host probes its public names with
+# https (strict TLS: the Let's Encrypt chain must verify); the local stack test uses https_internal,
+# which accepts Caddy's internal CA. Both read the certificate's expiry (probe_ssl_earliest_cert_expiry).
+modules:
+  https:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      # The main domain answers with a redirect to the admin app; the apps answer 200.
+      valid_status_codes: [200, 301, 302]
+      follow_redirects: false
+      fail_if_not_ssl: true
+  https_internal:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200, 301, 302]
+      follow_redirects: false
+      fail_if_not_ssl: true
+      tls_config:
+        insecure_skip_verify: true

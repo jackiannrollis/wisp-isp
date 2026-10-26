@@ -1,0 +1,110 @@
+# promtool unit tests for rules/data.yml.
+rule_files:
+  - ../rules/data.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'pg_up{instance="postgres-exporter:9187"}'
+        values: "0+0x10"
+      - series: 'pg_stat_database_numbackends{instance="pg",datname="isp"}'
+        values: "45+0x15"
+      - series: 'pg_stat_database_numbackends{instance="pg",datname="postgres"}'
+        values: "45+0x15"
+      - series: 'pg_settings_max_connections{instance="pg"}'
+        values: "100+0x15"
+      - series: 'pg_stat_database_deadlocks{datname="isp"}'
+        values: "0 0 1 1 1 1 1 1 1 1 1"
+      - series: 'pg_replication_lag_seconds{instance="pg"}'
+        values: "45+0x10"
+      - series: 'rabbitmq_detailed_queue_messages{vhost="/",queue="billing.payment-received.dlq"}'
+        values: "3+0x30"
+      - series: 'rabbitmq_detailed_queue_messages{vhost="/",queue="network.coa"}'
+        values: "200+10x30"
+      - series: 'rabbitmq_detailed_queue_messages{vhost="/",queue="network.router-poll"}'
+        values: "5+0x30"
+      - series: 'rabbitmq_detailed_queue_consumers{vhost="/",queue="network.router-poll"}'
+        values: "0+0x30"
+      - series: 'rabbitmq_detailed_queue_consumers{vhost="/",queue="network.coa"}'
+        values: "1+0x30"
+      - series: 'rabbitmq_detailed_queue_consumers{vhost="/",queue="billing.payment-received.dlq"}'
+        values: "0+0x30"
+      - series: 'rabbitmq_alarms_memory_used_watermark'
+        values: "1+0x5"
+      - series: 'rabbitmq_alarms_free_disk_space_watermark'
+        values: "0+0x5"
+      - series: 'redis_up'
+        values: "0+0x10"
+      - series: 'redis_rejected_connections_total'
+        values: "0 0 5 5 5 5 5 5"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CorebaltPostgresDown
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: "postgres-exporter:9187" }
+            exp_annotations:
+              summary: "PostgreSQL is not answering the exporter"
+              description: "postgres_exporter could not connect to PostgreSQL for 5 minutes: the database is down, or isp_monitor's password in the monitoring .env is not the one stackctl set. docker compose logs postgres on the host."
+      - eval_time: 11m
+        alertname: CorebaltPostgresConnectionsHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: pg }
+            exp_annotations:
+              summary: "PostgreSQL uses more than 80% of max_connections"
+              description: "90% of the connection slots are taken: the API pools, FreeRADIUS and the worker together. pg_stat_activity shows who holds them."
+      - eval_time: 5m
+        alertname: CorebaltPostgresDeadlocks
+        exp_alerts:
+          - exp_labels: { severity: warning, datname: isp }
+            exp_annotations:
+              summary: "Deadlocks in the isp database"
+              description: "Deadlocks happened in the last 15 minutes. The API log (level ERROR) names the transactions involved."
+      - eval_time: 6m
+        alertname: CorebaltReplicationLag
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: pg }
+            exp_annotations:
+              summary: "The PostgreSQL replica is more than 30 s behind"
+              description: "docs/08: FreeRADIUS node B reads the replica, so its logins see old subscription state. The replica is pending Q2; this fires only once one reports here."
+      - eval_time: 1m
+        alertname: CorebaltRabbitDeadLetters
+        exp_alerts:
+          - exp_labels: { severity: critical, vhost: /, queue: billing.payment-received.dlq }
+            exp_annotations:
+              summary: "3 message(s) in dead-letter queue billing.payment-received.dlq"
+              description: "A consumer failed three times on these events (conventions.md, Events and queues); the business change behind them did not happen. Inspect in the RabbitMQ UI (ssh -L 15672:127.0.0.1:15672), fix, and shovel the messages back."
+      - eval_time: 15m
+        alertname: CorebaltRabbitQueueGrowing
+        exp_alerts:
+          - exp_labels: { severity: warning, vhost: /, queue: network.coa }
+            exp_annotations:
+              summary: "Queue network.coa has been growing for 10 minutes"
+              description: "350 messages and rising: its consumer is slow or stopped (docs/08). Restores, SMS and roll-ups are delayed, not lost. docker compose logs api-1 api-2 tunnel-worker."
+      - eval_time: 16m
+        alertname: CorebaltRabbitQueueWithoutConsumers
+        exp_alerts:
+          - exp_labels: { severity: warning, vhost: /, queue: network.router-poll }
+            exp_annotations:
+              summary: "Nobody consumes queue network.router-poll"
+              description: "Queue network.router-poll has had no consumer for 15 minutes: the instance that owns it is down or its listener stopped. Events wait in the queue meanwhile (E4: access never depends on them)."
+      - eval_time: 2m
+        alertname: CorebaltRabbitAlarm
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "RabbitMQ raised a resource alarm and blocks publishers"
+              description: "Memory or disk watermark reached: RabbitMQ stops accepting publishes, so the outbox relay backs up. Free disk or memory on the host; docker compose logs rabbitmq."
+      - eval_time: 6m
+        alertname: CorebaltRedisDown
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Redis is not answering the exporter"
+              description: "Redis has been unreachable for 5 minutes. Sign-in limits and token versions fall back to the database (TokenVersions), slower but correct. docker compose logs redis."
+      - eval_time: 4m
+        alertname: CorebaltRedisRejectingConnections
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Redis rejected connections"
+              description: "Redis hit its client limit in the last 10 minutes; the API instances leak or exhaust connections. redis-cli info clients."

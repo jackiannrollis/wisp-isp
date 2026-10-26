@@ -8,6 +8,8 @@ import com.corebalt.isp.network.infrastructure.RadiusPacket;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.outbox.DomainEvent;
 import com.corebalt.isp.shared.tenant.TenantContext;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -49,14 +51,16 @@ public class SessionReauthorizer {
     private final RadiusCoaClient radius;
     private final Clock clock;
     private final Duration backoff;
+    private final MeterRegistry meters;
 
     SessionReauthorizer(final JdbcClient jdbc, final TransactionTemplate tx, final RadiusCoaClient radius, final Clock clock,
-                        @Value("${isp.worker.coa.backoff:2s}") final Duration backoff) {
+                        @Value("${isp.worker.coa.backoff:2s}") final Duration backoff, final MeterRegistry meters) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.radius = radius;
         this.clock = clock;
         this.backoff = backoff;
+        this.meters = meters;
     }
 
     /** For the current tenant (the event's); returns SessionReauthorized or SessionReauthorizationFailed. */
@@ -94,6 +98,9 @@ public class SessionReauthorizer {
         }
         log.warn("{} for line {} on router {} failed after {} attempt(s): {}", change.action(), change.subscriptionId(),
                 change.routerId(), attempts, reason);
+        // N5: a failure after the retries is alerted (infra/monitoring/rules/business.yml, CorebaltCoaFailed).
+        Counter.builder("isp.network.coa.failed").description("CoA or Disconnect requests given up after the retries (N5)")
+                .tag("action", change.action().name()).register(meters).increment();
         return new SessionReauthorizationFailed(UuidV7.next(clock), TenantContext.requireTenantId(), clock.instant(),
                 change.subscriptionId(), change.routerId(), change.acctSessionId(), change.action(), attempts, reason);
     }

@@ -1,0 +1,19 @@
+---
+# What the monitoring on an inventory's stack hosts sees, without an SSH tunnel
+# (infra/ops/runbooks/monitoring.md):
+#   ops.ps1 monitoring staging     services of the monitoring project, scrape targets that are down,
+#                                  alerts firing (monitorctl status on each host)
+- name: Monitoring status
+  hosts: stack_hosts
+  become: true
+  vars:
+    monitoring_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/monitoring"
+  tasks:
+    - name: Run monitorctl status
+      ansible.builtin.command: "{{ monitoring_dir }}/monitorctl status"
+      register: monitoring_status
+      changed_when: false
+
+    - name: What monitorctl said
+      ansible.builtin.debug:
+        msg: "{{ (monitoring_status.stdout_lines + monitoring_status.stderr_lines) | select | list }}"

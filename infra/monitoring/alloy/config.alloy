@@ -1,0 +1,131 @@
+// Grafana Alloy: ships logs to Loki (docs/08). Two sources:
+//  - every container of the stack and of this project, discovered through the Docker API (the socket
+//    is mounted read-only; Alloy reads container metadata and log streams, nothing else is asked of it);
+//  - the host's journal for the corebalt-* units (stack, backups, the restore drill, probes, the hub),
+//    sshd and docker.
+// Stream labels stay few and bounded: project, service, container, level, unit. tenantId and
+// correlationId from the API's JSON lines go in as structured metadata, so they can be filtered
+// without a stream per tenant or request.
+
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "15s"
+}
+
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = "corebalt|corebalt-monitoring"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "project"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/?(.*)"
+		target_label  = "container"
+	}
+}
+
+loki.source.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	targets          = discovery.relabel.containers.output
+	forward_to       = [loki.process.containers.receiver]
+	refresh_interval = "15s"
+}
+
+loki.process "containers" {
+	forward_to = [loki.write.local.receiver]
+
+	// The API instances and the tunnel worker log JSON (logstash format): level becomes a label,
+	// the MDC fields structured metadata. Lines that are not JSON (the banner) pass unchanged.
+	stage.match {
+		selector = "{service=~\"api-1|api-2|tunnel-worker\"}"
+
+		stage.json {
+			expressions = {
+				level          = "level",
+				tenant_id      = "tenantId",
+				correlation_id = "correlationId",
+				logger         = "logger_name",
+			}
+		}
+
+		stage.labels {
+			values = {
+				level = "",
+			}
+		}
+
+		stage.structured_metadata {
+			values = {
+				tenant_id      = "",
+				correlation_id = "",
+				logger         = "",
+			}
+		}
+	}
+
+	// FreeRADIUS: "Auth: (12) Login OK: [CB000001] (from client cb-radtest port 0)" and
+	// "Login incorrect (...)": the outcome as metadata; the tenant is read from the username at query
+	// time (rules/fake/radius.yml), so the stream set does not grow with tenants.
+	stage.match {
+		selector = "{service=\"freeradius\"}"
+
+		stage.regex {
+			expression = "Login (?P<radius_outcome>OK|incorrect)"
+		}
+
+		stage.structured_metadata {
+			values = {
+				radius_outcome = "",
+			}
+		}
+	}
+}
+
+loki.relabel "journal" {
+	forward_to = []
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		target_label  = "level"
+	}
+}
+
+loki.source.journal "host" {
+	path          = "/var/log/journal"
+	max_age       = "12h"
+	format_as_json = false
+	matches       = "_SYSTEMD_UNIT=corebalt-stack.service _SYSTEMD_UNIT=corebalt-monitoring.service _SYSTEMD_UNIT=corebalt-backup.service _SYSTEMD_UNIT=corebalt-restore-drill.service _SYSTEMD_UNIT=corebalt-probes.service _SYSTEMD_UNIT=corebalt-wg-hub.service _SYSTEMD_UNIT=ssh.service _SYSTEMD_UNIT=docker.service _SYSTEMD_UNIT=unattended-upgrades.service"
+	labels        = {project = "host", service = "journal"}
+	relabel_rules = loki.relabel.journal.rules
+	forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+
+	external_labels = {
+		environment = sys.env("MONITORING_ENV"),
+		host        = sys.env("MONITORING_HOST"),
+	}
+}

@@ -1,0 +1,191 @@
+---
+# The monitoring project on a stack host (infra/monitoring/compose.yml): Prometheus, Alertmanager,
+# Grafana, Loki, Alloy and the exporters, their data on the encrypted disk, a unit that starts and stops
+# with the stack's, and the probes timer. Host-specific files are templated (.env, alertmanager.yml and
+# its secret files, the probe targets); everything else is the committed directory.
+- name: The data disk is mounted (the monitoring lives on it)
+  ansible.builtin.command: findmnt -n {{ monitoring_data_dir }}
+  changed_when: false
+  failed_when: false
+  register: monitoring_mount
+
+- name: Say so when the data disk is not mounted yet
+  ansible.builtin.debug:
+    msg: >-
+      {{ monitoring_data_dir }} is not mounted: the monitoring is installed after init-disk and unlock
+      (infra/ops/README.md, Data disk). Skipping.
+  when: monitoring_mount.rc != 0
+
+- name: Monitoring unit state  # noqa: command-instead-of-module (the systemd module changes state, it cannot ask for it)
+  ansible.builtin.command: systemctl is-active corebalt-monitoring
+  register: monitoring_active
+  changed_when: false
+  failed_when: false
+
+- name: Install the monitoring project
+  when: monitoring_mount.rc == 0
+  block:
+    - name: Vault values are present
+      ansible.builtin.assert:
+        that:
+          - vault_grafana_admin_password is defined
+          - vault_db_monitor_password is defined
+          - vault_redis_password is defined
+        fail_msg: >-
+          The inventory's vault lacks the monitoring values: create it with infra/ops/ops.ps1 secrets
+          <inventory>, or add vault_grafana_admin_password and vault_db_monitor_password with
+          ansible-vault edit (infra/ops/README.md, Secrets).
+
+    - name: Email delivery is complete when an SMTP host is set
+      ansible.builtin.assert:
+        that:
+          - monitoring_smtp_user | length > 0
+          - monitoring_smtp_from | length > 0
+          - vault_smtp_password | default('') | length > 0
+        fail_msg: >-
+          monitoring_smtp_host is set, so monitoring_smtp_user, monitoring_smtp_from and vault_smtp_password
+          are needed too (infra/ops/runbooks/monitoring.md, Alert delivery).
+      when: monitoring_smtp_host | length > 0
+
+    - name: No alert delivery configured
+      ansible.builtin.debug:
+        msg: >-
+          Neither monitoring_smtp_host nor vault_alert_webhook_url is set: alerts show only in the
+          Alertmanager and Grafana UIs on this host (infra/ops/runbooks/monitoring.md, Alert delivery).
+      when: monitoring_smtp_host | length == 0 and vault_alert_webhook_url | default('') | length == 0
+
+    - name: Project directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: "{{ item.group | default('root') }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ monitoring_dir }}", mode: "0750" }
+        - { path: "{{ monitoring_dir }}/targets.d", mode: "0755" }
+        # Alertmanager (uid 65534) must traverse it to read its secret files.
+        - { path: "{{ monitoring_dir }}/secrets", mode: "0750", group: "{{ monitoring_alertmanager_uid }}" }
+        - { path: "{{ monitoring_metrics_dir }}", mode: "0755" }
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Data directories, owned as the images expect
+      ansible.builtin.file:
+        path: "{{ monitoring_data_dir }}/{{ item.name }}"
+        state: directory
+        owner: "{{ item.uid }}"
+        group: "{{ item.uid }}"
+        mode: "0700"
+      loop:
+        - { name: prometheus, uid: "{{ monitoring_prometheus_uid }}" }
+        - { name: alertmanager, uid: "{{ monitoring_alertmanager_uid }}" }
+        - { name: grafana, uid: "{{ monitoring_grafana_uid }}" }
+        - { name: loki, uid: "{{ monitoring_loki_uid }}" }
+        - { name: alloy, uid: 0 }
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Configuration as committed (compose file, Prometheus and its rules, blackbox, Loki, Alloy, Grafana)
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../monitoring/{{ item }}"
+        dest: "{{ monitoring_dir }}/"
+        mode: "0644"
+        directory_mode: "0755"
+      loop:
+        - compose.yml
+        - prometheus.yml
+        - blackbox.yml
+        - rules
+        - loki
+        - alloy
+        - grafana
+      notify: Apply monitoring
+
+    - name: Control script and probes
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../monitoring/{{ item.src }}"
+        dest: "{{ monitoring_dir }}/{{ item.dest }}"
+        mode: "0750"
+      loop:
+        - { src: monitorctl.sh, dest: monitorctl }
+        - { src: probes.sh, dest: probes }
+      loop_control:
+        label: "{{ item.dest }}"
+
+    - name: Environment (the Grafana admin password, the database and Redis passwords; root only)
+      ansible.builtin.template:
+        src: monitoring.env.j2
+        dest: "{{ monitoring_dir }}/.env"
+        mode: "0600"
+      no_log: true
+      notify: Apply monitoring
+
+    - name: Alertmanager routes and receivers (no secrets in it)
+      ansible.builtin.template:
+        src: alertmanager.yml.j2
+        dest: "{{ monitoring_dir }}/alertmanager.yml"
+        mode: "0644"
+      notify: Apply monitoring
+
+    - name: Alertmanager secret files (SMTP password, webhook, dead man's switch), uid 65534 only
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "{{ monitoring_dir }}/secrets/{{ item.name }}"
+        owner: "{{ monitoring_alertmanager_uid }}"
+        group: "{{ monitoring_alertmanager_uid }}"
+        mode: "0400"
+      loop:
+        - { name: smtp_password, value: "{{ vault_smtp_password | default('') }}" }
+        - { name: webhook_url, value: "{{ vault_alert_webhook_url | default('') }}" }
+        - { name: deadman_url, value: "{{ vault_deadman_url | default('') }}" }
+      loop_control:
+        label: "{{ item.name }}"
+      when: item.value | length > 0
+      no_log: true
+      notify: Apply monitoring
+
+    - name: Secret files of channels that are not configured are gone
+      ansible.builtin.file:
+        path: "{{ monitoring_dir }}/secrets/{{ item.name }}"
+        state: absent
+      loop:
+        - { name: smtp_password, value: "{{ vault_smtp_password | default('') }}" }
+        - { name: webhook_url, value: "{{ vault_alert_webhook_url | default('') }}" }
+        - { name: deadman_url, value: "{{ vault_deadman_url | default('') }}" }
+      loop_control:
+        label: "{{ item.name }}"
+      when: item.value | length == 0
+      no_log: true
+      notify: Apply monitoring
+
+    - name: Probe targets (the public names of this platform)
+      ansible.builtin.template:
+        src: web.yml.j2
+        dest: "{{ monitoring_dir }}/targets.d/web.yml"
+        mode: "0644"
+      notify: Apply monitoring
+
+    - name: Monitoring unit and the probes unit and timer
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: "0644"
+      loop:
+        - corebalt-monitoring.service
+        - corebalt-probes.service
+        - corebalt-probes.timer
+      register: monitoring_units
+
+    - name: Monitoring unit enabled (starts with the stack, once a release is deployed)
+      ansible.builtin.systemd_service:
+        name: corebalt-monitoring
+        enabled: true
+        daemon_reload: true
+
+    - name: Probes timer running
+      ansible.builtin.systemd_service:
+        name: corebalt-probes.timer
+        enabled: true
+        state: "{{ 'restarted' if monitoring_units.changed else 'started' }}"
+        daemon_reload: true

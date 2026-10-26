@@ -1,0 +1,45 @@
+# promtool unit tests for rules/tunnels.yml. Test time starts at the epoch, so a handshake at second
+# 100 is stale once time() passes 400.
+rule_files:
+  - ../rules/tunnels.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'corebalt_wireguard_up{instance="node"}'
+        values: "0+0x10"
+      - series: 'corebalt_wireguard_peer_latest_handshake_seconds{instance="node",peer="utawala-01",allowed_ips="10.200.0.11/32"}'
+        values: "100+0x30"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CorebaltHubDown
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: node }
+            exp_annotations:
+              summary: "The WireGuard hub interface is gone"
+              description: "wg0 does not exist on the host: every router's tunnel to this hub is down, and so are RADIUS, CoA and polling through it. systemctl status corebalt-wg-hub."
+      - eval_time: 5m
+        alertname: CorebaltRouterTunnelStale
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: CorebaltRouterTunnelStale
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node, peer: utawala-01, allowed_ips: 10.200.0.11/32 }
+            exp_annotations:
+              summary: "Router utawala-01 has not completed a handshake for over 5 minutes"
+              description: "The tunnel of utawala-01 (10.200.0.11/32) is down or the router is off: its sessions continue, CoA fails and the tunnel worker will mark it OFFLINE (docs/06). The tenant's staff see the router alert in the admin app."
+  - interval: 1m
+    input_series:
+      - series: 'corebalt_wireguard_peer_latest_handshake_seconds{instance="node",peer="new-site",allowed_ips="10.200.0.12/32"}'
+        values: "0+0x1550"
+    alert_rule_test:
+      - eval_time: 23h
+        alertname: CorebaltRouterNeverConnected
+        exp_alerts: []
+      - eval_time: 25h
+        alertname: CorebaltRouterNeverConnected
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node, peer: new-site, allowed_ips: 10.200.0.12/32 }
+            exp_annotations:
+              summary: "Router new-site has never connected to this hub"
+              description: "Peer new-site was added a day ago and never completed a handshake: the onboarding script was not applied, or the router cannot reach the hub's port. infra/ops/runbooks/monitoring.md."

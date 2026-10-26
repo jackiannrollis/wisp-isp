@@ -49,6 +49,8 @@
           - vault_backup_s3_key is defined
           - vault_backup_s3_key_secret is defined
           - vault_backup_cipher_pass is defined
+          - vault_radius_status_secret is defined
+          - vault_db_monitor_password is defined
         fail_msg: >-
           The inventory's vault is incomplete: create it with
           infra/ops/ops.ps1 secrets <inventory> (infra/ops/README.md, Secrets).

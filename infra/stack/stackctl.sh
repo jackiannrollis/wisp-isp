@@ -35,6 +35,20 @@ roll() { # each service in order, recreated only when its image changed; stops a
     # changes it restarts the database here (seconds; the APIs reconnect).
     compose up -d --wait --wait-timeout "$WAIT" postgres rabbitmq redis >/dev/null 2>&1         || { echo "   postgres, rabbitmq or redis FAILED to come up" >&2; return 1; }
     echo "   postgres, rabbitmq, redis ok"
+    # The monitoring role for postgres-exporter (infra/monitoring): pg_monitor only, no table reads
+    # (T1); created on a fresh cluster and kept in step with .env afterwards. Best effort: a release is
+    # not blocked by it, and CorebaltPostgresDown reports an exporter that cannot connect.
+    if grep -q '^ISP_DB_MONITOR_PASSWORD=.' .env; then
+        if out=$(compose exec -T -u postgres postgres psql -X -q -v ON_ERROR_STOP=1 -d isp 2>&1 <<'SQL'
+\getenv pw ISP_DB_MONITOR_PASSWORD
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'isp_monitor') THEN CREATE ROLE isp_monitor; END IF; END $$;
+ALTER ROLE isp_monitor LOGIN PASSWORD :'pw';
+GRANT pg_monitor TO isp_monitor;
+GRANT CONNECT ON DATABASE isp TO isp_monitor;
+SQL
+        ); then echo "   monitoring role ok"
+        else echo "   monitoring role WARNING: $(echo "$out" | grep -v '^ *$' | tail -1)" >&2; fi
+    fi
     # The backup repository's stanza, created on the first deploy and a no-op afterwards. Best effort:
     # a backup problem must not block a release; the nightly backup and its alert report it.
     if [ -x ./backupctl ] && [ -s pgbackrest.conf ]; then

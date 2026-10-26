@@ -1,0 +1,46 @@
+# promtool unit tests for rules/radius.yml (the textfile metrics written by probes).
+rule_files:
+  - ../rules/radius.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'corebalt_radius_up{instance="node"}'
+        values: "0+0x10"
+      - series: 'corebalt_radius_status_round_trip_seconds{instance="node"}'
+        values: "0.35+0x10"
+      - series: 'corebalt_radius_auth_dropped_requests_total{instance="node"}'
+        values: "0 0 3 3 3 3 3 3"
+      - series: 'corebalt_radius_access_rejects_total{instance="node"}'
+        values: "0+5x20"
+      - series: 'corebalt_radius_access_requests_total{instance="node"}'
+        values: "0+20x20"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CorebaltRadiusProbeDown
+        exp_alerts:
+          - exp_labels: { severity: critical, instance: node }
+            exp_annotations:
+              summary: "FreeRADIUS does not answer Status-Server"
+              description: "The status probe inside the freeradius container got no answer for 5 minutes: FreeRADIUS is down or wedged. Routers fall back to node B (pending Q2); existing sessions continue (docs/08). docker compose logs freeradius."
+      - eval_time: 6m
+        alertname: CorebaltRadiusSlow
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node }
+            exp_annotations:
+              summary: "FreeRADIUS takes over 200 ms to answer a status request"
+              description: "The Status-Server round trip inside the container (no database involved) exceeded 200 ms for 5 minutes: the process or the host is starved. Logins take at least as long."
+      - eval_time: 4m
+        alertname: CorebaltRadiusDroppingRequests
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node }
+            exp_annotations:
+              summary: "FreeRADIUS dropped requests"
+              description: "Requests were dropped in the last 10 minutes: too slow to answer (the database view, docs/06) or overloaded. Routers retransmit; customers see slow logins."
+      - eval_time: 11m
+        alertname: CorebaltRadiusRejectRateHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: node }
+            exp_annotations:
+              summary: "Over 10% of RADIUS logins rejected on this node"
+              description: "docs/08 (platform-wide; the per-tenant rule comes from the auth log in Loki): 25% of Access-Requests rejected over 5 minutes. N3: only PENDING, SUSPENDED and TERMINATED lines and wrong credentials are rejected, so a bulk suspension or a router with stale credentials is the likely cause. Grafana, Network dashboard."

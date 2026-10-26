@@ -1,0 +1,36 @@
+# The monitoring project of a stack host (infra/monitoring/compose.yml; docs/08 Monitoring and alerts):
+# where it lives, what it keeps and how alerts are delivered. Secrets come from the vault:
+# vault_grafana_admin_password, vault_db_monitor_password, and optionally vault_smtp_password,
+# vault_alert_webhook_url and vault_deadman_url.
+monitoring_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/monitoring"
+monitoring_data_dir: "{{ data_volume_mount | default('/srv/corebalt') }}"
+monitoring_stack_dir: "{{ monitoring_data_dir }}/stack"
+# The text files backupctl and probes write (the stack role's stack_metrics_dir has the same default).
+monitoring_metrics_dir: "{{ monitoring_data_dir }}/metrics"
+# The external label on every series, log line and alert of this host: the inventory's name.
+monitoring_environment: "{{ inventory_dir | basename }}"
+monitoring_prometheus_retention: 30d
+monitoring_prometheus_retention_size: 10GB
+monitoring_loki_retention: 720h
+# Uids of the images, for the data directories on the encrypted disk.
+monitoring_prometheus_uid: 65534
+monitoring_alertmanager_uid: 65534
+monitoring_grafana_uid: 472
+monitoring_loki_uid: 10001
+# Alert delivery (infra/ops/runbooks/monitoring.md). Email needs an SMTP account: host:port, the user
+# (its password is vault_smtp_password), the sender and the recipient. Empty host: no email; alerts are
+# then only in the Alertmanager and Grafana UIs, plus the optional webhook (vault_alert_webhook_url).
+monitoring_smtp_host: ""
+monitoring_smtp_user: ""
+monitoring_smtp_from: ""
+monitoring_alert_email: "{{ acme_email }}"
+# How often the Watchdog is re-sent to the dead man's switch (vault_deadman_url); the switch's own
+# grace period must be longer.
+monitoring_deadman_interval: 5m
+# The public names probed from the host (TLS, status, certificate expiry); add tenant portals here.
+monitoring_probe_urls:
+  - "https://{{ platform_domain }}/"
+  - "https://admin.{{ platform_domain }}/"
+  - "https://pay.{{ platform_domain }}/"
+# The probes timer (FreeRADIUS status counters, the hub's peers): every minute.
+monitoring_probes_on_calendar: "*-*-* *:*:00"

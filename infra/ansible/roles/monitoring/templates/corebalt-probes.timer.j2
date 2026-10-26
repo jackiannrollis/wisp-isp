@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/monitoring). Every minute; a missed run is simply the next minute's.
+[Unit]
+Description=Corebalt monitoring probes
+
+[Timer]
+OnCalendar={{ monitoring_probes_on_calendar }}
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

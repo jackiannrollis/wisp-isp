@@ -36,3 +36,14 @@ vault_ghcr_tag_token: ""
 vault_backup_s3_key: example-not-a-secret
 vault_backup_s3_key_secret: example-not-a-secret
 vault_backup_cipher_pass: example-not-a-secret
+# Monitoring (infra/monitoring; infra/ops/runbooks/monitoring.md): Grafana's admin password (reachable
+# through an SSH tunnel only), the pg_monitor role postgres-exporter connects as, and the secret of
+# FreeRADIUS's status site on its loopback (the probe). All generated.
+vault_grafana_admin_password: example-not-a-secret
+vault_db_monitor_password: example-not-a-secret
+vault_radius_status_secret: example-not-a-secret
+# Alert delivery, all optional: the SMTP account's password (with monitoring_smtp_host), a webhook URL
+# (Slack-compatible incoming webhook, ntfy, ...), and the dead man's switch URL the Watchdog is sent to.
+vault_smtp_password: example-not-a-secret
+vault_alert_webhook_url: ""
+vault_deadman_url: ""

@@ -1,0 +1,15 @@
+# promtool unit tests for rules/watchdog.yml: firing with no input at all.
+rule_files:
+  - ../rules/watchdog.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: { severity: none }
+            exp_annotations:
+              summary: "The alert pipeline is alive"
+              description: "This alert fires all the time. If the dead man's switch stops receiving it, Prometheus, Alertmanager or the host is down (infra/ops/runbooks/monitoring.md)."

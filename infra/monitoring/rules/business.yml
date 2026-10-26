@@ -1,0 +1,60 @@
+# Business signals from the backend's own gauges and counters (docs/08 Monitoring: wallet drift, M-Pesa
+# callbacks, CoA failures; docs/06 routers). The gauges are kept by api-1's jobs; max() reads them whoever
+# reports. Unit tests: tests/business.yml.
+groups:
+  - name: corebalt-business
+    rules:
+      - alert: CorebaltWalletDrift
+        expr: max(isp_billing_wallet_drift) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} wallet(s) cache a balance that differs from the ledger"
+          description: "B4: the nightly recompute found wallet.balance_minor different from the last ledger entry. The API log (BillingChecks, level ERROR) names the wallets; the ledger is the truth, the cache is corrected by hand after the cause is known."
+      - alert: CorebaltPaymentsUncredited
+        expr: max(isp_billing_payments_uncredited) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} matched payment(s) without a ledger entry after 5 minutes"
+          description: "P4: PaymentReceived was not consumed by billing. The outbox relay or the billing.payment-received queue is stuck (RabbitMQ dead letters?); customers paid and are not restored."
+      - alert: CorebaltMpesaCallbacksSilent
+        expr: max(isp_mpesa_callbacks_silent_tenants) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} tenant(s) with normal volume received no M-Pesa confirmation for 2 hours in daytime"
+          description: "docs/08: the C2B URL registration may have lapsed or Safaricom's addresses changed (API log: 'No M-Pesa confirmations for tenant'). Reconciliation recovers missed payments daily; meanwhile customers wait."
+      - alert: CorebaltNotificationsDead
+        expr: max(isp_notifications_dead) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} SMS message(s) given up after retries"
+          description: "Africa's Talking refused or never accepted them (notifications_notification, status DEAD): the tenant's credentials or balance, or the provider. The admin app's notifications page shows them per tenant."
+      - alert: CorebaltStaffAlertsOpen
+        expr: max(isp_notifications_alerts_open) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} staff alert(s) open for over 30 minutes"
+          description: "Routers offline or sessions that could not be reauthorized (docs/06: ROUTER_OFFLINE, COA_FAILED), not yet cleared. The tenant's dashboard lists them."
+      - alert: CorebaltCoaFailed
+        expr: increase(isp_network_coa_failed_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.action }} requests given up after the retries in the last 15 minutes"
+          description: "N5: the router did not acknowledge after three retries, or refused. The session keeps its old profile until its Session-Timeout (at most a day, S4). The router's tunnel (handshake) and its RADIUS secret are the usual causes."
+      - alert: CorebaltOtpBursts
+        expr: increase(isp_identity_otp_bursts_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bursts of portal sign-in codes"
+          description: "docs/08: more SMS codes requested than the per-phone or per-address limit allows, from one source. Someone probing the portal sign-in, or a broken client."

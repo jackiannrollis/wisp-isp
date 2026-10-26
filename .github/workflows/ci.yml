@@ -190,12 +190,12 @@ jobs:
       - name: Lint and syntax check
         run: >-
           docker run --rm -v "$PWD:/repo:ro" corebalt-ops:local
-          sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml --syntax-check"
+          sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml backup.yml monitoring.yml --syntax-check"
       - name: Converge (bootstrap, init-disk, provision, unlock, idempotence, hardening checks)
         run: bash infra/ansible/tests/converge.sh
 
   stack:
-    name: Stack (staging/production compose, local TLS, routing, backups)
+    name: Stack (staging/production compose, local TLS, routing, backups, monitoring)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -241,12 +241,16 @@ jobs:
       - name: Frontend dependencies (Playwright, for the browser smoke through the front)
         working-directory: frontend
         run: npm ci
-      - name: Start the stack, load the lab seed, check the routing and both apps from outside, back up, drill, restore
+      - name: Start the stack and its monitoring, load the lab seed, check the routing and both apps from outside, back up, drill, restore
         run: STACKTEST_SKIP_BUILD=1 bash infra/stack/test.sh
       - name: Logs on failure
         if: failure()
         working-directory: infra/stack
         run: docker compose -f compose.yml -f compose.override.yml --env-file .env --env-file images.env logs --no-color --tail 150 web api-1 api-2 postgres freeradius s3
+      - name: Monitoring logs on failure
+        if: failure()
+        working-directory: infra/monitoring
+        run: docker compose -f compose.yml -f compose.override.yml --env-file .env logs --no-color --tail 100
 
   # Release images (decisions.md 2026-10-21, docs/02): only from main, only after every check passed.
   # Tagged sha-<commit>; hosts deploy them by digest (infra/ops). Signed with the project's cosign key

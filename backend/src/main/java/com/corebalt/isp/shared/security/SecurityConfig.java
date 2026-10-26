@@ -68,8 +68,11 @@ class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/api/docs",
-                                "/api/docs/**", "/swagger-ui.html", "/swagger-ui/**", "/error")
+                        // /actuator/prometheus is scraped on the stack's internal network; the web front
+                        // answers 404 for every /actuator path from outside (infra/web/Caddyfile).
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info",
+                                "/actuator/prometheus", "/api/docs", "/api/docs/**", "/swagger-ui.html",
+                                "/swagger-ui/**", "/error")
                         .permitAll()
                         .requestMatchers("/api/platform/**").hasAuthority(Tokens.typeAuthority(Tokens.PLATFORM))
                         .requestMatchers("/api/v1/portal/**").hasAuthority(Tokens.typeAuthority(Tokens.CUSTOMER))

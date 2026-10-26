@@ -1,0 +1,76 @@
+# promtool unit tests for rules/business.yml.
+rule_files:
+  - ../rules/business.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'isp_billing_wallet_drift{instance="api-1"}'
+        values: "2+0x40"
+      - series: 'isp_billing_wallet_drift{instance="api-2"}'
+        values: "0+0x40"
+      - series: 'isp_billing_payments_uncredited{instance="api-1"}'
+        values: "1+0x40"
+      - series: 'isp_mpesa_callbacks_silent_tenants{instance="api-1"}'
+        values: "1+0x40"
+      - series: 'isp_notifications_dead{instance="api-1"}'
+        values: "4+0x40"
+      - series: 'isp_notifications_alerts_open{instance="api-1"}'
+        values: "3+0x40"
+      - series: 'isp_network_coa_failed_total{instance="tunnel-worker",action="COA"}'
+        values: "0 0 1 1 1 1 1 1 1 1"
+      - series: 'isp_identity_otp_bursts_total{instance="api-2"}'
+        values: "0 0 2 2 2 2 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CorebaltWalletDrift
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "2 wallet(s) cache a balance that differs from the ledger"
+              description: "B4: the nightly recompute found wallet.balance_minor different from the last ledger entry. The API log (BillingChecks, level ERROR) names the wallets; the ledger is the truth, the cache is corrected by hand after the cause is known."
+      - eval_time: 6m
+        alertname: CorebaltPaymentsUncredited
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "1 matched payment(s) without a ledger entry after 5 minutes"
+              description: "P4: PaymentReceived was not consumed by billing. The outbox relay or the billing.payment-received queue is stuck (RabbitMQ dead letters?); customers paid and are not restored."
+      - eval_time: 11m
+        alertname: CorebaltMpesaCallbacksSilent
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "1 tenant(s) with normal volume received no M-Pesa confirmation for 2 hours in daytime"
+              description: "docs/08: the C2B URL registration may have lapsed or Safaricom's addresses changed (API log: 'No M-Pesa confirmations for tenant'). Reconciliation recovers missed payments daily; meanwhile customers wait."
+      - eval_time: 11m
+        alertname: CorebaltNotificationsDead
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "4 SMS message(s) given up after retries"
+              description: "Africa's Talking refused or never accepted them (notifications_notification, status DEAD): the tenant's credentials or balance, or the provider. The admin app's notifications page shows them per tenant."
+      - eval_time: 20m
+        alertname: CorebaltStaffAlertsOpen
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: CorebaltStaffAlertsOpen
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "3 staff alert(s) open for over 30 minutes"
+              description: "Routers offline or sessions that could not be reauthorized (docs/06: ROUTER_OFFLINE, COA_FAILED), not yet cleared. The tenant's dashboard lists them."
+      - eval_time: 5m
+        alertname: CorebaltCoaFailed
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: tunnel-worker, action: COA }
+            exp_annotations:
+              summary: "COA requests given up after the retries in the last 15 minutes"
+              description: "N5: the router did not acknowledge after three retries, or refused. The session keeps its old profile until its Session-Timeout (at most a day, S4). The router's tunnel (handshake) and its RADIUS secret are the usual causes."
+      - eval_time: 5m
+        alertname: CorebaltOtpBursts
+        exp_alerts:
+          - exp_labels: { severity: warning, instance: api-2 }
+            exp_annotations:
+              summary: "Bursts of portal sign-in codes"
+              description: "docs/08: more SMS codes requested than the per-phone or per-address limit allows, from one source. Someone probing the portal sign-in, or a broken client."

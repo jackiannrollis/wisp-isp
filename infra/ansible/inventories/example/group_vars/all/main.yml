@@ -29,4 +29,14 @@ backup_s3_bucket: corebalt-example-backups
 backup_s3_region: fsn1
 stack_backup_uri_style: host       # bucket.endpoint; "path" when the provider wants endpoint/bucket
 stack_backup_retention_full: 30    # nightly full backups kept with their WAL: 30 days of point-in-time recovery
+# Monitoring (docs/08; infra/ops/runbooks/monitoring.md): alerts by email through an SMTP account
+# (its password is vault_smtp_password) to monitoring_alert_email (acme_email unless set), and
+# optionally a webhook (vault_alert_webhook_url) and a dead man's switch (vault_deadman_url). Leave the
+# host empty for no email. Retention: 30 days of metrics and logs on the data disk.
+monitoring_smtp_host: smtp.example.test:587
+monitoring_smtp_user: alerts@example.test
+monitoring_smtp_from: alerts@example.test
+monitoring_alert_email: ops@example.test
+monitoring_prometheus_retention: 30d
+monitoring_loki_retention: 720h
 ansible_user: "{{ operator_user }}"

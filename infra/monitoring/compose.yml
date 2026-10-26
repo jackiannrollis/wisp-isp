@@ -1,0 +1,184 @@
+# Monitoring of a staging or core host (docs/08 Monitoring and alerts; decisions.md 2026-10-26): its own
+# compose project beside the stack, on the stack's network, so it keeps evaluating and alerting while
+# the stack is redeployed or down. Installed by Ansible (roles/monitoring) into /srv/corebalt/monitoring
+# with .env, alertmanager.yml and targets.d/ (host-specific, templated); everything else is this
+# directory as committed. Data lives on the encrypted disk like the stack's (logs and metrics hold
+# customer numbers and router addresses). The unit, corebalt-monitoring, starts after the stack and
+# is skipped while the data disk is locked.
+#
+# Nothing here is published to the internet: Prometheus, Alertmanager and Grafana listen on
+# 127.0.0.1 only, for an SSH tunnel (ssh -L 3000:127.0.0.1:3000 <host>); exporters stay on the network.
+# Local test of this file: infra/stack/test.sh (named volumes, the UIs on this machine's 127.0.0.1).
+
+name: corebalt-monitoring
+
+networks:
+  # The stack's network (compose project "corebalt"): service names resolve (api-1, postgres, redis,
+  # rabbitmq, web). It exists while the stack is up or stopped; only "compose down" of the stack removes it.
+  default:
+    name: corebalt_default
+    external: true
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    restart: unless-stopped
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}
+      - --web.enable-lifecycle
+      - --web.listen-address=0.0.0.0:9090
+    environment:
+      # Expanded into external_labels (prometheus.yml): every series and alert says which host and environment.
+      MONITORING_ENV: ${MONITORING_ENV:?}
+      MONITORING_HOST: ${MONITORING_HOST:?}
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules:/etc/prometheus/rules:ro
+      - ./targets.d:/etc/prometheus/targets.d:ro
+      - ${DATA_DIR:-/srv/corebalt}/prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    restart: unless-stopped
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=0.0.0.0:9093
+      - --web.external-url=http://127.0.0.1:9093/
+    volumes:
+      # Templated by Ansible (roles/monitoring): routes and receivers; the SMTP password and the webhook
+      # URLs are separate files beside it (0400, uid 65534), never inside the configuration.
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./secrets:/etc/alertmanager/secrets:ro
+      - ${DATA_DIR:-/srv/corebalt}/alertmanager:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    user: "472:0"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?}
+      GF_SERVER_ROOT_URL: http://127.0.0.1:3000/
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_DEFAULT_THEME: system
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/platform.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ${DATA_DIR:-/srv/corebalt}/grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    depends_on:
+      prometheus: { condition: service_healthy }
+      loki: { condition: service_started }
+
+  # Logs, 30 days, with tenant_id and correlation_id as structured metadata; the ruler evaluates the
+  # LogQL alerts (loki/rules) and sends them to Alertmanager like Prometheus does.
+  loki:
+    image: grafana/loki:3.7.9
+    restart: unless-stopped
+    user: "10001:10001"
+    command: ["-config.file=/etc/loki/config.yml", "-config.expand-env=true"]
+    environment:
+      LOKI_RETENTION: ${LOKI_RETENTION:-720h}
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - ./loki/rules:/etc/loki/rules:ro
+      - ${DATA_DIR:-/srv/corebalt}/loki:/loki
+    # No healthcheck: the image has no shell or wget; Grafana's datasource check and Prometheus
+    # (job loki) tell when it is unwell.
+
+  # Ships every container's stdout to Loki (the Docker API, socket mounted read-only) and the host's
+  # journal for the corebalt-* units, sshd and docker.
+  alloy:
+    image: grafana/alloy:v1.21.2
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --disable-reporting
+    environment:
+      MONITORING_ENV: ${MONITORING_ENV}
+      MONITORING_HOST: ${MONITORING_HOST}
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${JOURNAL_DIR:-/var/log/journal}:/var/log/journal:ro
+      - ${DATA_DIR:-/srv/corebalt}/alloy:/var/lib/alloy/data
+
+  # Host metrics. On the compose network (not the host's), so CPU, memory, load, disks and the
+  # textfiles are the host's (pid and / are), network interface counters are this container's.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|host/(dev|proc|sys|run)($$|/))
+      - --no-collector.netdev
+      - --no-collector.netstat
+      - --no-collector.sockstat
+    volumes:
+      - /:/host:ro,rslave
+      # The textfiles written by backupctl and probes (/srv/corebalt/metrics on a host).
+      - ${METRICS_DIR:-/srv/corebalt/metrics}:/textfile:ro
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    restart: unless-stopped
+    environment:
+      # isp_monitor: pg_monitor only, created by stackctl on every deploy; no table reads (T1).
+      DATA_SOURCE_URI: postgres:5432/isp?sslmode=disable
+      DATA_SOURCE_USER: isp_monitor
+      DATA_SOURCE_PASS: ${ISP_DB_MONITOR_PASSWORD:?}
+      PG_EXPORTER_DISABLE_SETTINGS_METRICS: "false"
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.95.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+
+  # Probes the public names from this host (DNS, TLS, status) and reads the certificates' expiry;
+  # the targets come from targets.d/web.yml.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.29.1
+    restart: unless-stopped
+    user: "65534:65534"
+    command: ["--config.file=/etc/blackbox_exporter/config.yml"]
+    volumes:
+      - ./blackbox.yml:/etc/blackbox_exporter/config.yml:ro

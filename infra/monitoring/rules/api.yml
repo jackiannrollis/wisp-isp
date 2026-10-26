@@ -1,0 +1,43 @@
+# The API instances and the tunnel worker (Spring Boot's Micrometer metrics at /actuator/prometheus).
+# The request histogram has the SLO buckets set in application.yml (25 ms to 10 s). Unit tests: tests/api.yml.
+groups:
+  - name: corebalt-api
+    rules:
+      - alert: CorebaltApiErrorRate
+        expr: |
+          sum by (instance) (rate(http_server_requests_seconds_count{job="api",status=~"5.."}[5m]))
+            / sum by (instance) (rate(http_server_requests_seconds_count{job="api"}[5m])) > 0.05
+          and sum by (instance) (rate(http_server_requests_seconds_count{job="api"}[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} answers more than 5% of requests with a 5xx"
+          description: "{{ $value | humanizePercentage }} of {{ $labels.instance }}'s requests failed over the last 5 minutes. Logs: Grafana, Logs dashboard, service {{ $labels.instance }}, level ERROR."
+      - alert: CorebaltApiSlow
+        expr: |
+          histogram_quantile(0.95, sum by (instance, le) (rate(http_server_requests_seconds_bucket{job="api",uri!~"/actuator.*"}[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }}: the 95th percentile of request time is above 1 s"
+          description: "Slow requests on {{ $labels.instance }} for 10 minutes (p95 {{ $value | humanizeDuration }}). The database (connections, locks) and the JVM heap are the usual causes; API and JVM dashboard."
+      - alert: CorebaltDbPoolSaturated
+        expr: hikaricp_connections_pending{job=~"api|tunnel-worker"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} has requests waiting for a database connection"
+          description: "HikariCP on {{ $labels.instance }} has had threads waiting for a connection for 5 minutes: long transactions or too small a pool. pg_stat_activity (Data stores dashboard)."
+      - alert: CorebaltJvmHeapHigh
+        expr: |
+          sum by (instance) (jvm_memory_used_bytes{job=~"api|tunnel-worker",area="heap"})
+            / sum by (instance) (jvm_memory_max_bytes{job=~"api|tunnel-worker",area="heap"} > 0) > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} uses more than 90% of its heap"
+          description: "The JVM on {{ $labels.instance }} has stayed above 90% of its maximum heap for 15 minutes; the next step is an OutOfMemoryError and a restart. Heap dump or a larger MaxRAMPercentage."

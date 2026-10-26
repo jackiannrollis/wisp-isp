@@ -1,0 +1,13 @@
+# The dashboards in ../../dashboards, loaded from the files and not editable in the UI: a change is a
+# commit (the file is re-read within 30 s). Grafana opens platform.json as the home dashboard.
+apiVersion: 1
+providers:
+  - name: corebalt
+    folder: Corebalt
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

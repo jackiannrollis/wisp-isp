@@ -1,0 +1,65 @@
+# Loki, single binary with the filesystem store on the data disk (docs/08: logs with tenant_id and
+# correlation_id on every line; here as structured metadata, never as stream labels). Retention
+# LOKI_RETENTION (30 days by default, from .env); the ruler evaluates rules/fake/*.yml ("fake" is the
+# tenant name when multi-tenancy is off) and sends alerts to Alertmanager.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules-store
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2026-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: ${LOKI_RETENTION:-720h}
+  allow_structured_metadata: true
+  volume_enabled: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true
+  ring:
+    kvstore:
+      store: inmemory
+
+pattern_ingester:
+  enabled: true
+
+analytics:
+  reporting_enabled: false

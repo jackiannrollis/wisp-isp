@@ -1,0 +1,8 @@
+# Host-specific files, written by Ansible on a host and by infra/stack/test.sh locally.
+.env
+compose.override.yml
+alertmanager.yml
+secrets/
+targets.d/
+monitorctl
+probes

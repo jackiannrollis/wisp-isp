@@ -35,6 +35,10 @@ ask ghcr_token "GHCR token with read:packages only (the hosts pull with it)" sec
 read -r -s -p "Optional: a GHCR token with write:packages, for marking deployed images (Enter to skip): " ghcr_tag_token; echo
 ask backup_s3_key "Backup bucket (S3-compatible Object Storage) access key, for this inventory's bucket only"
 ask backup_s3_key_secret "Backup bucket secret key" secret
+echo "Alert delivery (infra/ops/runbooks/monitoring.md); Enter skips any of these:"
+read -r -s -p "SMTP password of the account in monitoring_smtp_user (email alerts): " smtp_password; echo
+read -r -s -p "Webhook URL for alerts (Slack-compatible incoming webhook, ntfy, ...): " alert_webhook_url; echo
+read -r -s -p "Dead man's switch URL the Watchdog heartbeat is sent to: " deadman_url; echo
 
 kid="k$(date -u +%Y%m%d%H%M)"
 # The repository cipher passphrase: every backup is unreadable without it (key escrow).
@@ -68,6 +72,12 @@ vault_ghcr_tag_token: $ghcr_tag_token
 vault_backup_s3_key: $backup_s3_key
 vault_backup_s3_key_secret: $backup_s3_key_secret
 vault_backup_cipher_pass: $backup_cipher_pass
+vault_grafana_admin_password: $(random)
+vault_db_monitor_password: $(random)
+vault_radius_status_secret: $(random)
+vault_smtp_password: "$smtp_password"
+vault_alert_webhook_url: "$alert_webhook_url"
+vault_deadman_url: "$deadman_url"
 EOF
 echo "Choose the vault password (it goes into the password manager; it is asked for on every provision and deploy):"
 ansible-vault encrypt --output "$target" "$tmp"

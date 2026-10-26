@@ -1,0 +1,23 @@
+# Status-Server for the monitoring probe (infra/monitoring/probes.sh; docs/08 Monitoring): the request
+# and accounting counters, queue lengths and the round trip, asked every minute from inside this
+# container. Loopback only, so nothing but a process in the container can ask; the secret comes from
+# the environment (RADIUS_STATUS_SECRET, set by the stack's .env) and never from a file in the image.
+server corebalt-status {
+	listen {
+		type = status
+		ipaddr = 127.0.0.1
+		port = 18121
+	}
+
+	client probe {
+		ipaddr = 127.0.0.1
+		secret = $ENV{RADIUS_STATUS_SECRET}
+	}
+
+	authorize {
+		ok
+		Autz-Type Status-Server {
+			ok
+		}
+	}
+}

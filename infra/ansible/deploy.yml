@@ -125,6 +125,17 @@
         name: corebalt-stack
         state: started
 
+    - name: Monitoring installed on this host?
+      ansible.builtin.stat:
+        path: /etc/systemd/system/corebalt-monitoring.service
+      register: deploy_monitoring_unit
+
+    - name: Monitoring unit running (it watches this release; a first deploy starts it)
+      ansible.builtin.systemd_service:
+        name: corebalt-monitoring
+        state: started
+      when: deploy_monitoring_unit.stat.exists
+
 - name: Mark the deployed images in the registry (retention keeps them)
   hosts: stack_hosts[0]
   gather_facts: false

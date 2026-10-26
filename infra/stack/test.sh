@@ -5,8 +5,12 @@
 # the lab seed, checks the routing from outside, opens both apps in a browser, then exercises deploy
 # again (no change), a release whose API fails its health gate (rolled back), and a rollback. Then the
 # backups against a local S3 server (versitygw): a full backup, the restore drill, disaster recovery
-# from the repository, and the alert rules' unit tests. Leaves the stack running for a look at
-# https://admin.corebalt.localhost:8443; "test.sh down" removes it.
+# from the repository. The monitoring project (infra/monitoring) runs beside the stack as on a host:
+# its configurations are validated and the rules unit-tested, every scrape target must come up, the
+# Watchdog must reach Alertmanager, the public names are probed, the API's logs land in Loki with their
+# tenant, a RADIUS login and a reject go through FreeRADIUS into the status probe and the auth log, and
+# Grafana serves every dashboard. Leaves everything running for a look at
+# https://admin.corebalt.localhost:8443 and http://127.0.0.1:3000 (Grafana); "test.sh down" removes it.
 set -euo pipefail
 cd "$(dirname "$0")"
 # Git Bash rewrites /path arguments for native programs; docker needs them as they are, curl does not.
@@ -16,10 +20,20 @@ compose() {
 }
 # Every *.corebalt.localhost name goes to this machine, whatever the resolver thinks of .localhost.
 curl() { command curl --connect-to ::127.0.0.1: "$@"; }
-# The stack directory is this folder: .env, images.env* and compose.override.yml are test files (git-ignored).
-cleanup_files() { rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl pgbackrest.conf metrics; }
+# The stack directory is this folder: .env, images.env* and compose.override.yml are test files (git-ignored);
+# the monitoring project's test files live in ../monitoring the same way.
+MON=../monitoring
+cleanup_files() {
+    rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl pgbackrest.conf metrics
+    rm -rf "$MON/.env" "$MON/compose.override.yml" "$MON/alertmanager.yml" "$MON/secrets" "$MON/targets.d" "$MON/monitorctl" "$MON/probes"
+}
+mon() { (cd "$MON" && docker compose -f compose.yml -f compose.override.yml --env-file .env "$@"); }
+envval() { sed -n "s/^$1=//p" .env 2>/dev/null | head -1; }
+fake() { echo "stacktest-$(openssl rand -hex 12)"; }
 
 if [ "${1:-}" = down ]; then
+    # The monitoring project first: it uses the stack's network, which the stack's down removes.
+    if [ -f "$MON/.env" ] && [ -f "$MON/compose.override.yml" ]; then mon down -v --remove-orphans; fi
     if [ -f .env ]; then
         # compose needs the image variables to parse the file, whatever a failed run left behind.
         [ -f images.env ] || printf 'BACKEND_IMAGE=x
@@ -53,7 +67,6 @@ for provider in cloudflare hetzner; do
 done
 
 if [ ! -f .env ]; then
-    fake() { echo "stacktest-$(openssl rand -hex 12)"; }
     key=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 2>/dev/null \
         | openssl pkcs8 -topk8 -nocrypt -outform DER | openssl base64 -A)
     cat > .env <<EOF
@@ -84,6 +97,9 @@ DRILL_NETWORK=corebalt_default
 METRICS_DIR=./metrics
 EOF
 fi
+# Monitoring (infra/monitoring): the status probe's secret and the pg_monitor role's password. Added to
+# an .env from before they existed.
+grep -q '^RADIUS_STATUS_SECRET=' .env || printf 'RADIUS_STATUS_SECRET=%s\nISP_DB_MONITOR_PASSWORD=%s\n' "$(fake)" "$(fake)" >> .env
 # The backup repository for the test: versitygw from compose.override.yml, self-signed, fake credentials
 # (a host gets this file from Ansible, roles/stack/templates/pgbackrest.conf.j2). A fresh repository
 # path per run: the database volume may be a new cluster since the last run, which an existing stanza
@@ -133,8 +149,9 @@ echo "$out" | grep -E '^   ' || true
 echo "$out" | grep -q 'backups ok' && echo "   ok   backup stanza created and WAL archiving checked" || { echo "   FAIL backups on the first deploy"; fail=1; }
 
 echo "== lab seed"
-set -a; . ./.env; set +a
-LAB_SECRET=stacktest-lab-secret CHR_TUNNEL_IP=10.200.0.11 PGPASSWORD="$ISP_DB_OWNER_PASSWORD" \
+# The owner password is read, not sourced: exported stack settings (METRICS_DIR=./metrics) would otherwise
+# override the monitoring project's own .env when compose runs below.
+LAB_SECRET=stacktest-lab-secret CHR_TUNNEL_IP=10.200.0.11 PGPASSWORD="$(envval ISP_DB_OWNER_PASSWORD)" \
     compose exec -T -e LAB_SECRET -e CHR_TUNNEL_IP -e PGPASSWORD postgres \
     psql -h localhost -U isp_owner -d isp -q -v ON_ERROR_STOP=1 < ../lab/seed.sql >/dev/null
 # A wallet and three ledger entries for CB000001 (the seed has none), so the restore drill's ledger
@@ -157,6 +174,45 @@ insert into billing_ledger_entry (id, tenant_id, wallet_id, type, amount_minor, 
                        ('ADJUSTMENT', -5000, 15000, 'Correction', 'stack test', interval '1 hour'))
          as t(type, amount, balance, descr, reason, age);
 SQL
+
+echo "== monitoring (infra/monitoring): the host-specific files, every configuration validated, the rule unit tests, then up"
+# What Ansible writes on a host (roles/monitoring): .env, Alertmanager without a notification channel
+# (alerts show in its API, which the checks read), the probe targets with the internal CA, named volumes.
+mkdir -p metrics "$MON/secrets" "$MON/targets.d"
+rm -f metrics/*.prom    # an earlier run's files would be read before this run writes its own
+touch metrics/.keep "$MON/secrets/.keep"
+# Grafana stores the admin password at its first start, so a later run keeps the one its volume knows.
+gp=$(grep -s '^GRAFANA_ADMIN_PASSWORD=' "$MON/.env" | head -1 | cut -d= -f2-) || true
+[ -n "$gp" ] || gp=$(fake)
+cat > "$MON/.env" <<EOF
+# Throwaway values for the local stack test only (a host gets this file from Ansible, roles/monitoring).
+MONITORING_ENV=local
+MONITORING_HOST=stacktest
+GRAFANA_ADMIN_PASSWORD=$gp
+ISP_DB_MONITOR_PASSWORD=$(envval ISP_DB_MONITOR_PASSWORD)
+REDIS_PASSWORD=$(envval REDIS_PASSWORD)
+METRICS_DIR=$(pwd -W 2>/dev/null || pwd)/metrics
+EOF
+cat > "$MON/alertmanager.yml" <<'EOF'
+route:
+  receiver: none
+  group_by: [alertname, host]
+  routes:
+    - matchers: ['alertname = Watchdog']
+      receiver: none
+      repeat_interval: 5m
+receivers:
+  - name: none
+EOF
+cat > "$MON/targets.d/web.yml" <<'EOF'
+- labels: { module: https_internal }
+  targets: [https://admin.corebalt.localhost/, https://pay.corebalt.localhost/, https://corebalt.localhost/]
+EOF
+cp "$MON/test.override.yml" "$MON/compose.override.yml"
+cp "$MON/monitorctl.sh" "$MON/monitorctl" && chmod +x "$MON/monitorctl"
+cp "$MON/probes.sh" "$MON/probes" && chmod +x "$MON/probes"
+if out=$("$MON/monitorctl" check 2>&1); then echo "$out"; else echo "$out"; echo "   FAIL monitoring configuration checks"; fail=1; fi
+if out=$("$MON/monitorctl" up 2>&1); then echo "   ok   monitoring up"; else echo "$out" | tail -30; echo "   FAIL monitoring up"; fail=1; fi
 
 echo "== routing, from outside"
 check() { # name expected-status url [curl args]
@@ -193,11 +249,92 @@ curl -sk -D - -o /dev/null "https://admin.corebalt.localhost:8443/$bundle" | gre
     && echo "   ok   hashed bundle immutable ($bundle)" || { echo "   FAIL bundle cache header ($bundle)"; fail=1; }
 
 echo "== both apps in a browser through the front (sign-in, a page each; any console error fails, CSP included)"
+smoke_ran=0
 if [ -d ../../frontend/node_modules/@playwright ]; then
-    (cd ../../frontend && node e2e/stack-smoke.mjs https://corebalt.localhost:8443) || fail=1
+    (cd ../../frontend && node e2e/stack-smoke.mjs https://corebalt.localhost:8443) && smoke_ran=1 || fail=1
 else
     echo "   skipped: frontend/node_modules missing (npm ci in frontend/ first)"
 fi
+
+echo "== monitoring: scrape targets, rules, the Watchdog in Alertmanager, probes, logs in Loki, Grafana"
+PY=$(command -v python3 || command -v python)
+urlenc() { printf '%s' "$1" | "$PY" -I -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read()))'; }
+values() { "$PY" -I -c 'import json, sys; print(" ".join(x["value"][1] for x in json.load(sys.stdin)["data"]["result"]))'; }
+prom() { curl -sf --max-time 10 "http://127.0.0.1:9090/api/v1/$1"; }
+promq() { prom "query?query=$(urlenc "$1")" | values; }
+# Loki is not published; ask it from inside the project (the Prometheus image has wget).
+loki_get() { mon exec -T prometheus wget -qO- -T 10 "http://loki:3100/loki/api/v1/$1" 2>/dev/null; }
+lokiq() { loki_get "query?query=$(urlenc "$1")" | values; }
+gf() { curl -sf --max-time 10 -u "admin:$gp" "http://127.0.0.1:3000/api/$1"; }
+# The checks, as functions (until_ok runs them in this shell): <expr> equals, is non-empty, counts above zero.
+q_eq() { [ "$(promq "$1")" = "$2" ]; }
+q_nonempty() { [ -n "$(promq "$1")" ]; }
+loki_gt0() { local v; v=$(lokiq "$1"); [ -n "$v" ] && [ "${v%.*}" -gt 0 ]; }
+loki_nonempty() { [ -n "$(lokiq "$1")" ]; }
+loki_zero() { local v; v=$(lokiq "$1"); [ -z "$v" ] || [ "${v%.*}" -eq 0 ]; }
+# <name> <seconds> <check...>: retried until the check succeeds or the time is up; a failure is recorded
+# in $fail (never returned, so set -e carries on).
+until_ok() {
+    local name=$1 secs=$2; shift 2
+    local end=$((SECONDS + secs))
+    while :; do
+        if "$@" >/dev/null 2>&1; then echo "   ok   $name"; return 0; fi
+        [ $SECONDS -lt $end ] || { echo "   FAIL $name (after ${secs}s)"; fail=1; return 0; }
+        sleep 3
+    done
+}
+targets_all_up() { # every target scraped, at least 18 of them (prometheus.yml plus the three probes)
+    prom targets | "$PY" -I -c '
+import json, sys
+t = json.load(sys.stdin)["data"]["activeTargets"]
+down = [x for x in t if x["health"] != "up"]
+sys.exit(0 if len(t) >= 18 and not down else 1)'
+}
+targets_down() {
+    prom targets | "$PY" -I -c '
+import json, sys
+for x in json.load(sys.stdin)["data"]["activeTargets"]:
+    if x["health"] != "up": print("        %s %s: %s" % (x["labels"]["job"], x["labels"]["instance"], (x.get("lastError") or x["health"])[:160]))'
+}
+watchdog_in_alertmanager() { curl -sf --max-time 5 'http://127.0.0.1:9093/api/v2/alerts?filter=alertname%3D%22Watchdog%22' | grep -q '"alertname":"Watchdog"'; }
+cert_alert_pending() { prom alerts | grep -q CorebaltCertificateExpiring; }
+api_scraped() { q_eq 'count(up{job="api"} == 1)' 2 && q_nonempty 'count(http_server_requests_seconds_count{job="api"}) > 0'; }
+loki_rules_loaded() { loki_get rules | grep -q CorebaltRadiusTenantRejectRateHigh; }
+grafana_healthy() { curl -sf --max-time 5 http://127.0.0.1:3000/api/health | grep -q '"database": *"ok"'; }
+
+until_ok "every scrape target up" 120 targets_all_up
+targets_all_up >/dev/null 2>&1 || targets_down || true
+groups=$(prom rules | "$PY" -I -c 'import json, sys; print(len(json.load(sys.stdin)["data"]["groups"]))') || groups=0
+[ "${groups:-0}" -ge 10 ] && echo "   ok   $groups rule groups loaded" || { echo "   FAIL rule groups loaded: $groups"; fail=1; }
+until_ok "text-file metrics readable (node_textfile_scrape_error 0)" 30 q_eq node_textfile_scrape_error 0
+until_ok "Watchdog received by Alertmanager" 90 watchdog_in_alertmanager
+until_ok "admin app probed through the front (probe_success 1)" 60 q_eq 'probe_success{instance="https://admin.corebalt.localhost/"}' 1
+until_ok "certificate expiry read from the probe" 30 q_nonempty 'probe_ssl_earliest_cert_expiry{instance="https://pay.corebalt.localhost/"} > time()'
+until_ok "the internal CA's 12-hour certificate raises CorebaltCertificateExpiring (pending or firing)" 60 cert_alert_pending
+until_ok "both API instances scraped, with request metrics" 30 api_scraped
+until_ok "PostgreSQL exporter connected as isp_monitor (pg_up 1)" 30 q_eq pg_up 1
+until_ok "Redis exporter (redis_up 1)" 30 q_eq redis_up 1
+until_ok "RabbitMQ per-queue metrics" 30 q_nonempty 'sum(rabbitmq_detailed_queue_messages)'
+until_ok "web front metrics (caddy)" 30 q_nonempty 'sum(caddy_http_requests_total)'
+until_ok "API logs in Loki" 90 loki_gt0 'sum(count_over_time({service="api-1"}[15m]))'
+if [ "$smoke_ran" = 1 ]; then
+    until_ok "API lines carry tenant_id as structured metadata" 60 loki_gt0 'sum(count_over_time({service=~"api-1|api-2"} | tenant_id != "" [15m]))'
+fi
+until_ok "Loki ruler loaded the LogQL alerts" 60 loki_rules_loaded
+until_ok "Grafana healthy" 60 grafana_healthy
+ds=$(gf datasources | "$PY" -I -c 'import json, sys; print(len(json.load(sys.stdin)))' 2>/dev/null) || ds=0
+[ "${ds:-0}" = 3 ] && echo "   ok   3 data sources provisioned" || { echo "   FAIL data sources: $ds"; fail=1; }
+for d in prometheus loki; do
+    gf "datasources/uid/$d/health" | grep -q '"status": *"OK"' && echo "   ok   data source $d healthy" || { echo "   FAIL data source $d health: $(gf "datasources/uid/$d/health")"; fail=1; }
+done
+# The Alertmanager data source has no health check in Grafana; its proxy reaching Alertmanager is the test.
+gf "datasources/proxy/uid/alertmanager/api/v2/status" | grep -q '"cluster"' && echo "   ok   data source alertmanager reachable through Grafana" \
+    || { echo "   FAIL data source alertmanager through Grafana"; fail=1; }
+dash=$(gf 'search?type=dash-db' | "$PY" -I -c 'import json, sys; print(len(json.load(sys.stdin)))' 2>/dev/null) || dash=0
+[ "${dash:-0}" = 6 ] && echo "   ok   6 dashboards provisioned" || { echo "   FAIL dashboards: $dash"; fail=1; }
+for d in platform api data network backups logs; do
+    gf "dashboards/uid/corebalt-$d" | grep -q '"uid": *"corebalt-'"$d"'"' && echo "   ok   dashboard corebalt-$d" || { echo "   FAIL dashboard corebalt-$d"; fail=1; }
+done
 
 echo "== deploy again: the same release changes nothing"
 release stacktest-1
@@ -250,14 +387,31 @@ compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select number from 
     && echo "   ok   customer CB000001 back" || { echo "   FAIL customer CB000001 missing"; fail=1; }
 check "API after the restore"     401 https://admin.corebalt.localhost:8443/api/v1/dashboard
 
-echo "== backup alert rules (promtool check and unit tests; the monitoring stack evaluates them)"
-mon=$(cd ../monitoring && (pwd -W 2>/dev/null || pwd))
-docker run --rm -v "$mon:/m:ro" --entrypoint promtool prom/prometheus:v3.15.1 check rules /m/rules/backups.yml >/dev/null 2>&1 \
-    && echo "   ok   rules parse" || { echo "   FAIL rules do not parse"; docker run --rm -v "$mon:/m:ro" --entrypoint promtool prom/prometheus:v3.15.1 check rules /m/rules/backups.yml; fail=1; }
-if out=$(docker run --rm -v "$mon:/m:ro" -w /m/tests --entrypoint promtool prom/prometheus:v3.15.1 test rules backups.yml 2>&1); then echo "   ok   rule unit tests"
-else echo "$out" | tail -40; echo "   FAIL rule unit tests"; fail=1; fi
+echo "== RADIUS: a lab login and a suspended one through FreeRADIUS (restarted above, so it knows the seed's NAS), the status probe, the auth log"
+rad() { compose exec -T -e RADIUS_LAB_SECRET=stacktest-lab-secret freeradius corebalt-radtest "$@" 2>&1; }
+if out=$(rad CB000001 lab-password) && echo "$out" | grep -q 'Access-Accept'; then echo "   ok   CB000001 accepted"
+else echo "$out" | tail -5; echo "   FAIL CB000001 login"; fail=1; fi
+if out=$(rad CB000006 lab-password); then echo "$out" | tail -3; echo "   FAIL CB000006 (suspended) was accepted"; fail=1
+elif echo "$out" | grep -q 'Access-Reject'; then echo "   ok   CB000006 rejected (suspended, N3)"
+else echo "$out" | tail -5; echo "   FAIL CB000006: no reply"; fail=1; fi
+if out=$("$MON/probes" radius 2>&1); then echo "   ok   status probe"; else echo "$out"; echo "   FAIL status probe"; fail=1; fi
+grep -q '^corebalt_radius_up 1$' metrics/corebalt_radius.prom 2>/dev/null && grep -Eq '^corebalt_radius_access_rejects_total [1-9]' metrics/corebalt_radius.prom \
+    && echo "   ok   counters written: $(grep -E '^corebalt_radius_access_(requests|accepts|rejects)_total' metrics/corebalt_radius.prom | tr '\n' ' ')" \
+    || { echo "   FAIL RADIUS metrics"; cat metrics/corebalt_radius.prom 2>/dev/null; fail=1; }
+until_ok "RADIUS counters scraped (corebalt_radius_up 1)" 60 q_eq corebalt_radius_up 1
+until_ok "text-file metrics still readable" 30 q_eq node_textfile_scrape_error 0
+until_ok "the accepted login in Loki (radius_outcome OK)" 90 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="OK" [15m]))'
+until_ok "the rejected login in Loki (radius_outcome incorrect)" 60 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="incorrect" [15m]))'
+until_ok "the per-tenant query of the Loki rule finds tenant CB" 60 loki_nonempty 'sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [15m]))'
+# The worker and api-2 run no scheduled job (isp.scheduling.enabled=false): before Modulith's moments
+# auto-configuration was turned off, every job ran there too and failed as isp_worker every 10 seconds.
+# Looked at over the current worker container's lifetime (it was recreated by the recovery above).
+worker_age_min=$(( ($(date +%s) - $(date -d "$(docker inspect -f '{{.State.StartedAt}}' corebalt-tunnel-worker-1)" +%s)) / 60 + 1 ))
+until_ok "the tunnel worker runs no API job (no 'failed for tenant' lines in its ${worker_age_min} minutes)" 10 \
+    loki_zero "sum(count_over_time({service=\"tunnel-worker\"} |= \"failed for tenant\" [${worker_age_min}m]))"
 
 echo "== services"
 ./stackctl status
 ./backupctl status | sed -n '1,12p'
+"$MON/monitorctl" status
 [ "$fail" = 0 ] && echo "STACK TEST PASSED" || { echo "STACK TEST FAILED"; exit 1; }

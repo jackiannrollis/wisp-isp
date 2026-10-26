@@ -1,0 +1,43 @@
+# FreeRADIUS, from the counters the probes script reads over Status-Server every minute
+# (infra/monitoring/probes.sh writes /srv/corebalt/metrics/corebalt_radius.prom). docs/08 asks for the
+# reject rate per tenant and the p95 response time: the per-tenant rate is a Loki rule on the auth log
+# (loki/rules/fake/radius.yml); the round trip of the status request stands in for the response time
+# until a login probe exists. Unit tests: tests/radius.yml.
+groups:
+  - name: corebalt-radius
+    rules:
+      - alert: CorebaltRadiusProbeDown
+        expr: corebalt_radius_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FreeRADIUS does not answer Status-Server"
+          description: "The status probe inside the freeradius container got no answer for 5 minutes: FreeRADIUS is down or wedged. Routers fall back to node B (pending Q2); existing sessions continue (docs/08). docker compose logs freeradius."
+      - alert: CorebaltRadiusSlow
+        expr: corebalt_radius_status_round_trip_seconds > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FreeRADIUS takes over 200 ms to answer a status request"
+          description: "The Status-Server round trip inside the container (no database involved) exceeded 200 ms for 5 minutes: the process or the host is starved. Logins take at least as long."
+      - alert: CorebaltRadiusDroppingRequests
+        expr: |
+          increase(corebalt_radius_auth_dropped_requests_total[10m]) > 0
+            or increase(corebalt_radius_acct_dropped_requests_total[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "FreeRADIUS dropped requests"
+          description: "Requests were dropped in the last 10 minutes: too slow to answer (the database view, docs/06) or overloaded. Routers retransmit; customers see slow logins."
+      - alert: CorebaltRadiusRejectRateHigh
+        expr: |
+          increase(corebalt_radius_access_rejects_total[5m]) / increase(corebalt_radius_access_requests_total[5m]) > 0.1
+            and increase(corebalt_radius_access_requests_total[5m]) >= 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Over 10% of RADIUS logins rejected on this node"
+          description: "docs/08 (platform-wide; the per-tenant rule comes from the auth log in Loki): {{ $value | humanizePercentage }} of Access-Requests rejected over 5 minutes. N3: only PENDING, SUSPENDED and TERMINATED lines and wrong credentials are rejected, so a bulk suspension or a router with stale credentials is the likely cause. Grafana, Network dashboard."

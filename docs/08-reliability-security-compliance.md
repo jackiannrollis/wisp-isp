@@ -26,19 +26,27 @@ A Corebalt outage takes every tenant's customers offline, so reliability is part
 
 ## Monitoring and alerts
 
-| Signal | Alert when |
-|---|---|
-| RADIUS Access-Reject rate per tenant | Above 10% of requests for 5 minutes |
-| RADIUS response time | p95 above 200 ms |
-| Replication lag | Above 30 s |
-| M-Pesa callbacks | None for 2 hours in daytime for a tenant with normal volume |
-| CoA failures | Any failure after retries |
-| RabbitMQ | Queue depth growing for 10 minutes, or any dead-letter message |
-| Routers | WireGuard handshake older than 5 minutes |
-| Wallet drift | Nightly recompute differs from cached balance |
-| Certificates, disk, backups | Standard host alerts; the newest good backup older than 26 hours, a failed backup run, the monthly restore drill failed or not run for 40 days (`infra/monitoring/rules/backups.yml`) |
+Each core and staging host runs its own monitoring project beside the stack (`infra/monitoring`: Prometheus, Alertmanager, Grafana, Loki, Alloy, node_exporter and exporters for PostgreSQL, Redis and the public names; RabbitMQ, Caddy and the API serve their own metrics), installed by Ansible on the encrypted disk and reached through an SSH tunnel only. Alerts go out by email and, optionally, a webhook; the always-firing `Watchdog` goes to a dead man's switch, the only way a single host can report that it, or its monitoring, is down. The rules live in `infra/monitoring/rules` (Prometheus, unit-tested with promtool) and `infra/monitoring/loki/rules` (LogQL on the logs); the runbook is `infra/ops/runbooks/monitoring.md`.
 
-Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant_id` and `correlation_id` on every line.
+| Signal | Alert when | Rules | Status |
+|---|---|---|---|
+| RADIUS Access-Reject rate per tenant | Above 10% of requests for 5 minutes, with at least 20 requests | `CorebaltRadiusTenantRejectRateHigh` (Loki, from the auth log; the tenant is the username's prefix, T2); `CorebaltRadiusRejectRateHigh` for the node as a whole | In place |
+| RADIUS response time | p95 above 200 ms | `CorebaltRadiusSlow`: the Status-Server round trip inside the FreeRADIUS container, sampled every minute, above 200 ms for 5 minutes | Approximated: a login probe comes with the failover drill |
+| RADIUS availability | No answer for 5 minutes; requests dropped; a router FreeRADIUS does not know | `CorebaltRadiusProbeDown`, `CorebaltRadiusDroppingRequests`, `CorebaltRadiusUnknownClient` (Loki) | In place |
+| Replication lag | Above 30 s | `CorebaltReplicationLag` | Pending Q2: fires once a replica reports |
+| M-Pesa callbacks | None for 2 hours in daytime for a tenant with normal volume | `CorebaltMpesaCallbacksSilent` (the backend's gauge) | In place |
+| CoA failures | Any failure after retries | `CorebaltCoaFailed` (the tunnel worker's counter); `CorebaltStaffAlertsOpen` when a router or CoA alert stays uncleared for 30 minutes | In place |
+| RabbitMQ | Queue depth growing for 10 minutes, or any dead-letter message | `CorebaltRabbitQueueGrowing`, `CorebaltRabbitDeadLetters`, `CorebaltRabbitQueueWithoutConsumers`, `CorebaltRabbitAlarm` | In place |
+| Routers | WireGuard handshake older than 5 minutes | `CorebaltRouterTunnelStale` (per peer of the hub's `wg0`), `CorebaltRouterNeverConnected`, `CorebaltHubDown` | In place |
+| Wallet drift | Nightly recompute differs from cached balance | `CorebaltWalletDrift` (B4); `CorebaltPaymentsUncredited` (P4) | In place |
+| API | 5xx above 5% for 10 minutes; p95 above 1 s; threads waiting for a database connection; heap above 90% | `CorebaltApiErrorRate`, `CorebaltApiSlow`, `CorebaltDbPoolSaturated`, `CorebaltJvmHeapHigh`; `CorebaltApiErrorLogs` (Loki) | In place |
+| Services | A metrics endpoint unreachable for 10 minutes; an API instance failing the web front's health check; PostgreSQL or Redis unreachable | `CorebaltServiceDown`, `CorebaltApiUpstreamUnhealthy`, `CorebaltPostgresDown`, `CorebaltPostgresConnectionsHigh`, `CorebaltRedisDown` | In place |
+| Certificates, disk, host | A certificate under 14 days (3: critical) or a public name not answering; a disk under 15% (5: critical) or full within a day; memory, CPU, clock, a read-only filesystem | `CorebaltCertificateExpiring`, `CorebaltCertificateExpiringSoon`, `CorebaltSiteDown`, `CorebaltDiskLow`, `CorebaltDiskCritical`, `CorebaltDiskFillingUp`, `CorebaltMemoryLow`, `CorebaltCpuHigh`, `CorebaltClockSkew`, `CorebaltFilesystemReadOnly` | In place |
+| Backups | The newest good backup older than 26 hours, a failed run, the monthly restore drill failed or not run for 40 days | `CorebaltBackupStale`, `CorebaltBackupFailed`, `CorebaltBackupMetricsMissing`, `CorebaltRestoreDrillFailed`, `CorebaltRestoreDrillOverdue` | In place |
+| Notifications | SMS given up after retries; bursts of portal sign-in codes | `CorebaltNotificationsDead`, `CorebaltOtpBursts` | In place |
+| The monitoring itself | A notification not delivered; a rule group failing; the heartbeat stopping | `CorebaltAlertNotificationsFailing`, `CorebaltRuleEvaluationFailing`, `Watchdog` to the dead man's switch | In place; the dead man's switch is an external service the operator chooses |
+
+Dashboards in Grafana for the platform (`Corebalt / Platform`, `API and JVM`, `Data stores`, `Network: RADIUS and tunnels`, `Backups`, `Logs`); per-tenant dashboards follow once the API's metrics carry tenant tags. Logs in Loki for 30 days: every API line with `tenant_id` and `correlation_id` as structured metadata (stream labels stay few: service and level), the FreeRADIUS auth log with its outcome, and the host's corebalt units.
 
 ## Security
 
@@ -51,7 +59,8 @@ Dashboards in Grafana per tenant and for the platform; logs in Loki with `tenant
 - Secrets envelope-encrypted as described in [07](07-multi-tenancy.md); master key outside the database; rotation runbook.
 - PPPoE passwords and router RADIUS secrets are the exception: stored readable by FreeRADIUS only ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)). Because they sit in clear in the primary, the replica and every backup, full-disk encryption on every database host and encrypted backups (WAL archive included) are requirements, not options.
 - M-Pesa callback endpoints restricted to Safaricom IP ranges with per-tenant path tokens; all other traffic through Caddy with TLS 1.2+.
-- Dependency and container image scanning in CI; least-privilege database roles (FreeRADIUS has read-only access to two views and insert on `radacct`).
+- Dependency and container image scanning in CI; least-privilege database roles (FreeRADIUS has read-only access to two views and insert on `radacct`; the monitoring exporter has `pg_monitor` and reads no table).
+- Metrics and logs stay inside the host: the API's metrics endpoint, Caddy's and RabbitMQ's are reachable on the stack's network only and answer 404 from the internet; Grafana, Prometheus and Alertmanager listen on the loopback for an SSH tunnel; the log shipper reads the Docker API through a read-only socket mount. Logs and metrics hold customer numbers and router addresses, so they live on the encrypted disk with 30-day retention.
 - Customer data minimisation: national ID only where the tenant needs it and encrypted at rest; phone numbers masked in logs.
 
 ## Compliance

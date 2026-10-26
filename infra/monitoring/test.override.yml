@@ -1,0 +1,31 @@
+# Local test only (infra/stack/test.sh): named volumes instead of /srv/corebalt (new bind-mounted folders
+# hang on Docker Desktop), an empty journal (there is none to read), and the exporters' UIs on this
+# machine's loopback like on a host.
+services:
+  prometheus:
+    volumes:
+      - prometheus:/prometheus
+  alertmanager:
+    volumes:
+      - alertmanager:/alertmanager
+  grafana:
+    volumes:
+      - grafana:/var/lib/grafana
+  loki:
+    volumes:
+      - loki:/loki
+  alloy:
+    volumes:
+      - alloy:/var/lib/alloy/data
+      - journal:/var/log/journal:ro
+  # Docker Desktop's VM cannot propagate mounts (no rslave); a host can and compose.yml asks for it.
+  node-exporter:
+    volumes:
+      - /:/host:ro
+volumes:
+  prometheus:
+  alertmanager:
+  grafana:
+  loki:
+  alloy:
+  journal:

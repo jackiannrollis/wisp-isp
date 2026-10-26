@@ -44,3 +44,13 @@ all:
     vault_backup_s3_key: converge-fake-s3-key
     vault_backup_s3_key_secret: converge-fake-s3-secret
     vault_backup_cipher_pass: converge-fake-cipher-passphrase
+    vault_grafana_admin_password: converge-fake-grafana
+    vault_db_monitor_password: converge-fake-monitor
+    vault_radius_status_secret: converge-fake-status
+    # Every delivery channel set, so the templates and the secret files are exercised.
+    monitoring_smtp_host: smtp.converge.test:587
+    monitoring_smtp_user: alerts@converge.test
+    monitoring_smtp_from: alerts@converge.test
+    vault_smtp_password: converge-fake-smtp
+    vault_alert_webhook_url: https://hooks.converge.test/not-a-real-webhook
+    vault_deadman_url: https://deadman.converge.test/ping/not-real

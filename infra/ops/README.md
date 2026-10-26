@@ -70,6 +70,7 @@ git ignores every inventory except the example. Fill in:
 - `data_volume_device`: the data disk, e.g. `/dev/disk/by-id/scsi-0HC_Volume_<id>` for a Hetzner Volume.
 - `data_volume_unlock`: see "Data disk" below.
 - `backup_s3_endpoint`, `backup_s3_bucket`, `backup_s3_region`: the inventory's backup bucket (see Backups).
+- `monitoring_smtp_host`, `monitoring_smtp_user`, `monitoring_smtp_from`, `monitoring_alert_email`: where alerts are emailed from and to (see Monitoring); an empty host means no email.
 
 Leave the `nairobi` group out of a real inventory until the data centre is chosen (Q2); the example shows its shape.
 
@@ -77,8 +78,8 @@ Leave the `nairobi` group out of a real inventory until the data centre is chose
 
 Each inventory keeps its secrets in `group_vars/all/vault.yml`, encrypted with ansible-vault. `infra\ops\ops.ps1 secrets staging` creates it:
 
-- it generates the database, RabbitMQ and Redis passwords, the tenant-secret master key, the token signing key and the backup repository's cipher passphrase;
-- it asks you for the values only you have: the DNS provider's API token (zone DNS edit scope, for the wildcard certificate), the first platform admin's email and temporary password, a GHCR token with `read:packages` the hosts pull images with, and the S3 key pair of the inventory's backup bucket;
+- it generates the database, RabbitMQ and Redis passwords, the tenant-secret master key, the token signing key, the backup repository's cipher passphrase, Grafana's admin password, the monitoring database role's password and the FreeRADIUS status secret;
+- it asks you for the values only you have: the DNS provider's API token (zone DNS edit scope, for the wildcard certificate), the first platform admin's email and temporary password, a GHCR token with `read:packages` the hosts pull images with, the S3 key pair of the inventory's backup bucket, and, each optional, the SMTP password for alert emails, an alert webhook URL and a dead man's switch URL (see Monitoring);
 - it asks for a new vault password, twice, and writes the file encrypted. Nothing is printed or logged.
 
 Keep the vault password in the password manager: every `provision` and `deploy` asks for it. The master key, the signing key, the backup cipher passphrase and the vault password belong in key escrow (`runbooks/key-escrow.md`). To change one value later: `infra\ops\ops.ps1 shell`, then `ansible-vault edit inventories/staging/group_vars/all/vault.yml`.
@@ -98,9 +99,10 @@ The example inventory's `vault.yml` is plain text with obvious placeholders, so 
 
    It refuses to turn the firewall on if your own address isn't in `ssh_allowed_cidrs`. It reports that the data disk isn't encrypted yet.
 4. `infra\ops\ops.ps1 init-disk staging -Limit staging-1`. It asks you to type the disk path back, refuses a disk that already holds anything, and asks for the new LUKS passphrase twice. Put the passphrase into key escrow first.
-5. `infra\ops\ops.ps1 provision staging`. From now on every run is this one, as the operator. It installs the stack (below) now that the disk is mounted. It is safe to repeat; a second run changes nothing.
-6. Deploy a release (`deploy`, see Deploying). The stack stays down until then.
+5. `infra\ops\ops.ps1 provision staging`. From now on every run is this one, as the operator. It installs the stack (below) and the monitoring project now that the disk is mounted. It is safe to repeat; a second run changes nothing.
+6. Deploy a release (`deploy`, see Deploying). The stack and the monitoring stay down until then.
 7. `infra\ops\ops.ps1 backup staging`, then `infra\ops\ops.ps1 drill staging`: the first backup and the first restore drill, so the host starts from a known-good state (see Backups).
+8. `infra\ops\ops.ps1 monitoring staging`: every scrape target up, no alert but the Watchdog. Then open Grafana through an SSH tunnel (see Monitoring) and check that a test alert reaches you (`runbooks/monitoring.md`).
 
 `-Check` shows what a run would change without changing it.
 
@@ -127,7 +129,7 @@ hub's tunnel address. A new published port must follow that rule.
 - bootstrap, init-disk, provision;
 - lock and unlock;
 - a second provision that must change nothing;
-- then it checks from outside that root login is refused, sshd is key-only, the firewall rules, the LUKS2 header, and that the hub and Docker are running.
+- then it checks from outside that root login is refused, sshd is key-only, the firewall rules, the LUKS2 header, that the hub and Docker are running, and that the stack, backups and monitoring files are installed with their owners and modes (the monitoring's probes write the hub's peers).
 
 CI runs it on every push. It cannot prove what only a real server shows: the Hetzner image, the cloud firewall, a real reboot, or kernel upgrades.
 
@@ -159,6 +161,21 @@ PostgreSQL is backed up with pgBackRest from inside the `postgres` container to 
 
 On the host, `backupctl` beside `stackctl` does the same (`backup`, `drill`, `status`), plus `stanza` (run by every deploy) and `restore` for disaster recovery; the timers `corebalt-backup` and `corebalt-restore-drill` run the nightly backup and the monthly drill, and skip, like the stack unit, while the data disk is locked.
 
+## Monitoring
+
+Each stack host watches itself (docs/08 Monitoring and alerts): a second compose project, `infra/monitoring/compose.yml`, installed by the `monitoring` role into `/srv/corebalt/monitoring` on the encrypted disk and run by the unit `corebalt-monitoring`, which starts after the stack's unit, stops with it, and is skipped like it while the disk is locked or nothing is deployed. It runs Prometheus and Alertmanager (30 days of metrics), Grafana with provisioned dashboards, Loki (30 days of logs) fed by Alloy from every container and the host's corebalt units, node_exporter, exporters for PostgreSQL (as the `pg_monitor`-only role `isp_monitor`, created by every deploy), Redis and the public names (TLS, status, certificate expiry); RabbitMQ, Caddy and the API serve their own metrics on the stack's network. A timer, `corebalt-probes`, asks FreeRADIUS for its counters and reads the hub's WireGuard peers every minute. Nothing is published: Grafana, Prometheus and Alertmanager listen on 127.0.0.1.
+
+| Where | How |
+|---|---|
+| Grafana | `ssh -L 3000:127.0.0.1:3000 corebalt@<host>`, then http://127.0.0.1:3000 as `admin` with `vault_grafana_admin_password` |
+| Prometheus, Alertmanager | the same tunnel with `-L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093` |
+| From your machine | `infra\ops\ops.ps1 monitoring staging`: services, scrape targets down, alerts firing |
+| On the host | `/srv/corebalt/monitoring/monitorctl status\|check\|reload\|up\|stop`, `/srv/corebalt/monitoring/probes radius\|wireguard\|all` |
+
+Alerts (`infra/monitoring/rules`, unit-tested with promtool; the LogQL ones in `infra/monitoring/loki/rules`) go by email through the inventory's SMTP account and, optionally, to a webhook; the always-firing `Watchdog` goes to a dead man's switch, which is the only way a single host can tell you it is down. The runbook, with every alert and what to do: `runbooks/monitoring.md`.
+
+What the stack test proves about this (`infra/stack/test.sh`, also in CI): every configuration validates, the rule unit tests pass, every scrape target comes up, the Watchdog reaches Alertmanager, the public names are probed through the front, the API's logs reach Loki with their tenant, a RADIUS login and a reject go through FreeRADIUS into the status probe and the auth log, and Grafana serves every dashboard. What it cannot: a notification actually delivered (no SMTP in the test), and the probes timer and node metrics on a real host.
+
 ## The stack
 
 `infra/stack/compose.yml` is the application stack of a core or staging host, installed by the `stack` role into `/srv/corebalt/stack` on the encrypted disk together with `.env` (the inventory's values and vault, root only) and `images.env` (the deployed image digests, written by `deploy`). A systemd unit, `corebalt-stack`, runs `docker compose up --wait` with both files; it is skipped, not failed, while the data disk is locked or nothing is deployed.
@@ -172,7 +189,9 @@ On the host, `backupctl` beside `stackctl` does the same (`backup`, `drill`, `st
 | `postgres` | `corebalt-isp-postgres`: the official image plus pgBackRest, part of the release (a release that changes it restarts the database for seconds) | the stack's network only |
 | `rabbitmq`, `redis` | official images, pinned in the compose file | the stack's network only; the RabbitMQ UI on 127.0.0.1:15672 for an SSH tunnel |
 
-Docker's published ports bypass ufw, so the rule is: `web` publishes 80 and 443, FreeRADIUS binds the tunnel address, everything else stays internal.
+The monitoring project (above) joins this network as `corebalt-monitoring`, so never `docker compose down` the stack (which removes the network); `stackctl stop` keeps it.
+
+Docker's published ports bypass ufw, so the rule is: `web` publishes 80 and 443, FreeRADIUS binds the tunnel address, everything else stays internal (the monitoring UIs on 127.0.0.1).
 
 ### Names and certificates
 
@@ -190,6 +209,6 @@ The web front also sets the security headers (HSTS, CSP, no framing) and hides `
 
 ### Testing the stack locally
 
-`bash infra/stack/test.sh` builds the four images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside. Then the deploy scenarios, and the backups against a local S3 server (versitygw with a self-signed certificate): a full backup, the restore drill, a disaster recovery (the database volume removed and restored from the repository, the data checked), and the alert rules' unit tests with promtool. It leaves the stack running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
+`bash infra/stack/test.sh` builds the four images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, starts the monitoring project beside it (its configurations validated and the rules unit-tested first), validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside, then the monitoring (see Monitoring). Then the deploy scenarios, and the backups against a local S3 server (versitygw with a self-signed certificate): a full backup, the restore drill, a disaster recovery (the database volume removed and restored from the repository, the data checked), and a RADIUS login and a reject through FreeRADIUS. It leaves everything running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed) and at Grafana on `http://127.0.0.1:3000` (user `admin`, the password in `infra/monitoring/.env`); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
 
 What it cannot prove: a real certificate from Let's Encrypt through your DNS provider, callbacks arriving from Safaricom's addresses, and a real Object Storage endpoint (the URI style and region of the provider).

@@ -1,0 +1,45 @@
+# promtool unit tests for rules/probes.yml. Test time starts at the epoch: a certificate expiring at
+# second 864000 has 10 days left, one at 172800 two days.
+rule_files:
+  - ../rules/probes.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="web-probes",instance="https://admin.example.test/"}'
+        values: "0+0x130"
+      - series: 'probe_success{job="web-probes",instance="https://pay.example.test/"}'
+        values: "1+0x130"
+      - series: 'probe_ssl_earliest_cert_expiry{job="web-probes",instance="https://pay.example.test/"}'
+        values: "864000+0x130"
+      - series: 'probe_ssl_earliest_cert_expiry{job="web-probes",instance="https://example.test/"}'
+        values: "172800+0x130"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CorebaltSiteDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: web-probes, instance: "https://admin.example.test/" }
+            exp_annotations:
+              summary: "https://admin.example.test/ does not answer"
+              description: "The probe of https://admin.example.test/ from the host has failed for 5 minutes: DNS, the web container, its certificate or the API behind it. Grafana, Platform dashboard, probes; docker compose logs web."
+      - eval_time: 30m
+        alertname: CorebaltCertificateExpiring
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: CorebaltCertificateExpiring
+        exp_alerts:
+          - exp_labels: { severity: warning, job: web-probes, instance: "https://pay.example.test/" }
+            exp_annotations:
+              summary: "The certificate of https://pay.example.test/ expires in under 14 days"
+              description: "Caddy renews 30 days before expiry, so a certificate this close means renewal fails: the DNS provider token (vault_acme_dns_api_token), the zone, or Let's Encrypt. docker compose logs web, lines with 'acme'."
+          - exp_labels: { severity: warning, job: web-probes, instance: "https://example.test/" }
+            exp_annotations:
+              summary: "The certificate of https://example.test/ expires in under 14 days"
+              description: "Caddy renews 30 days before expiry, so a certificate this close means renewal fails: the DNS provider token (vault_acme_dns_api_token), the zone, or Let's Encrypt. docker compose logs web, lines with 'acme'."
+      - eval_time: 11m
+        alertname: CorebaltCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels: { severity: critical, job: web-probes, instance: "https://example.test/" }
+            exp_annotations:
+              summary: "The certificate of https://example.test/ expires in under 3 days"
+              description: "Renewal has been failing for weeks (CorebaltCertificateExpiring came first). Fix the DNS token or the zone today; infra/ops/runbooks/monitoring.md."

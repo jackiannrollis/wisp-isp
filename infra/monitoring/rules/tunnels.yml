@@ -1,0 +1,32 @@
+# Router tunnels on the hub (docs/08 Monitoring: a WireGuard handshake older than 5 minutes; docs/02:
+# a stale handshake is the first sign a router is offline). The probes script reads wg0 every minute
+# (/srv/corebalt/metrics/corebalt_wireguard.prom). Unit tests: tests/tunnels.yml.
+groups:
+  - name: corebalt-tunnels
+    rules:
+      - alert: CorebaltHubDown
+        expr: corebalt_wireguard_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The WireGuard hub interface is gone"
+          description: "wg0 does not exist on the host: every router's tunnel to this hub is down, and so are RADIUS, CoA and polling through it. systemctl status corebalt-wg-hub."
+      - alert: CorebaltRouterTunnelStale
+        expr: |
+          corebalt_wireguard_peer_latest_handshake_seconds > 0
+            and time() - corebalt_wireguard_peer_latest_handshake_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Router {{ $labels.peer }} has not completed a handshake for over 5 minutes"
+          description: "The tunnel of {{ $labels.peer }} ({{ $labels.allowed_ips }}) is down or the router is off: its sessions continue, CoA fails and the tunnel worker will mark it OFFLINE (docs/06). The tenant's staff see the router alert in the admin app."
+      - alert: CorebaltRouterNeverConnected
+        expr: corebalt_wireguard_peer_latest_handshake_seconds == 0
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Router {{ $labels.peer }} has never connected to this hub"
+          description: "Peer {{ $labels.peer }} was added a day ago and never completed a handshake: the onboarding script was not applied, or the router cannot reach the hub's port. infra/ops/runbooks/monitoring.md."

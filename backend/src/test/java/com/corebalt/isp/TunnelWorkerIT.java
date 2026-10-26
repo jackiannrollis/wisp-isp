@@ -53,6 +53,7 @@ class TunnelWorkerIT extends IntegrationTest {
         try (ConfigurableApplicationContext worker = startWorker()) {
             final int workerPort = Integer.parseInt(worker.getEnvironment().getProperty("local.server.port"));
             assertThat(get(workerPort, "/actuator/health/readiness").statusCode()).isEqualTo(200);
+            assertThat(get(workerPort, "/actuator/prometheus").statusCode()).as("scraped by Prometheus").isEqualTo(200);
             assertThat(get(workerPort, "/api/v1/customers").statusCode()).isEqualTo(404);
             assertThat(get(workerPort, "/api/v1/auth/login").statusCode()).isEqualTo(404);
             assertThat(get(workerPort, "/.well-known/jwks.json").statusCode()).isEqualTo(404);

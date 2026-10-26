@@ -1,0 +1,43 @@
+# Services and the monitoring stack itself (docs/08). "for" stays above a deploy's health gate
+# (stackctl waits up to 300 s per service), so a rolling release never pages. Unit tests: tests/services.yml.
+groups:
+  - name: corebalt-services
+    rules:
+      - alert: CorebaltServiceDown
+        expr: up{job=~"api|tunnel-worker|caddy|postgres|redis|rabbitmq|node"} == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.instance }}) is not answering its metrics endpoint"
+          description: "Prometheus could not scrape {{ $labels.job }} at {{ $labels.instance }} for 10 minutes: the service is down or unhealthy. stackctl status and docker compose logs on the host; infra/ops/runbooks/monitoring.md."
+      - alert: CorebaltMonitoringTargetDown
+        expr: up{job!~"api|tunnel-worker|caddy|postgres|redis|rabbitmq|node|web-probes"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} of the monitoring stack is down"
+          description: "{{ $labels.job }} at {{ $labels.instance }} has not been scraped for 15 minutes. monitorctl status on the host."
+      - alert: CorebaltApiUpstreamUnhealthy
+        expr: caddy_reverse_proxy_upstreams_healthy == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The web front has no healthy answer from {{ $labels.upstream }}"
+          description: "Caddy's health check of {{ $labels.upstream }} has failed for 10 minutes; requests go to the other instance. docker compose logs {{ $labels.upstream | reReplaceAll \":.*\" \"\" }} on the host."
+      - alert: CorebaltAlertNotificationsFailing
+        expr: increase(alertmanager_notifications_failed_total[30m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alertmanager could not deliver {{ $labels.integration }} notifications"
+          description: "A notification through {{ $labels.integration }} failed in the last 30 minutes (docker compose logs alertmanager in /srv/corebalt/monitoring): SMTP settings, the webhook URL."
+      - alert: CorebaltRuleEvaluationFailing
+        expr: increase(prometheus_rule_evaluation_failures_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "A Prometheus rule group fails to evaluate"
+          description: "Rule group {{ $labels.rule_group }} had evaluation errors in the last 15 minutes; its alerts are blind. Prometheus UI, Status, Rules."

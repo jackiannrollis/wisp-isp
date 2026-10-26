@@ -1,0 +1,8 @@
+---
+# Applies changed files to a running monitoring project: monitorctl up recreates the services whose
+# environment or compose definition changed and sends the others a reload (SIGHUP). A project that is
+# not running (first install, locked disk, nothing deployed) starts with the stack.
+- name: Apply monitoring
+  ansible.builtin.command: "{{ monitoring_dir }}/monitorctl up"
+  changed_when: true
+  when: monitoring_active.rc | default(1) == 0
