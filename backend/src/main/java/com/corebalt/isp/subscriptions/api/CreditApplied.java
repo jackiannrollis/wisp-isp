@@ -26,8 +26,14 @@ public record CreditApplied(
         Due nextDue)
         implements DomainEvent {
 
-    /** {@code previousProfile}: RESTRICTED means access was restored; REJECT means first activation. */
-    public record RenewedLine(UUID subscriptionId, UUID packageId, Instant expiresAt, String previousProfile) {
+    /**
+     * {@code previousProfile}: RESTRICTED means access was restored; REJECT means first activation.
+     * {@code previousReason} is why a RESTRICTED or THROTTLED line was limited before (an
+     * {@code AccessReason}: EXPIRED, DATA_CAP, GRACE_THROTTLE, FAIR_USE), null otherwise and in events
+     * published before it was added (ADR 0018).
+     */
+    public record RenewedLine(UUID subscriptionId, UUID packageId, Instant expiresAt, String previousProfile,
+                              String previousReason) {
 
         public boolean restored() {
             return "RESTRICTED".equals(previousProfile);

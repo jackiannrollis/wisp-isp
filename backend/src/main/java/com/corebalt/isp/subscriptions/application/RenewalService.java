@@ -9,6 +9,7 @@ import com.corebalt.isp.shared.money.Money;
 import com.corebalt.isp.shared.outbox.OutboxPublisher;
 import com.corebalt.isp.shared.web.NotFoundException;
 import com.corebalt.isp.subscriptions.api.RenewalResultDto;
+import com.corebalt.isp.subscriptions.api.SubscriptionDto;
 import com.corebalt.isp.subscriptions.api.SubscriptionRenewed;
 import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged;
 import com.corebalt.isp.subscriptions.api.SubscriptionStateChanged.Cause;
@@ -81,7 +82,8 @@ public class RenewalService {
                 lines.findForUpdate(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
         // Fail before charging if the line cannot be renewed (paused, suspended, terminated).
         line.requireRenewable();
-        final String before = views.toDto(line).accessProfile();
+        final SubscriptionDto beforeLine = views.toDto(line);
+        final String before = beforeLine.accessProfile();
         final PackageTerms terms =
                 packages.terms(line.packageForNextRenewal()).orElseThrow(() -> new NotFoundException("Package"));
         final Money price = terms.price();
@@ -139,7 +141,7 @@ public class RenewalService {
                     UuidV7.next(clock), line.getTenantId(), now, line.getId(), line.getCustomerId(),
                     renewal.from().name(), SubscriptionState.ACTIVE.name(), Cause.RENEWAL));
         }
-        return new RenewalResultDto(RenewalResultDto.Outcome.RENEWED, views.toDto(line), before);
+        return new RenewalResultDto(RenewalResultDto.Outcome.RENEWED, views.toDto(line), before, beforeLine.accessReason());
     }
 
     private Optional<ProRata.Grant> proRata(final Money balance, final Money price, final int durationMinutes) {
@@ -151,6 +153,6 @@ public class RenewalService {
 
     private RenewalResultDto insufficient(final Subscription line) {
         final var dto = views.toDto(line);
-        return new RenewalResultDto(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE, dto, dto.accessProfile());
+        return new RenewalResultDto(RenewalResultDto.Outcome.INSUFFICIENT_BALANCE, dto, dto.accessProfile(), dto.accessReason());
     }
 }

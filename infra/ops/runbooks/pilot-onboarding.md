@@ -132,9 +132,9 @@ The operator watches Grafana: `Network: RADIUS and tunnels` (the tenant's reject
 
 **Gate 1** (docs/09): two billing cycles with no manual reconnects, payment matching above 98% automatic, no restore slower than 60 seconds after the callback. The platform measures it (ADR 0018): the console's tenant page, section Gate 1 (the last 7, 30, 60 or 90 days, each criterion met, not met or nothing to judge yet), or `GET /api/platform/tenants/<id>/gate1?days=60` with a platform token; the Platform dashboard has the same per tenant for the last 30 days, and `CorebaltGate1RestoreLate` fires when a restore took longer than 60 seconds or was missed in the last hour.
 
-- Matching counts payments that arrived by M-Pesa callback; a restore is a callback payment that renewed a RESTRICTED line, timed from the platform storing the callback. Manual payments count for neither, so **the two cycles count from Daraja go-live** (step 8), not from the start of the pilot on manual payments.
+- Matching counts payments that arrived by M-Pesa callback; a restore is a callback payment that lifted a line to full speed (cut off, a grace throttle or a fair-use throttle, shown by kind), timed from the platform storing the callback. Manual payments count for neither, so **the two cycles count from Daraja go-live** (step 8), not from the start of the pilot on manual payments.
 - A restore ends at the renewal when the line had no live session, otherwise when the router answers the Disconnect or the line starts a new session, within 10 minutes; later, it is missed.
-- Reconnects that needed hands have no direct signal: the console counts CoA failures and routers offline (staff alerts) and missed restores. Ask the ISP's staff as well: a reconnect done on the router itself leaves no trace in the platform.
+- Manual reconnects are recorded: a staff member's "Disconnect sessions" on a line (admin app, line menu, with a reason) within 2 hours after the customer's payment, and support's "Paid but still offline" on the customer page, which records an incident linked to the latest payment. Tell the ISP's staff to use these rather than kicking sessions on the router (Winbox), which leaves no trace. The CoA-failed and router-offline alerts and missed restores count too.
 
 File the period's numbers (a screenshot of the console section, or the API answer) with the drill records.
 

@@ -38,4 +38,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID>, JpaSpec
 
     @Query("select p from Payment p where p.status = 'MATCHED' and p.matchedAt >= :from and p.matchedAt < :to")
     List<Payment> findMatchedBetween(Instant from, Instant to);
+
+    Optional<Payment> findFirstByCustomerIdAndStatusAndMatchedAtLessThanEqualOrderByMatchedAtDesc(
+            UUID customerId, String status, Instant matchedAt);
 }

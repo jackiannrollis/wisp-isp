@@ -338,6 +338,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subscriptions/{id}/paid-offline-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record that the customer paid but the line is still offline: an incident linked to the customer's latest payment, counted by Gate 1 as a manual reconnect (409 when the customer has never paid) */
+        post: operations["report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscriptions/{id}/package": {
         parameters: {
             query?: never;
@@ -366,6 +383,23 @@ export interface paths {
         put?: never;
         /** Lift a hold; dates are re-evaluated, so an expired line returns RESTRICTED (S8) */
         post: operations["liftSuspension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disconnect every live session of the line so it redials, with a reason (audited; 409 when it has none). Within 2 hours after a payment it counts as a manual reconnect for Gate 1. Needs an Idempotency-Key */
+        post: operations["disconnect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2307,10 +2341,34 @@ export interface components {
             /** Format: date-time */
             pauseUntil: string;
         };
+        ReportRequest: {
+            note?: string;
+        };
+        PaidOfflineReportDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            /** Format: uuid */
+            paymentId?: string;
+            /** Format: date-time */
+            paymentMatchedAt?: string;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
         PackageChangeRequest: {
             /** Format: uuid */
             packageId: string;
             timing: string;
+        };
+        DisconnectRequest: {
+            reason: string;
+        };
+        DisconnectResult: {
+            /** Format: uuid */
+            subscriptionId?: string;
+            /** Format: int32 */
+            sessions?: number;
         };
         InviteRequest: {
             email?: string;
@@ -3087,8 +3145,26 @@ export interface components {
             to?: string;
             matching?: components["schemas"]["Matching"];
             restores?: components["schemas"]["Restores"];
+            restoresByKind?: components["schemas"]["KindRestores"][];
             reconnects?: components["schemas"]["Reconnects"];
             targets?: components["schemas"]["Targets"];
+        };
+        KindRestores: {
+            kind?: string;
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            completed?: number;
+            /** Format: int64 */
+            pending?: number;
+            /** Format: int64 */
+            missed?: number;
+            /** Format: int64 */
+            slowerThan60s?: number;
+            /** Format: int64 */
+            p95Seconds?: number;
+            /** Format: int64 */
+            maxSeconds?: number;
         };
         Matching: {
             /** Format: int64 */
@@ -3102,11 +3178,15 @@ export interface components {
         };
         Reconnects: {
             /** Format: int64 */
+            staffDisconnects?: number;
+            /** Format: int64 */
+            paidOfflineReports?: number;
+            /** Format: int64 */
+            missedRestores?: number;
+            /** Format: int64 */
             coaFailedAlerts?: number;
             /** Format: int64 */
             routerOfflineAlerts?: number;
-            /** Format: int64 */
-            missedRestores?: number;
         };
         Restores: {
             /** Format: int64 */
@@ -3127,7 +3207,7 @@ export interface components {
         Targets: {
             matchingAbove98?: boolean;
             noRestoreSlowerThan60s?: boolean;
-            noReconnectsNeedingHands?: boolean;
+            noManualReconnects?: boolean;
         };
     };
     responses: never;
@@ -3819,6 +3899,32 @@ export interface operations {
             };
         };
     };
+    report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PaidOfflineReportDto"];
+                };
+            };
+        };
+    };
     changePackage: {
         parameters: {
             query?: never;
@@ -3871,6 +3977,34 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SubscriptionDto"];
+                };
+            };
+        };
+    };
+    disconnect: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisconnectRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DisconnectResult"];
                 };
             };
         };

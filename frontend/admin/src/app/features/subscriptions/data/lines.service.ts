@@ -11,6 +11,8 @@ import { components } from '../../../shared/models';
 export type Line = components['schemas']['SubscriptionDto'];
 export type LineOpened = components['schemas']['LineOpenedDto'];
 export type PppoeCredential = components['schemas']['PppoeCredentialDto'];
+export type LineDisconnected = components['schemas']['DisconnectResult'];
+export type PaidOfflineReport = components['schemas']['PaidOfflineReportDto'];
 
 const LINES = `${API_BASE}/subscriptions`;
 
@@ -65,6 +67,23 @@ export class LinesService {
 
   terminate(id: string, reason: string, key: string): Observable<Line> {
     return this.http.post<Line>(`${LINES}/${id}/terminate`, { reason }, idempotent(key));
+  }
+
+  /**
+   * Every live session of the line redials (subscriptions.write, a reason; 409 when none). Within two
+   * hours after a payment it counts against Gate 1 as a manual reconnect (ADR 0018).
+   */
+  disconnect(id: string, reason: string, key: string): Observable<LineDisconnected> {
+    return this.http.post<LineDisconnected>(
+      `${LINES}/${id}/disconnect`,
+      { reason },
+      idempotent(key),
+    );
+  }
+
+  /** Support's "Paid but still offline" (customers.write): an incident linked to the latest payment. */
+  reportPaidOffline(id: string, note: string | null): Observable<PaidOfflineReport> {
+    return this.http.post<PaidOfflineReport>(`${LINES}/${id}/paid-offline-reports`, { note });
   }
 
   /** A PENDING line, never paid, closed before activation (customers.write; docs/04). */

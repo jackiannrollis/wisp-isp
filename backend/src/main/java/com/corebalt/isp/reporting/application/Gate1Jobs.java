@@ -16,12 +16,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Gate 1 in the background (ADR 0018): completes open restores every minute, and every 5 minutes sets
- * per-tenant gauges over the last hour and the last 30 days for the Platform dashboard and
- * {@code CorebaltGate1RestoreLate}: {@code isp.gate1.restores}, {@code isp.gate1.restores.late} (slower
- * than 60 seconds or missed), {@code isp.gate1.restore.p95.seconds} and
- * {@code isp.gate1.matching.automatic.ratio} (absent while there is nothing to measure). Disabled in
- * tests, which call {@link Gate1Service} directly.
+ * Gate 1 in the background (ADR 0018): completes open restores and sets per-tenant gauges every minute,
+ * so a missed restore pages within a minute or two of its 10 minutes running out. Gauges per tenant and
+ * window (the last hour, the last 30 days), restores also per kind (CUT_OFF, GRACE_THROTTLE, FAIR_USE):
+ * {@code isp.gate1.restores}, {@code isp.gate1.restores.slow} (slower than 60 seconds),
+ * {@code isp.gate1.restores.missed}, {@code isp.gate1.restore.p95.seconds}; {@code isp.gate1.manual.reconnects}
+ * per kind (STAFF_DISCONNECT, PAID_OFFLINE); {@code isp.gate1.matching.automatic.ratio}. A gauge is absent
+ * while there is nothing to measure (p95, matching). Disabled in tests, which call {@link Gate1Service}.
  */
 @Component
 @ConditionalOnProperty(name = "isp.reporting.jobs.enabled", havingValue = "true", matchIfMissing = true)
@@ -36,8 +37,10 @@ class Gate1Jobs {
     private final TenantProfile tenantProfile;
     private final Clock clock;
     private final MultiGauge restores;
-    private final MultiGauge late;
+    private final MultiGauge slow;
+    private final MultiGauge missed;
     private final MultiGauge p95;
+    private final MultiGauge manual;
     private final MultiGauge matching;
 
     Gate1Jobs(final TenantIterator tenants, final Gate1Service gate1, final TenantProfile tenantProfile, final Clock clock,
@@ -47,45 +50,56 @@ class Gate1Jobs {
         this.tenantProfile = tenantProfile;
         this.clock = clock;
         this.restores = MultiGauge.builder("isp.gate1.restores")
-                .description("Restores of RESTRICTED lines by callback payments in the window (Gate 1)").register(meters);
-        this.late = MultiGauge.builder("isp.gate1.restores.late")
-                .description("Restores slower than 60 seconds after the callback, or missed (Gate 1)").register(meters);
+                .description("Lines lifted to full speed by callback payments in the window, by kind (Gate 1)").register(meters);
+        this.slow = MultiGauge.builder("isp.gate1.restores.slow")
+                .description("Restores completed more than 60 seconds after the callback (Gate 1)").register(meters);
+        this.missed = MultiGauge.builder("isp.gate1.restores.missed")
+                .description("Restores with no completion within 10 minutes of the renewal: a paid customer still limited (Gate 1)")
+                .register(meters);
         this.p95 = MultiGauge.builder("isp.gate1.restore.p95.seconds")
                 .description("95th percentile of callback-to-restore seconds (Gate 1)").register(meters);
+        this.manual = MultiGauge.builder("isp.gate1.manual.reconnects")
+                .description("Staff disconnects after a payment and paid-but-offline reports (Gate 1)").register(meters);
         this.matching = MultiGauge.builder("isp.gate1.matching.automatic.ratio")
                 .description("Share of callback payments matched without staff (Gate 1: above 0.98)").register(meters);
     }
 
-    @Scheduled(fixedDelayString = "${isp.reporting.gate1.complete-interval:1m}", initialDelayString = "${isp.reporting.jobs.initial-delay:1m}")
-    void completeRestores() {
-        tenants.forEachTenant("gate1-restores", tenantId -> gate1.completeOpenRestores());
-    }
-
-    @Scheduled(fixedDelayString = "${isp.reporting.gate1.gauges-interval:5m}", initialDelayString = "${isp.reporting.jobs.initial-delay:1m}")
-    void gauges() {
+    @Scheduled(fixedDelayString = "${isp.reporting.gate1.interval:1m}", initialDelayString = "${isp.reporting.jobs.initial-delay:1m}")
+    void measure() {
         final List<MultiGauge.Row<?>> restoreRows = new ArrayList<>();
-        final List<MultiGauge.Row<?>> lateRows = new ArrayList<>();
+        final List<MultiGauge.Row<?>> slowRows = new ArrayList<>();
+        final List<MultiGauge.Row<?>> missedRows = new ArrayList<>();
         final List<MultiGauge.Row<?>> p95Rows = new ArrayList<>();
+        final List<MultiGauge.Row<?>> manualRows = new ArrayList<>();
         final List<MultiGauge.Row<?>> matchingRows = new ArrayList<>();
-        tenants.forEachTenant("gate1-gauges", tenantId -> {
+        tenants.forEachTenant("gate1", tenantId -> {
             final String code = tenantProfile.currentTenantCode();
             final Instant now = clock.instant();
+            // gate1() completes the open restores first.
             for (final Window window : WINDOWS) {
                 final Gate1Dto g = gate1.gate1(now.minus(window.length()), now);
                 final Tags tags = Tags.of("tenant", code, "window", window.name());
-                restoreRows.add(MultiGauge.Row.of(tags, g.restores().total()));
-                lateRows.add(MultiGauge.Row.of(tags, g.restores().slowerThan60s() + g.restores().missed()));
-                if (g.restores().p95Seconds() != null) {
-                    p95Rows.add(MultiGauge.Row.of(tags, g.restores().p95Seconds()));
+                for (final Gate1Dto.KindRestores k : g.restoresByKind()) {
+                    final Tags kind = tags.and("kind", k.kind());
+                    restoreRows.add(MultiGauge.Row.of(kind, k.total()));
+                    slowRows.add(MultiGauge.Row.of(kind, k.slowerThan60s()));
+                    missedRows.add(MultiGauge.Row.of(kind, k.missed()));
+                    if (k.p95Seconds() != null) {
+                        p95Rows.add(MultiGauge.Row.of(kind, k.p95Seconds()));
+                    }
                 }
+                manualRows.add(MultiGauge.Row.of(tags.and("kind", "STAFF_DISCONNECT"), g.reconnects().staffDisconnects()));
+                manualRows.add(MultiGauge.Row.of(tags.and("kind", "PAID_OFFLINE"), g.reconnects().paidOfflineReports()));
                 if (g.matching().automaticPercent() != null) {
                     matchingRows.add(MultiGauge.Row.of(tags, g.matching().automaticPercent() / 100.0));
                 }
             }
         });
         restores.register(restoreRows, true);
-        late.register(lateRows, true);
+        slow.register(slowRows, true);
+        missed.register(missedRows, true);
         p95.register(p95Rows, true);
+        manual.register(manualRows, true);
         matching.register(matchingRows, true);
     }
 }

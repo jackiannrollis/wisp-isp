@@ -88,7 +88,7 @@ public class RenewalTriggers {
             final RenewalResultDto result = renewals.renew(line.getId());
             if (result.outcome() == RenewalResultDto.Outcome.RENEWED) {
                 renewed.add(new CreditApplied.RenewedLine(line.getId(), result.subscription().packageId(),
-                        result.subscription().expiresAt(), result.previousAccessProfile()));
+                        result.subscription().expiresAt(), result.previousAccessProfile(), result.previousAccessReason()));
             } else if (firstUncovered == null) {
                 firstUncovered = line.getId();
             }

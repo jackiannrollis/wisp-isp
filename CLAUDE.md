@@ -69,11 +69,14 @@ its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-pee
 console (ADR 0016) is a third Angular app at `console.<domain>`: platform sign-in, tenants (create,
 activate, suspend, reinstate), the cutover window, staff with invitation reissue, impersonations with
 "end"; tenant subdomains may not take the platform's names. Starting an impersonation is API-only
-(hand-off proposed in ADR 0017, Q17). Gate 1 is measured by the platform (ADR 0018): the reporting
-module times each callback payment that restores a RESTRICTED line from the stored callback to the
-renewal (no live session) or the router's answer or a new session, within 10 minutes; matching over
-callback payments; reconnect alerts as the proxy for hands; on the console's tenant page, the platform
-API, per-tenant gauges and `CorebaltGate1RestoreLate`. Not yet: the Nairobi node (pending Q2).
+(ADR 0017 accepted: the hand-off by a single-use code is the next slice). Gate 1 is measured by the
+platform (ADR 0018): the reporting module times each callback payment that lifts a line to full speed
+(cut off, grace throttle, fair use) from the stored callback to the renewal (no live session) or the
+router's answer or a new session, within 10 minutes; matching over callback payments; manual reconnects
+recorded directly (the admin app's "Disconnect sessions" within 2 hours after a payment, support's "Paid
+but still offline") plus the reconnect alerts; on the console's tenant page, the platform API, per-tenant
+gauges and three alerts (slow: warning; missed or three slow in an hour: critical). Not yet: the Nairobi
+node (pending Q2).
 
 ## Commands
 

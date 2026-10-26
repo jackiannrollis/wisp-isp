@@ -18,9 +18,9 @@
     </div>
     <p class="muted">
       The pilot passes after two billing cycles with payment matching above 98% automatic, no
-      restore slower than 60 seconds after the callback and no reconnects that needed hands
-      (docs/09). Measured from what the platform recorded: M-Pesa callbacks, renewals, router
-      answers and new sessions.
+      restore slower than 60 seconds after the callback and no manual reconnects (docs/09). Measured
+      from what the platform recorded: M-Pesa callbacks, renewals, router answers, new sessions,
+      staff disconnects and support's reports.
     </p>
   </div>
 
@@ -63,13 +63,49 @@
             <td><app-status-chip [status]="v.results.restores" /></td>
           </tr>
           <tr>
-            <td>No reconnects that needed hands</td>
+            <td>No manual reconnects</td>
             <td>
-              CoA failures {{ v.reconnects.coaFailed }} · routers offline
-              {{ v.reconnects.routerOffline }} · restores missed {{ v.reconnects.missed }}
+              staff disconnects after a payment {{ v.reconnects.staffDisconnects }} · paid but still
+              offline {{ v.reconnects.paidOffline }} · restores missed
+              {{ v.reconnects.missed }}
+              <span class="muted"
+                >(alerts: CoA failures {{ v.reconnects.coaFailed }} · routers offline
+                {{ v.reconnects.routerOffline }})</span
+              >
             </td>
             <td><app-status-chip [status]="v.results.reconnects" /></td>
           </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section">
+      <h3 class="sub">Restores by kind</h3>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>Restores</th>
+            <th>Slowest</th>
+            <th>95% within</th>
+            <th>Slower than 60 s</th>
+            <th>Missed</th>
+            <th>Waiting</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of v.rows; track row.kind) {
+            <tr [class.total]="row.kind === 'All'">
+              <td>{{ row.kind }}</td>
+              <td>{{ row.total }}</td>
+              <td>{{ row.max }}</td>
+              <td>{{ row.p95 }}</td>
+              <td>{{ row.slower }}</td>
+              <td>{{ row.missed }}</td>
+              <td>{{ row.pending }}</td>
+            </tr>
+          }
         </tbody>
       </table>
     </div>
@@ -81,19 +117,13 @@
           {{ v.matching.unmatched }} unmatched
         </dd>
       </div>
-      <div>
-        <dt>Restores</dt>
-        <dd>
-          {{ v.restores.total }} in all · {{ v.restores.completed }} done ·
-          {{ v.restores.pending }} waiting
-        </dd>
-      </div>
     </dl>
     <p class="section muted note">
-      A restore is timed from the callback to the renewal when the line was offline, otherwise to
-      the router taking the Disconnect or a new session, within 10 minutes; later, it is missed.
-      Reconnect alerts stand in for staff hands: a reconnect done on the router itself leaves no
-      trace in the platform.
+      A restore is a callback payment that lifts a line to full speed: cut off (expired or a data
+      cap), a grace throttle or a fair-use throttle. It is timed from the callback to the renewal
+      when the line was offline, otherwise to the router taking the Disconnect or a new session,
+      within 10 minutes; later, it is missed. Manual reconnects are staff disconnects within two
+      hours after a payment and "paid but still offline" reports; the alerts count too.
     </p>
   } @else {
     <p class="section muted">Loading…</p>

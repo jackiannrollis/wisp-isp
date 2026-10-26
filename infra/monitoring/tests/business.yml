@@ -21,12 +21,16 @@ tests:
         values: "0 0 1 1 1 1 1 1 1 1"
       - series: 'isp_identity_otp_bursts_total{instance="api-2"}'
         values: "0 0 2 2 2 2 2 2 2 2"
-      # Gate 1: the last hour counts; the 30-day window and a tenant with none late do not fire.
-      - series: 'isp_gate1_restores_late{instance="api-1",tenant="ACME",window="1h"}'
-        values: "0 0 2+0x10"
-      - series: 'isp_gate1_restores_late{instance="api-1",tenant="ACME",window="30d"}'
-        values: "5+0x12"
-      - series: 'isp_gate1_restores_late{instance="api-1",tenant="KILI",window="1h"}'
+      # Gate 1: the last hour counts, summed over kinds, per tenant; the 30-day window never fires.
+      - series: 'isp_gate1_restores_slow{instance="api-1",tenant="ACME",window="1h",kind="CUT_OFF"}'
+        values: "0 0 1+0x10"
+      - series: 'isp_gate1_restores_slow{instance="api-1",tenant="ACME",window="1h",kind="FAIR_USE"}'
+        values: "0 0 0 0 0 2+0x8"
+      - series: 'isp_gate1_restores_slow{instance="api-1",tenant="ACME",window="30d",kind="CUT_OFF"}'
+        values: "9+0x12"
+      - series: 'isp_gate1_restores_missed{instance="api-1",tenant="KILI",window="1h",kind="GRACE_THROTTLE"}'
+        values: "0 0 1+0x10"
+      - series: 'isp_gate1_restores_missed{instance="api-1",tenant="ACME",window="1h",kind="CUT_OFF"}'
         values: "0+0x12"
     alert_rule_test:
       - eval_time: 6m
@@ -82,12 +86,29 @@ tests:
               summary: "Bursts of portal sign-in codes"
               description: "docs/08: more SMS codes requested than the per-phone or per-address limit allows, from one source. Someone probing the portal sign-in, or a broken client."
       - eval_time: 1m
-        alertname: CorebaltGate1RestoreLate
+        alertname: CorebaltGate1RestoreSlow
         exp_alerts: []
       - eval_time: 3m
-        alertname: CorebaltGate1RestoreLate
+        alertname: CorebaltGate1RestoreSlow
         exp_alerts:
           - exp_labels: { severity: warning, tenant: ACME }
             exp_annotations:
-              summary: "2 restore(s) of tenant ACME slower than 60 seconds or missed in the last hour"
-              description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and waited more than a minute after the callback to be restored, or neither a Disconnect answer nor a new session came within 10 minutes. CorebaltCoaFailed or messages waiting in RabbitMQ are the usual causes; the console's tenant page shows the restores of the period."
+              summary: "1 restore(s) of tenant ACME slower than 60 seconds after the callback in the last hour"
+              description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and was lifted back to full speed more than a minute after the callback. A queue or the outbox relay running late (the renewal came late), or a router slow to answer the Disconnect; the console's tenant page shows the restores by kind. Note it for the Gate 1 record."
+      - eval_time: 3m
+        alertname: CorebaltGate1RestoresSlowRepeated
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: CorebaltGate1RestoresSlowRepeated
+        exp_alerts:
+          - exp_labels: { severity: critical, tenant: ACME }
+            exp_annotations:
+              summary: "3 slow restores of tenant ACME in the last hour"
+              description: "Gate 1 (ADR 0018): restores are slow for this tenant again and again, not by chance. Check RabbitMQ (messages waiting), the outbox relay and the API's latency first; then the tenant's routers."
+      - eval_time: 3m
+        alertname: CorebaltGate1RestoreMissed
+        exp_alerts:
+          - exp_labels: { severity: critical, tenant: KILI }
+            exp_annotations:
+              summary: "1 paid restore(s) of tenant KILI not completed within 10 minutes"
+              description: "Gate 1 (ADR 0018): a customer paid by M-Pesa 10 minutes ago or more and neither the router answered the Disconnect nor the line started a new session: a paid customer may still be cut off or throttled. Check the line in the admin app (access, live sessions), CorebaltCoaFailed and the router's tunnel. The alert clears an hour after the restore was missed, whether or not the customer is back."

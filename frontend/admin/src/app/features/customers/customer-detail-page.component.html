@@ -77,11 +77,18 @@
       <h2 id="lines-title" class="section-title">
         Lines <span class="count">{{ lineList.value()?.length ?? '' }}</span>
       </h2>
-      @if (can().manageLines && c.status !== 'ARCHIVED') {
-        <button mat-stroked-button type="button" (click)="addLine()">
-          <tabler-icon [icon]="icons.add" [size]="16" /> Add line
-        </button>
-      }
+      <div class="actions-row">
+        @if (can().editCustomer && reportableLines().length > 0) {
+          <button mat-button type="button" (click)="paidOffline()">
+            <tabler-icon [icon]="icons.offline" [size]="16" /> Paid but still offline
+          </button>
+        }
+        @if (can().manageLines && c.status !== 'ARCHIVED') {
+          <button mat-stroked-button type="button" (click)="addLine()">
+            <tabler-icon [icon]="icons.add" [size]="16" /> Add line
+          </button>
+        }
+      </div>
     </header>
     <div class="panel lines">
       <table>

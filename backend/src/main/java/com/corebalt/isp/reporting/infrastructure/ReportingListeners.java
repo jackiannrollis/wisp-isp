@@ -1,7 +1,9 @@
 package com.corebalt.isp.reporting.infrastructure;
 
+import com.corebalt.isp.network.api.LineDisconnectedByStaff;
 import com.corebalt.isp.network.api.SessionReauthorized;
 import com.corebalt.isp.reporting.application.Gate1Service;
+import com.corebalt.isp.reporting.application.ManualReconnects;
 import com.corebalt.isp.shared.outbox.EventQueues;
 import com.corebalt.isp.shared.outbox.IdempotentConsumer;
 import com.corebalt.isp.subscriptions.api.CreditApplied;
@@ -19,14 +21,18 @@ class ReportingListeners {
 
     static final String CREDITS = "reporting.credits";
     static final String REAUTHORIZED = "reporting.reauthorizations";
+    static final String STAFF_DISCONNECTS = "reporting.staff-disconnects";
 
     private final IdempotentConsumer consumer;
     private final Gate1Service gate1;
+    private final ManualReconnects manualReconnects;
     private final JsonMapper json;
 
-    ReportingListeners(final IdempotentConsumer consumer, final Gate1Service gate1, final JsonMapper json) {
+    ReportingListeners(final IdempotentConsumer consumer, final Gate1Service gate1, final ManualReconnects manualReconnects,
+                       final JsonMapper json) {
         this.consumer = consumer;
         this.gate1 = gate1;
+        this.manualReconnects = manualReconnects;
         this.json = json;
     }
 
@@ -42,6 +48,12 @@ class ReportingListeners {
         consumer.handleOnce(REAUTHORIZED, message, () -> gate1.recordReauthorization(event));
     }
 
+    @RabbitListener(queues = STAFF_DISCONNECTS)
+    void staffDisconnected(final Message message) {
+        final LineDisconnectedByStaff event = EventQueues.read(json, message, LineDisconnectedByStaff.class);
+        consumer.handleOnce(STAFF_DISCONNECTS, message, () -> manualReconnects.recordStaffDisconnect(event));
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class Queues {
 
@@ -53,6 +65,11 @@ class ReportingListeners {
         @Bean
         Declarables reportingReauthorizationsQueue() {
             return EventQueues.declare(REAUTHORIZED, EventQueues.routingKey(SessionReauthorized.class, 1));
+        }
+
+        @Bean
+        Declarables reportingStaffDisconnectsQueue() {
+            return EventQueues.declare(STAFF_DISCONNECTS, EventQueues.routingKey(LineDisconnectedByStaff.class, 1));
         }
     }
 }

@@ -15,7 +15,7 @@ import { WalletsService } from '../../billing/data/wallets.service';
 import { RoutersService } from '../../network/data/routers.service';
 import { PackagesService } from '../../packages/data/packages.service';
 import { PaymentsService } from '../../payments/data/payments.service';
-import { Line, LinesService } from '../../subscriptions/data/lines.service';
+import { Line, LinesService, PaidOfflineReport } from '../../subscriptions/data/lines.service';
 import { Customer, CustomersService } from '../data/customers.service';
 
 const COMMON = [
@@ -533,6 +533,74 @@ export class AdjustDialogComponent extends SubmittingDialog<unknown> {
     this.send(
       this.wallets.adjust(this.data.customerId, amountMinor, value.reason.trim(), this.key),
     );
+  }
+}
+
+/**
+ * Support's "Paid but still offline" (ADR 0018): the customer says they paid and are still cut off. It
+ * records an incident on the line, linked to the customer's latest payment, which Gate 1 counts as a
+ * manual reconnect. It changes nothing on the line: fixing it is the next step.
+ */
+@Component({
+  selector: 'app-paid-offline-dialog',
+  imports: COMMON,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: STYLES,
+  template: `
+    <h2 mat-dialog-title>Paid but still offline</h2>
+    <mat-dialog-content>
+      <p class="hint">
+        Records an incident on the line, linked to the customer's latest payment. It does not change
+        the line; check its access and sessions next.
+      </p>
+      <form [formGroup]="form" id="paid-offline-form" (ngSubmit)="save()">
+        @if (data.lines.length > 1) {
+          <mat-form-field appearance="outline">
+            <mat-label>Line</mat-label>
+            <mat-select formControlName="lineId">
+              @for (line of data.lines; track line.id) {
+                <mat-option [value]="line.id">{{ line.pppoeUsername }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <p>
+            Line <strong>{{ data.lines[0]?.pppoeUsername }}</strong>
+          </p>
+        }
+        <mat-form-field appearance="outline">
+          <mat-label>What the customer said (optional)</mat-label>
+          <textarea matInput formControlName="note" rows="3" maxlength="500"></textarea>
+        </mat-form-field>
+        @if (error(); as error) {
+          <p class="error" role="alert">{{ error }}</p>
+        }
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" mat-dialog-close>Cancel</button>
+      <button
+        mat-flat-button
+        type="submit"
+        form="paid-offline-form"
+        [disabled]="form.invalid || busy()"
+      >
+        Record incident
+      </button>
+    </mat-dialog-actions>
+  `,
+})
+export class PaidOfflineDialogComponent extends SubmittingDialog<PaidOfflineReport> {
+  protected readonly data = inject<{ lines: Line[] }>(MAT_DIALOG_DATA);
+  private readonly lines = inject(LinesService);
+  protected readonly form = inject(NonNullableFormBuilder).group({
+    lineId: [this.data.lines[0]?.id ?? '', Validators.required],
+    note: ['', Validators.maxLength(500)],
+  });
+
+  protected save(): void {
+    const { lineId, note } = this.form.getRawValue();
+    this.send(this.lines.reportPaidOffline(lineId, note.trim() || null));
   }
 }
 

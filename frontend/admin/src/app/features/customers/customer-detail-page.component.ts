@@ -3,6 +3,7 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import {
   IconArchive,
@@ -13,12 +14,14 @@ import {
   IconPencil,
   IconPlayerPause,
   IconPlayerPlay,
+  IconPlugConnectedX,
   IconPlus,
   IconScale,
   IconSwitchHorizontal,
   IconBan,
   IconLockOpen,
   IconTrash,
+  IconWifiOff,
   TablerIconComponent,
 } from '@tabler/icons-angular';
 import { Observable, catchError, of, timer } from 'rxjs';
@@ -56,6 +59,7 @@ import {
   CustomerFormDialogComponent,
   ManualPaymentDialogComponent,
   OpenLineDialogComponent,
+  PaidOfflineDialogComponent,
   PauseDialogComponent,
   StkDialogComponent,
 } from './dialogs/customer-dialogs';
@@ -79,6 +83,7 @@ interface LineAction {
   imports: [
     MatButtonModule,
     MatMenuModule,
+    MatSnackBarModule,
     PageHeaderComponent,
     MatTabsModule,
     TablerIconComponent,
@@ -100,6 +105,7 @@ export class CustomerDetailPageComponent {
   private readonly payments = inject(PaymentsService);
   private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(PermissionService);
+  private readonly snack = inject(MatSnackBar);
 
   protected readonly icons = {
     edit: IconPencil,
@@ -109,6 +115,7 @@ export class CustomerDetailPageComponent {
     cash: IconCash,
     stk: IconDeviceMobileMessage,
     adjust: IconScale,
+    offline: IconWifiOff,
   };
   protected readonly money = formatMoney;
   protected readonly date = formatDateTime;
@@ -317,6 +324,20 @@ export class CustomerDetailPageComponent {
       });
     }
     actions.push({ label: 'New PPPoE password', icon: IconKey, run: () => this.newPassword(line) });
+    if (line.state === 'ACTIVE') {
+      actions.push({
+        label: 'Disconnect sessions',
+        icon: IconPlugConnectedX,
+        run: () =>
+          this.lineChange(
+            line,
+            'Disconnect',
+            'Every live session of the line is dropped and redials with its current access. Within two hours after a payment this counts as a manual reconnect for Gate 1.',
+            'Reason',
+            (r, key) => this.lines.disconnect(id, r, key),
+          ),
+      });
+    }
     if (line.state !== 'ACTIVE' && line.state !== 'SUSPENDED') {
       return actions;
     }
@@ -334,6 +355,26 @@ export class CustomerDetailPageComponent {
         ),
     });
     return actions;
+  }
+
+  /** The lines a "Paid but still offline" report may name: those that can be online. */
+  protected readonly reportableLines = computed(() =>
+    (this.lineList.value() ?? []).filter((l) => l.state === 'ACTIVE'),
+  );
+
+  protected paidOffline(): void {
+    this.dialog
+      .open(PaidOfflineDialogComponent, { data: { lines: this.reportableLines() } })
+      .afterClosed()
+      .subscribe((report) => {
+        if (report) {
+          this.snack.open(
+            `Incident recorded, linked to the payment of ${formatDateTime(report.paymentMatchedAt)}.`,
+            undefined,
+            { duration: 6000 },
+          );
+        }
+      });
   }
 
   private pause(line: Line): void {
@@ -369,7 +410,7 @@ export class CustomerDetailPageComponent {
     action: string,
     message: string,
     reasonLabel: string | null,
-    run: (reason: string, key: string) => Observable<Line>,
+    run: (reason: string, key: string) => Observable<unknown>,
     destructive = false,
     dismiss?: string,
   ): void {

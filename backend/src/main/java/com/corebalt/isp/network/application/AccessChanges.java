@@ -44,6 +44,7 @@ import org.springframework.stereotype.Service;
  *   <li>UsageThresholdReached: Disconnect, so the session redials into THROTTLED (fair use) or
  *       RESTRICTED (data cap); the address list changes, so a CoA is not enough (docs/09 step 8b).
  *       Nothing when the profile is the same before and after (a line already throttled by grace).
+ *   <li>A staff member's "Disconnect sessions" ({@link StaffDisconnects}, ADR 0018): Disconnect.
  * </ul>
  */
 @Service
@@ -114,6 +115,11 @@ public class AccessChanges {
         }
         return request(event.subscriptionId(), Action.DISCONNECT, null,
                 (dataCap ? "data cap reached: " : "fair-use allowance reached: ") + before.get() + " to " + after.orElse("?"));
+    }
+
+    /** A staff member's "Disconnect sessions" (ADR 0018): every live session of the line redials. */
+    public int disconnectByStaff(final UUID subscriptionId) {
+        return request(subscriptionId, Action.DISCONNECT, null, "disconnected by staff");
     }
 
     public int packageChanged(final SubscriptionPackageChanged event) {

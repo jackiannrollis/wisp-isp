@@ -1629,19 +1629,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Restore, 95th percentile"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Late or missed"
+              "options": "Slower than 60 s"
             },
             "properties": [
               {
@@ -1661,6 +1649,66 @@
                     },
                     {
                       "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Missed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Manual reconnects"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
                       "value": 1
                     }
                   ]
@@ -1698,14 +1746,16 @@
               "Value #D": 1,
               "Value #A": 2,
               "Value #B": 3,
-              "Value #C": 4
+              "Value #C": 4,
+              "Value #E": 5
             },
             "renameByName": {
               "tenant": "Tenant",
               "Value #A": "Restores",
-              "Value #B": "Late or missed",
-              "Value #C": "Restore, 95th percentile",
-              "Value #D": "Matched automatically"
+              "Value #B": "Slower than 60 s",
+              "Value #C": "Missed",
+              "Value #D": "Matched automatically",
+              "Value #E": "Manual reconnects"
             }
           }
         }
@@ -1717,7 +1767,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (tenant) (isp_gate1_restores{window=\"30d\"})",
+          "expr": "sum by (tenant) (max by (tenant, kind) (isp_gate1_restores{window=\"30d\"}))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1729,7 +1779,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (tenant) (isp_gate1_restores_late{window=\"30d\"})",
+          "expr": "sum by (tenant) (max by (tenant, kind) (isp_gate1_restores_slow{window=\"30d\"}))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1741,7 +1791,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (tenant) (isp_gate1_restore_p95_seconds{window=\"30d\"})",
+          "expr": "sum by (tenant) (max by (tenant, kind) (isp_gate1_restores_missed{window=\"30d\"}))",
           "legendFormat": "",
           "instant": true,
           "range": false,
@@ -1758,9 +1808,213 @@
           "instant": true,
           "range": false,
           "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (tenant) (max by (tenant, kind) (isp_gate1_manual_reconnects{window=\"30d\"}))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
       ],
-      "description": "Kept by api-1 every 5 minutes (Gate1Jobs). A restore is timed from the M-Pesa callback to the platform's part done; late is slower than 60 seconds or missed (nothing in 10 minutes). The console's tenant page has the same numbers with the reconnect alerts, for any period."
+      "description": "Kept by api-1 every minute (Gate1Jobs). A restore is a callback payment that lifts a line to full speed (cut off, grace throttle or fair use), timed from the M-Pesa callback to the platform's part done; missed is nothing within 10 minutes. Manual reconnects: staff disconnects within 2 hours after a payment and paid-but-offline reports. The console's tenant page has the same with the reconnect alerts, for any period."
+    },
+    {
+      "id": 27,
+      "type": "table",
+      "title": "Restores by kind, last 30 days",
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "95th percentile"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Slower than 60 s"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Missed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "tenant": 0,
+              "kind": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5
+            },
+            "renameByName": {
+              "tenant": "Tenant",
+              "kind": "Kind",
+              "Value #A": "Restores",
+              "Value #B": "Slower than 60 s",
+              "Value #C": "Missed",
+              "Value #D": "95th percentile"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (tenant, kind) (isp_gate1_restores{window=\"30d\"})",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (tenant, kind) (isp_gate1_restores_slow{window=\"30d\"})",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (tenant, kind) (isp_gate1_restores_missed{window=\"30d\"})",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (tenant, kind) (isp_gate1_restore_p95_seconds{window=\"30d\"})",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "description": "CUT_OFF: RESTRICTED (expired past grace, or a data cap); GRACE_THROTTLE and FAIR_USE: THROTTLED back to full speed. First activations are not restores."
     }
   ],
   "description": "One screen for the host: services, alerts, the API, the data stores, backups, tunnels and the business signals (docs/08)."

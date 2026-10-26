@@ -51,13 +51,27 @@ groups:
         annotations:
           summary: "{{ $labels.action }} requests given up after the retries in the last 15 minutes"
           description: "N5: the router did not acknowledge after three retries, or refused. The session keeps its old profile until its Session-Timeout (at most a day, S4). The router's tunnel (handshake) and its RADIUS secret are the usual causes."
-      - alert: CorebaltGate1RestoreLate
-        expr: max by (tenant) (isp_gate1_restores_late{window="1h"}) > 0
+      - alert: CorebaltGate1RestoreSlow
+        expr: sum by (tenant) (max by (tenant, kind) (isp_gate1_restores_slow{window="1h"})) > 0
         labels:
           severity: warning
         annotations:
-          summary: "{{ $value }} restore(s) of tenant {{ $labels.tenant }} slower than 60 seconds or missed in the last hour"
-          description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and waited more than a minute after the callback to be restored, or neither a Disconnect answer nor a new session came within 10 minutes. CorebaltCoaFailed or messages waiting in RabbitMQ are the usual causes; the console's tenant page shows the restores of the period."
+          summary: "{{ $value }} restore(s) of tenant {{ $labels.tenant }} slower than 60 seconds after the callback in the last hour"
+          description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and was lifted back to full speed more than a minute after the callback. A queue or the outbox relay running late (the renewal came late), or a router slow to answer the Disconnect; the console's tenant page shows the restores by kind. Note it for the Gate 1 record."
+      - alert: CorebaltGate1RestoreMissed
+        expr: sum by (tenant) (max by (tenant, kind) (isp_gate1_restores_missed{window="1h"})) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} paid restore(s) of tenant {{ $labels.tenant }} not completed within 10 minutes"
+          description: "Gate 1 (ADR 0018): a customer paid by M-Pesa 10 minutes ago or more and neither the router answered the Disconnect nor the line started a new session: a paid customer may still be cut off or throttled. Check the line in the admin app (access, live sessions), CorebaltCoaFailed and the router's tunnel. The alert clears an hour after the restore was missed, whether or not the customer is back."
+      - alert: CorebaltGate1RestoresSlowRepeated
+        expr: sum by (tenant) (max by (tenant, kind) (isp_gate1_restores_slow{window="1h"})) >= 3
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} slow restores of tenant {{ $labels.tenant }} in the last hour"
+          description: "Gate 1 (ADR 0018): restores are slow for this tenant again and again, not by chance. Check RabbitMQ (messages waiting), the outbox relay and the API's latency first; then the tenant's routers."
       - alert: CorebaltOtpBursts
         expr: increase(isp_identity_otp_bursts_total[15m]) > 0
         labels:

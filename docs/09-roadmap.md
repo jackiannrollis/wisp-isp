@@ -23,7 +23,7 @@ The smallest product an ISP would pay for: PPPoE billing that collects and recon
 | Admin dashboard | Subscribers by state, expected and collected revenue, routers online, active sessions, an action queue, recent payments and a collection trend; customer, payment and session screens |
 | Customer portal | Status, package, expiry, usage, Pay Now, payment history, receipts |
 
-**Gate 1:** the pilot ISP completes two billing cycles with no manual reconnects, payment matching above 98% automatic, and no restore slower than 60 seconds after callback. The platform measures all three per tenant (ADR 0018: the console's tenant page, `GET /api/platform/tenants/{id}/gate1`, the Platform dashboard); manual payments count for neither matching nor restores, so the two cycles count from Daraja go-live.
+**Gate 1:** the pilot ISP completes two billing cycles with no manual reconnects, payment matching above 98% automatic, and no restore slower than 60 seconds after callback. The platform measures all three per tenant (ADR 0018: the console's tenant page, `GET /api/platform/tenants/{id}/gate1`, the Platform dashboard): restores of lines cut off or throttled, by kind; manual reconnects recorded directly (a staff "Disconnect sessions" within 2 hours after a payment, support's "Paid but still offline"). Manual payments count for neither matching nor restores, so the two cycles count from Daraja go-live.
 
 ## v2 · Hotspot and portal
 
@@ -36,6 +36,7 @@ The smallest product an ISP would pay for: PPPoE billing that collects and recon
 | Network monitoring | Sites, SNMP metrics, richer router pages |
 | Messaging | WhatsApp and email on the same templates; a fair-use warning SMS at 80% of the allowance, on or off per tenant (decisions.md 2026-10-21) |
 | Billing | Credit notes and refunds with approval; cards and PesaLink via a gateway |
+| Collections health | A card on the tenant's dashboard: share of payments matched automatically, median restore time, the unmatched queue; no Gate 1 wording (Q18, decisions.md 2026-10-27) |
 
 **Gate 2:** three paying ISPs on the platform, a passed RADIUS failover drill, and support tickets per 100 subscribers trending down for two months.
 

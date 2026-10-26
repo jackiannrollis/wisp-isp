@@ -11,7 +11,9 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -20,8 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Gate 1 measured by the platform (docs/09, ADR 0018). Two facts are recorded from events: a callback
- * payment renewing a RESTRICTED line ({@link CreditApplied}, the line restored()), and a Disconnect or
- * CoA the router answered ({@link SessionReauthorized}). A restore is the platform's part done: at the
+ * payment renewing a line that was cut off or throttled back to full speed ({@link CreditApplied}, by
+ * kind: CUT_OFF, GRACE_THROTTLE, FAIR_USE; a first activation is not a restore), and a Disconnect or CoA
+ * the router answered ({@link SessionReauthorized}). A restore is the platform's part done: at the
  * renewal when the line had no live session (no Disconnect is sent, its next login is FULL), otherwise
  * at the first of a reauthorization or a new session of the line within {@link #WINDOW} of the renewal.
  * {@link #completeOpenRestores} fills it, so it never matters which event arrived first. Everything runs
@@ -38,6 +41,9 @@ public class Gate1Service {
     static final long MATCHING_TARGET_PERCENT = 98;
     /** How far back open restores are completed: a job outage shorter than this loses nothing. */
     static final Duration LOOKBACK = Duration.ofDays(7);
+    /** What a payment may lift, in the order screens list them. */
+    public static final List<String> KINDS = List.of("CUT_OFF", "GRACE_THROTTLE", "FAIR_USE");
+    private static final String TOTAL = "ALL";
 
     private final JdbcClient jdbc;
     private final CallbackPayments callbacks;
@@ -54,13 +60,14 @@ public class Gate1Service {
         this.clock = clock;
     }
 
-    /** A payment that arrived by callback and restored lines; manual payments and adjustments are not Gate 1. */
+    /** A payment that arrived by callback and lifted lines; manual payments and adjustments are not Gate 1. */
     @Transactional
     public void recordCredit(final CreditApplied event) {
         if (!"PAYMENT".equals(event.entryType()) || event.renewed() == null) {
             return;
         }
-        final List<CreditApplied.RenewedLine> restored = event.renewed().stream().filter(CreditApplied.RenewedLine::restored).toList();
+        final List<CreditApplied.RenewedLine> restored =
+                event.renewed().stream().filter(line -> kindOf(line) != null).toList();
         if (restored.isEmpty()) {
             return;
         }
@@ -70,8 +77,8 @@ public class Gate1Service {
         }
         for (final CreditApplied.RenewedLine line : restored) {
             jdbc.sql("""
-                            insert into reporting_restore (tenant_id, payment_id, subscription_id, callback_at, renewed_at)
-                            values (:tenantId, :paymentId, :subscriptionId, :callbackAt, :renewedAt)
+                            insert into reporting_restore (tenant_id, payment_id, subscription_id, callback_at, renewed_at, kind)
+                            values (:tenantId, :paymentId, :subscriptionId, :callbackAt, :renewedAt, :kind)
                             on conflict do nothing
                             """)
                     .param("tenantId", TenantContext.requireTenantId())
@@ -79,8 +86,25 @@ public class Gate1Service {
                     .param("subscriptionId", line.subscriptionId())
                     .param("callbackAt", Timestamp.from(callbackAt.get()))
                     .param("renewedAt", Timestamp.from(event.occurredAt()))
+                    .param("kind", kindOf(line))
                     .update();
         }
+    }
+
+    /**
+     * What the renewal lifted: CUT_OFF for a RESTRICTED line (expired past grace, or a data cap), the
+     * throttle's reason for a THROTTLED one; null for anything else, a first activation (REJECT) included,
+     * and for a THROTTLED line in an event older than the reason it carries.
+     */
+    static String kindOf(final CreditApplied.RenewedLine line) {
+        if ("RESTRICTED".equals(line.previousProfile())) {
+            return "CUT_OFF";
+        }
+        if ("THROTTLED".equals(line.previousProfile())
+                && ("GRACE_THROTTLE".equals(line.previousReason()) || "FAIR_USE".equals(line.previousReason()))) {
+            return line.previousReason();
+        }
+        return null;
     }
 
     /**
@@ -145,8 +169,10 @@ public class Gate1Service {
     public Gate1Dto gate1(final Instant from, final Instant to) {
         completeOpenRestores();
         final Instant now = clock.instant();
-        final Gate1Dto.Restores restores = jdbc.sql("""
-                        select count(*),
+        final Map<String, Gate1Dto.KindRestores> rows = new LinkedHashMap<>();
+        jdbc.sql("""
+                        select kind,
+                               count(*),
                                count(*) filter (where restored_at is not null),
                                count(*) filter (where restored_at is null and renewed_at >= :pendingSince),
                                count(*) filter (where restored_at is null and renewed_at < :pendingSince),
@@ -155,30 +181,54 @@ public class Gate1Service {
                                ceil(max(extract(epoch from restored_at - callback_at)))::bigint
                         from reporting_restore
                         where renewed_at >= :from and renewed_at < :to
+                        group by grouping sets ((kind), ())
                         """)
                 .param("pendingSince", Timestamp.from(now.minus(WINDOW)))
                 .param("slow", SLOW_SECONDS)
                 .param("from", Timestamp.from(from))
                 .param("to", Timestamp.from(to))
-                .query((rs, n) -> new Gate1Dto.Restores(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4),
-                        rs.getLong(5), rs.getObject(6, Long.class), rs.getObject(7, Long.class)))
-                .single();
+                .query(rs -> {
+                    final String kind = rs.getString(1);
+                    rows.put(kind == null ? TOTAL : kind, new Gate1Dto.KindRestores(kind == null ? TOTAL : kind,
+                            rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5), rs.getLong(6),
+                            rs.getObject(7, Long.class), rs.getObject(8, Long.class)));
+                });
+        final Gate1Dto.KindRestores all = rows.getOrDefault(TOTAL, empty(TOTAL));
+        final Gate1Dto.Restores restores = new Gate1Dto.Restores(all.total(), all.completed(), all.pending(), all.missed(),
+                all.slowerThan60s(), all.p95Seconds(), all.maxSeconds());
+        final List<Gate1Dto.KindRestores> byKind = KINDS.stream().map(k -> rows.getOrDefault(k, empty(k))).toList();
+
+        final Map<String, Long> manual = new LinkedHashMap<>();
+        jdbc.sql("""
+                        select kind, count(*) from reporting_manual_reconnect
+                        where occurred_at >= :from and occurred_at < :to group by kind
+                        """)
+                .param("from", Timestamp.from(from))
+                .param("to", Timestamp.from(to))
+                .query(rs -> {
+                    manual.put(rs.getString(1), rs.getLong(2));
+                });
         final CallbackPayments.Matching matched = callbacks.matching(from, to);
         // For display only, to one decimal; the target is judged on the counts.
         final Double percent = matched.total() == 0 ? null
                 : Math.round(1000.0 * matched.automatic() / matched.total()) / 10.0;
         final AlertCounts.Raised raised = alerts.raised(from, to);
-        final Gate1Dto.Reconnects reconnects =
-                new Gate1Dto.Reconnects(raised.coaFailed(), raised.routerOffline(), restores.missed());
-        final long handsNeeded = raised.coaFailed() + raised.routerOffline() + restores.missed();
+        final Gate1Dto.Reconnects reconnects = new Gate1Dto.Reconnects(manual.getOrDefault("STAFF_DISCONNECT", 0L),
+                manual.getOrDefault("PAID_OFFLINE", 0L), restores.missed(), raised.coaFailed(), raised.routerOffline());
+        final long handsNeeded = reconnects.staffDisconnects() + reconnects.paidOfflineReports() + reconnects.missedRestores()
+                + reconnects.coaFailedAlerts() + reconnects.routerOfflineAlerts();
         final Gate1Dto.Targets targets = new Gate1Dto.Targets(
                 matchingAboveTarget(matched.automatic(), matched.total()),
                 restores.total() == restores.pending() ? null : restores.slowerThan60s() == 0 && restores.missed() == 0,
-                // A period with no payment, restore or alert has nothing to judge.
+                // A period with no payment, restore, report or alert has nothing to judge.
                 matched.total() == 0 && restores.total() == 0 && handsNeeded == 0 ? null : handsNeeded == 0);
         return new Gate1Dto(from, to,
                 new Gate1Dto.Matching(matched.automatic(), matched.byStaff(), matched.unmatched(), percent),
-                restores, reconnects, targets);
+                restores, byKind, reconnects, targets);
+    }
+
+    private static Gate1Dto.KindRestores empty(final String kind) {
+        return new Gate1Dto.KindRestores(kind, 0, 0, 0, 0, 0, null, null);
     }
 
     /**

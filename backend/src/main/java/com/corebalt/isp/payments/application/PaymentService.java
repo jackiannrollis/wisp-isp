@@ -209,6 +209,13 @@ public class PaymentService implements MatchedPayments, PaymentInstructions {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Matched> latestFor(final UUID customerId, final Instant at) {
+        return payments.findFirstByCustomerIdAndStatusAndMatchedAtLessThanEqualOrderByMatchedAtDesc(customerId, "MATCHED", at)
+                .map(p -> new Matched(p.getId(), p.getCustomerId(), p.getAmountMinor(), p.getMatchedAt()));
+    }
+
     private PaymentDto toDto(final Payment payment) {
         return toDto(payment, new HashMap<>());
     }

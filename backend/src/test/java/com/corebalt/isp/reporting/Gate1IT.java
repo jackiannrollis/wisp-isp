@@ -61,6 +61,7 @@ class Gate1IT extends IntegrationTest {
     Api api;
     UUID lineId;
     UUID routerId;
+    String packageId;
     String username;
     String tunnelIp;
     String customerNumber;
@@ -71,7 +72,7 @@ class Gate1IT extends IntegrationTest {
     void restrictedLine() throws Exception {
         tenant = TestTenants.createWithCode(jdbc, tx);
         api = new Api(port, tenant.id());
-        final String packageId = Catalog.pppoePackage(api, "Home 10");
+        packageId = Catalog.pppoePackage(api, "Home 10");
         final JsonNode router = Catalog.router(api, "Gate-01").json().get("router");
         routerId = UUID.fromString(router.get("id").asString());
         tunnelIp = router.get("tunnelIp").asString();
@@ -128,7 +129,10 @@ class Gate1IT extends IntegrationTest {
         assertThat(measured.get("matching").get("automaticPercent").asDouble()).isEqualTo(100.0);
         assertThat(measured.get("targets").get("matchingAbove98").asBoolean()).isTrue();
         assertThat(measured.get("targets").get("noRestoreSlowerThan60s").asBoolean()).isTrue();
-        assertThat(measured.get("targets").get("noReconnectsNeedingHands").asBoolean()).isTrue();
+        assertThat(measured.get("targets").get("noManualReconnects").asBoolean()).isTrue();
+        assertThat(measured.get("restoresByKind")).extracting(k -> k.get("kind").asString() + ":" + k.get("total").asLong())
+                .containsExactly("CUT_OFF:1", "GRACE_THROTTLE:0", "FAIR_USE:0");
+        assertThat(restoreRow().get("kind")).isEqualTo("CUT_OFF");
     }
 
     @Test
@@ -179,7 +183,7 @@ class Gate1IT extends IntegrationTest {
         assertThat(measured.restores().p95Seconds()).isNull();
         assertThat(measured.reconnects().missedRestores()).isOne();
         assertThat(measured.targets().noRestoreSlowerThan60s()).isFalse();
-        assertThat(measured.targets().noReconnectsNeedingHands()).isFalse();
+        assertThat(measured.targets().noManualReconnects()).isFalse();
 
         // An answer 90 seconds after the callback completes it, too slowly.
         final Map<String, Object> restore = restoreRow();
@@ -223,14 +227,123 @@ class Gate1IT extends IntegrationTest {
         final JsonNode noRestores = platform.get("/api/platform/tenants/" + tenant.id() + "/gate1?days=7").json();
         assertThat(noRestores.get("restores").get("total").asLong()).isZero();
         assertThat(noRestores.get("targets").get("noRestoreSlowerThan60s").isNull()).isTrue();
-        assertThat(noRestores.get("targets").get("noReconnectsNeedingHands").asBoolean()).isTrue();
+        assertThat(noRestores.get("targets").get("noManualReconnects").asBoolean()).isTrue();
 
         // A tenant where nothing happened yet has nothing to judge.
         final UUID quiet = TestTenants.create(jdbc, tx);
         final JsonNode targets = platform.get("/api/platform/tenants/" + quiet + "/gate1").json().get("targets");
         assertThat(targets.get("matchingAbove98").isNull()).isTrue();
         assertThat(targets.get("noRestoreSlowerThan60s").isNull()).isTrue();
-        assertThat(targets.get("noReconnectsNeedingHands").isNull()).isTrue();
+        assertThat(targets.get("noManualReconnects").isNull()).isTrue();
+    }
+
+    @Test
+    void ADR0018_aPaymentThatEndsAGraceThrottleIsARestoreOfItsOwnKind() throws Exception {
+        // Inside three days of grace on a tenant that throttles in grace: THROTTLED, reason GRACE_THROTTLE (S2).
+        OwnerSql.client().sql("update tenancy_tenant set grace_mode = 'THROTTLED' where id = :id").param("id", tenant.id()).update();
+        OwnerSql.client().sql("""
+                        update subscriptions_subscription
+                        set expires_at = now() - interval '1 hour', grace_days = 3, grace_mode = 'THROTTLED' where id = :id
+                        """)
+                .param("id", lineId).update();
+        openSession("g1a00011", clock.instant().minus(Duration.ofHours(2)));
+        pay();
+        assertThat(awaitRestore().get("kind")).isEqualTo("GRACE_THROTTLE");
+        assertThat(measure().restoresByKind()).extracting(k -> k.kind() + ":" + k.total())
+                .containsExactly("CUT_OFF:0", "GRACE_THROTTLE:1", "FAIR_USE:0");
+    }
+
+    @Test
+    void ADR0018_aPaymentThatEndsAFairUseThrottleIsARestoreOfItsOwnKind() throws Exception {
+        // Paid up for 20 days, but past the package's fair-use allowance in this cycle: THROTTLED, FAIR_USE (N9).
+        OwnerSql.client().sql("""
+                        update packages_package set fup_bytes = 1000
+                        where id = (select package_id from subscriptions_subscription where id = :id)
+                        """)
+                .param("id", lineId).update();
+        OwnerSql.client().sql("update subscriptions_subscription set expires_at = now() + interval '20 days' where id = :id")
+                .param("id", lineId).update();
+        OwnerSql.client().sql("""
+                        insert into network_line_usage (tenant_id, subscription_id, cycle_started_at, octets, updated_at)
+                        select tenant_id, id, cycle_started_at, 5000, now() from subscriptions_subscription where id = :id
+                        """)
+                .param("id", lineId).update();
+        openSession("g1a00012", clock.instant().minus(Duration.ofHours(2)));
+        pay();
+        assertThat(awaitRestore().get("kind")).isEqualTo("FAIR_USE");
+    }
+
+    @Test
+    void ADR0018_aStaffDisconnectWithinTwoHoursAfterAPaymentIsAManualReconnect_laterItIsNot() throws Exception {
+        openSession("g1a00013", clock.instant().minus(Duration.ofHours(1)));
+        pay();
+        awaitRestore();
+        final Api.Response kicked = api.postWithKey("/api/v1/subscriptions/" + lineId + "/disconnect", UUID.randomUUID().toString(),
+                "{\"reason\":\"Customer called: paid, still on the pay page\"}");
+        assertThat(kicked.status()).as(kicked.body()).isEqualTo(200);
+        assertThat(kicked.json().get("sessions").asInt()).isOne();
+        final Map<String, Object> reconnect = awaitManualReconnect(1);
+        assertThat(reconnect.get("kind")).isEqualTo("STAFF_DISCONNECT");
+        assertThat(reconnect.get("reason")).isEqualTo("Customer called: paid, still on the pay page");
+        assertThat(reconnect.get("staff_id")).isEqualTo(api.staffId());
+        assertThat(OwnerSql.client().sql("select count(*) from outbox_event where tenant_id = :t and event_type = 'NetworkAccessChanged' and payload::text like '%disconnected by staff%'")
+                .param("t", tenant.id()).query(Long.class).single()).isOne();
+
+        // Three hours after the payment, a disconnect is ordinary work, not Gate 1.
+        OwnerSql.client().sql("update payments_payment set matched_at = matched_at - interval '3 hours' where tenant_id = :t")
+                .param("t", tenant.id()).update();
+        assertThat(api.postWithKey("/api/v1/subscriptions/" + lineId + "/disconnect", UUID.randomUUID().toString(),
+                "{\"reason\":\"Speed test\"}").status()).isEqualTo(200);
+        awaitConsumed("reporting.staff-disconnects", 2);
+        assertThat(manualReconnects()).isOne();
+
+        final Gate1Dto measured = measure();
+        assertThat(measured.reconnects().staffDisconnects()).isOne();
+        assertThat(measured.targets().noManualReconnects()).isFalse();
+    }
+
+    @Test
+    void ADR0018_aStaffDisconnectNeedsALiveSessionAReasonAndTheRight() {
+        final String path = "/api/v1/subscriptions/" + lineId + "/disconnect";
+        assertThat(api.postWithKey(path, UUID.randomUUID().toString(), "{\"reason\":\"Nobody online\"}").status()).isEqualTo(409);
+        openSession("g1a00014", clock.instant().minus(Duration.ofMinutes(5)));
+        assertThat(api.postWithKey(path, UUID.randomUUID().toString(), "{\"reason\":\" \"}").status()).isEqualTo(400);
+        assertThat(new Api(port, tenant.id(), "customers.write").postWithKey(path, UUID.randomUUID().toString(),
+                "{\"reason\":\"No right\"}").status()).isEqualTo(403);
+        final String key = UUID.randomUUID().toString();
+        assertThat(api.postWithKey(path, key, "{\"reason\":\"Stuck session\"}").status()).isEqualTo(200);
+        final Api.Response replay = api.postWithKey(path, key, "{\"reason\":\"Stuck session\"}");
+        assertThat(replay.header("Idempotent-Replayed")).isEqualTo("true");
+        assertThat(OwnerSql.client().sql("select count(*) from identity_audit_log where tenant_id = :t and action = 'network.sessions_disconnected'")
+                .param("t", tenant.id()).query(Long.class).single()).isOne();
+    }
+
+    @Test
+    void ADR0018_paidButStillOfflineIsAnIncidentLinkedToTheLatestPayment() throws Exception {
+        final String paymentId = pay();
+        awaitCreditsApplied(2);
+        final Api.Response reported = api.post("/api/v1/subscriptions/" + lineId + "/paid-offline-reports",
+                "{\"note\":\"Called at 9:40, router lights normal\"}");
+        assertThat(reported.status()).as(reported.body()).isEqualTo(201);
+        assertThat(reported.json().get("paymentId").asString()).isEqualTo(paymentId);
+        final Map<String, Object> incident = OwnerSql.client().sql("select * from reporting_manual_reconnect where tenant_id = :t")
+                .param("t", tenant.id()).query().singleRow();
+        assertThat(incident.get("kind")).isEqualTo("PAID_OFFLINE");
+        assertThat(incident.get("payment_id")).isEqualTo(UUID.fromString(paymentId));
+        assertThat(incident.get("staff_id")).isEqualTo(api.staffId());
+        assertThat(OwnerSql.client().sql("select count(*) from identity_audit_log where tenant_id = :t and action = 'reporting.paid_offline_reported'")
+                .param("t", tenant.id()).query(Long.class).single()).isOne();
+        final Gate1Dto measured = measure();
+        assertThat(measured.reconnects().paidOfflineReports()).isOne();
+        assertThat(measured.targets().noManualReconnects()).isFalse();
+
+        // A customer who never paid has nothing to link: 409. Support's role may report; a role without customers.write may not.
+        final String other = Catalog.customer(api, "Otieno Never Paid", "0711000333");
+        final String otherLine = api.post("/api/v1/subscriptions", "{\"customerId\":\"" + other + "\",\"packageId\":\""
+                + packageId + "\",\"routerId\":\"" + routerId + "\"}").json().get("subscription").get("id").asString();
+        assertThat(api.post("/api/v1/subscriptions/" + otherLine + "/paid-offline-reports", "{}").status()).isEqualTo(409);
+        assertThat(new Api(port, tenant.id(), "payments.stk").post("/api/v1/subscriptions/" + lineId + "/paid-offline-reports", "{}")
+                .status()).isEqualTo(403);
     }
 
     private Gate1Dto measure() {
@@ -284,6 +397,28 @@ class Gate1IT extends IntegrationTest {
                     .param("t", tenant.id()).query(Long.class).single() == 1;
         });
         return restoreRow();
+    }
+
+    private Map<String, Object> awaitManualReconnect(final long count) {
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            TenantContext.callAsTenant(tenant.id(), relay::relayTenant);
+            return manualReconnects() == count;
+        });
+        return OwnerSql.client().sql("select * from reporting_manual_reconnect where tenant_id = :t order by occurred_at desc limit 1")
+                .param("t", tenant.id()).query().singleRow();
+    }
+
+    private long manualReconnects() {
+        return OwnerSql.client().sql("select count(*) from reporting_manual_reconnect where tenant_id = :t")
+                .param("t", tenant.id()).query(Long.class).single();
+    }
+
+    private void awaitConsumed(final String consumer, final long count) {
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            TenantContext.callAsTenant(tenant.id(), relay::relayTenant);
+            return OwnerSql.client().sql("select count(*) from shared_processed_event where consumer = :c and tenant_id = :t")
+                    .param("c", consumer).param("t", tenant.id()).query(Long.class).single() == count;
+        });
     }
 
     private Map<String, Object> restoreRow() {

@@ -11,23 +11,66 @@ import { TenantsService } from './tenants.service';
 /** The periods offered; two monthly billing cycles (docs/09 Gate 1) is the default. */
 export const GATE1_PERIODS = [7, 30, 60, 90] as const;
 
+/** What a payment lifted, as the API names it, and how the console says it. */
+const KIND_LABELS: Record<string, string> = {
+  CUT_OFF: 'Cut off',
+  GRACE_THROTTLE: 'Grace throttle',
+  FAIR_USE: 'Fair use',
+};
+
+export interface RestoreRow {
+  kind: string;
+  total: number;
+  slower: number;
+  missed: number;
+  pending: number;
+  p95: string;
+  max: string;
+}
+
 /** Gate 1 with every count present (the API's fields are optional in the generated types). */
 export interface Gate1View {
   matching: { automatic: number; byStaff: number; unmatched: number; percent: string };
-  restores: {
-    total: number;
-    completed: number;
-    pending: number;
+  restores: RestoreRow;
+  /** All kinds first, then one row per kind. */
+  rows: RestoreRow[];
+  reconnects: {
+    staffDisconnects: number;
+    paidOffline: number;
     missed: number;
-    slower: number;
-    p95: string;
-    max: string;
+    coaFailed: number;
+    routerOffline: number;
   };
-  reconnects: { coaFailed: number; routerOffline: number; missed: number };
   results: { matching: string; restores: string; reconnects: string };
 }
 
+function restoreRow(
+  kind: string,
+  r:
+    | {
+        total?: number;
+        completed?: number;
+        pending?: number;
+        missed?: number;
+        slowerThan60s?: number;
+        p95Seconds?: number;
+        maxSeconds?: number;
+      }
+    | undefined,
+): RestoreRow {
+  return {
+    kind,
+    total: r?.total ?? 0,
+    slower: r?.slowerThan60s ?? 0,
+    missed: r?.missed ?? 0,
+    pending: r?.pending ?? 0,
+    p95: formatSeconds(r?.p95Seconds),
+    max: formatSeconds(r?.maxSeconds),
+  };
+}
+
 export function gate1View(g: Gate1): Gate1View {
+  const restores = restoreRow('All', g.restores);
   return {
     matching: {
       automatic: g.matching?.automatic ?? 0,
@@ -35,32 +78,33 @@ export function gate1View(g: Gate1): Gate1View {
       unmatched: g.matching?.unmatched ?? 0,
       percent: formatPercent(g.matching?.automaticPercent),
     },
-    restores: {
-      total: g.restores?.total ?? 0,
-      completed: g.restores?.completed ?? 0,
-      pending: g.restores?.pending ?? 0,
-      missed: g.restores?.missed ?? 0,
-      slower: g.restores?.slowerThan60s ?? 0,
-      p95: formatSeconds(g.restores?.p95Seconds),
-      max: formatSeconds(g.restores?.maxSeconds),
-    },
+    restores,
+    rows: [
+      restores,
+      ...(g.restoresByKind ?? []).map((k) =>
+        restoreRow(KIND_LABELS[k.kind ?? ''] ?? k.kind ?? '—', k),
+      ),
+    ],
     reconnects: {
+      staffDisconnects: g.reconnects?.staffDisconnects ?? 0,
+      paidOffline: g.reconnects?.paidOfflineReports ?? 0,
+      missed: g.reconnects?.missedRestores ?? 0,
       coaFailed: g.reconnects?.coaFailedAlerts ?? 0,
       routerOffline: g.reconnects?.routerOfflineAlerts ?? 0,
-      missed: g.reconnects?.missedRestores ?? 0,
     },
     results: {
       matching: criterion(g.targets?.matchingAbove98),
       restores: criterion(g.targets?.noRestoreSlowerThan60s),
-      reconnects: criterion(g.targets?.noReconnectsNeedingHands),
+      reconnects: criterion(g.targets?.noManualReconnects),
     },
   };
 }
 
 /**
  * Gate 1 of one tenant (docs/09, ADR 0018) as the platform measured it: payment matching, the time from
- * a callback to the restore of a RESTRICTED line, and the reconnects that needed hands. Each criterion
- * says met, not met, or that there is nothing to judge yet; the counts behind it follow.
+ * a callback to a line lifted to full speed (from cut off, a grace throttle or a fair-use throttle), and
+ * the manual reconnects (staff disconnects after a payment, "paid but still offline" reports, missed
+ * restores, reconnect alerts). Each criterion says met, not met, or that there is nothing to judge yet.
  */
 @Component({
   selector: 'app-gate1-panel',

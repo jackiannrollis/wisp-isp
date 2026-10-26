@@ -134,3 +134,12 @@ h1 app-status-chip {
   align-items: center;
   gap: var(--app-space-2);
 }
+
+.sub {
+  font: var(--mat-sys-title-small);
+  margin: 0;
+}
+
+tr.total td {
+  font-weight: 600;
+}
