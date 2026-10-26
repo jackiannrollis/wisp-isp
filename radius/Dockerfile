@@ -1,11 +1,14 @@
 # FreeRADIUS 3.2 with rlm_sql reading the platform's PostgreSQL views (ADR 0004).
 FROM freeradius/freeradius-server:3.2.10
 
-# Pick up Ubuntu security fixes newer than the upstream image (the CI image scan gates on them).
+# Pick up Ubuntu security fixes newer than the upstream image (the CI image scan gates on them), and
+# drop pebble, the Go ACME test server the upstream image started shipping under this same tag on
+# 2026-10-26: FreeRADIUS never runs it, and the Go standard library it embeds carries fixed-upstream
+# CVEs the scan stops on.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade libssl3 openssl \
     && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /usr/bin/pebble /var/lib/pebble
 
 COPY raddb/mods-available/sql /etc/freeradius/mods-available/sql
 COPY raddb/sites-available/corebalt /etc/freeradius/sites-available/corebalt
