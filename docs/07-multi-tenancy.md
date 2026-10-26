@@ -62,3 +62,5 @@ Corebalt staff use a separate platform console, with its own roles, for:
 5. Onboard routers with the generated scripts; verify tunnels, RADIUS test logins (`radtest`) and CoA.
 6. Run a pilot period with manual payment entry until Daraja is live, then switch on callbacks.
 7. Sign the data processing agreement before real customer data is imported (see [08](08-reliability-security-compliance.md)).
+
+The step-by-step version, with what each role does, the API calls the console has no screen for, the router hand-offs and the cutover choices: `infra/ops/runbooks/pilot-onboarding.md`.

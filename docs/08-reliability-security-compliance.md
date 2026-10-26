@@ -20,7 +20,7 @@ A Corebalt outage takes every tenant's customers offline, so reliability is part
 - Two FreeRADIUS nodes, one in a Nairobi data centre, every router configured with both.
 - PostgreSQL primary with a streaming replica in Nairobi; each RADIUS node reads the nearest database; replication lag alerted above 30 seconds.
 - RabbitMQ cluster with durable quorum queues and persistent messages; dead-letter queues alerted.
-- Nightly full backups plus continuous WAL archiving for point-in-time recovery, encrypted at rest and in transit to storage; a restore drill every month; a RADIUS failover drill every quarter. In place: pgBackRest from the database container to Object Storage in the EU, WAL within five minutes, 30 days kept, the drill restoring the newest backup into a scratch instance and checking the schema, the row counts and the ledger (`infra/ops/runbooks/backups.md`).
+- Nightly full backups plus continuous WAL archiving for point-in-time recovery, encrypted at rest and in transit to storage; a restore drill every month; a RADIUS failover drill every quarter. In place: pgBackRest from the database container to Object Storage in the EU, WAL within five minutes, 30 days kept, the drill restoring the newest backup into a scratch instance and checking the schema, the row counts and the ledger (`infra/ops/runbooks/backups.md`). The failover drill is `infra/ops/runbooks/failover-drill.md`: with one node today it rehearses the RADIUS and hub outages and the loss of the core host on staging only; the production RADIUS drill and the replica promotion wait for the Nairobi node (Q2).
 - Capacity: FreeRADIUS and PostgreSQL sized for 10× the current subscriber count; `radacct` partitions dropped after 13 months, roll-ups kept.
 - Deployments roll one API instance at a time with health checks; schema migrations are backwards compatible for one release.
 
@@ -31,7 +31,7 @@ Each core and staging host runs its own monitoring project beside the stack (`in
 | Signal | Alert when | Rules | Status |
 |---|---|---|---|
 | RADIUS Access-Reject rate per tenant | Above 10% of requests for 5 minutes, with at least 20 requests | `CorebaltRadiusTenantRejectRateHigh` (Loki, from the auth log; the tenant is the username's prefix, T2); `CorebaltRadiusRejectRateHigh` for the node as a whole | In place |
-| RADIUS response time | p95 above 200 ms | `CorebaltRadiusSlow`: the Status-Server round trip inside the FreeRADIUS container, sampled every minute, above 200 ms for 5 minutes | Approximated: a login probe comes with the failover drill |
+| RADIUS response time | p95 above 200 ms | `CorebaltRadiusSlow`: the Status-Server round trip inside the FreeRADIUS container, sampled every minute, above 200 ms for 5 minutes | Approximated by the Status-Server round trip; a real login is checked by hand in the failover drill (`infra/ops/runbooks/failover-drill.md`); a synthetic login probe needs a credential FreeRADIUS accepts in production and is open |
 | RADIUS availability | No answer for 5 minutes; requests dropped; a router FreeRADIUS does not know | `CorebaltRadiusProbeDown`, `CorebaltRadiusDroppingRequests`, `CorebaltRadiusUnknownClient` (Loki) | In place |
 | Replication lag | Above 30 s | `CorebaltReplicationLag` | Pending Q2: fires once a replica reports |
 | M-Pesa callbacks | None for 2 hours in daytime for a tenant with normal volume | `CorebaltMpesaCallbacksSilent` (the backend's gauge) | In place |

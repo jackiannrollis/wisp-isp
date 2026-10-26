@@ -124,6 +124,11 @@ docker exec "$TARGET" systemctl is-enabled corebalt-monitoring
 docker exec "$TARGET" systemctl is-active corebalt-probes.timer && echo "(probes timer)"
 docker exec "$TARGET" /srv/corebalt/monitoring/probes wireguard && docker exec "$TARGET" grep -q '^corebalt_wireguard_up 1' /srv/corebalt/metrics/corebalt_wireguard.prom \
     && echo "   probes: the hub's wg0 written to the metrics directory"
+# A router peer added the way the onboarding runbook says, then exported the way the failover-drill
+# runbook keeps peers in escrow (public key and tunnel address only).
+docker exec "$TARGET" sh -c 'key=$(wg genkey | wg pubkey) && corebalt-wg-hub add-peer converge-router "$key" 10.200.0.250/32 >/dev/null \
+    && corebalt-wg-hub export-peers | grep -qx "add-peer converge-router $key 10.200.0.250/32" && wg show wg0 allowed-ips | grep -q "10.200.0.250/32"' \
+    && echo "   hub: a router peer added (corebalt-wg-hub add-peer) and exported (export-peers)" || { echo "FAIL: add-peer or export-peers"; exit 1; }
 root_login=$(docker run --rm --network "$NET" -v "$KEYS:/run/secrets:ro" --entrypoint sh "$OPS_IMAGE" -c \
     'cp /run/secrets/ssh_key /tmp/k && chmod 600 /tmp/k && ssh -i /tmp/k -o BatchMode=yes -o StrictHostKeyChecking=no root@172.31.250.10 true 2>&1; echo "exit $?"' | tail -1)
 [ "$root_login" != "exit 0" ] || { echo "FAIL: root can still log in"; exit 1; }

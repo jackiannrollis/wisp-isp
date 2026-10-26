@@ -2,6 +2,14 @@
 # Docker Desktop), the repository's database init scripts, and an S3 server for the backups: versitygw
 # with a self-signed certificate, which the test's pgbackrest.conf accepts (repo1-storage-verify-tls=n).
 services:
+  # The refresh cookie's Origin check (ADR 0010) compares the browser's origin, port included; a host
+  # answers on 443, this test on 8443, so the origins carry the port here or a page reload signs out.
+  api-1:
+    environment:
+      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
+  api-2:
+    environment:
+      ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
   postgres:
     volumes:
       - pg:/var/lib/postgresql/data

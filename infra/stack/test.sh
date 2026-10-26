@@ -100,6 +100,9 @@ fi
 # Monitoring (infra/monitoring): the status probe's secret and the pg_monitor role's password. Added to
 # an .env from before they existed.
 grep -q '^RADIUS_STATUS_SECRET=' .env || printf 'RADIUS_STATUS_SECRET=%s\nISP_DB_MONITOR_PASSWORD=%s\n' "$(fake)" "$(fake)" >> .env
+# The first platform admin (ADR 0010), for the onboarding recipe below; its password is reset by the
+# break-glass command at every run, so the value here matters only for the first start.
+grep -q '^ISP_BOOTSTRAP_ADMIN_EMAIL=' .env || printf 'ISP_BOOTSTRAP_ADMIN_EMAIL=platform-admin@corebalt.localhost\nISP_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$(fake)" >> .env
 # The backup repository for the test: versitygw from compose.override.yml, self-signed, fake credentials
 # (a host gets this file from Ansible, roles/stack/templates/pgbackrest.conf.j2). A fresh repository
 # path per run: the database volume may be a new cluster since the last run, which an existing stanza
@@ -387,7 +390,8 @@ compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select number from 
     && echo "   ok   customer CB000001 back" || { echo "   FAIL customer CB000001 missing"; fail=1; }
 check "API after the restore"     401 https://admin.corebalt.localhost:8443/api/v1/dashboard
 
-echo "== RADIUS: a lab login and a suspended one through FreeRADIUS (restarted above, so it knows the seed's NAS), the status probe, the auth log"
+echo "== RADIUS: stackctl reload-radius (what a router registration needs), a lab login and a suspended one through FreeRADIUS, the status probe, the auth log"
+if out=$(./stackctl reload-radius 2>&1) && echo "$out" | grep -q 'FreeRADIUS restarted'; then echo "   ok   $out"; else echo "$out"; echo "   FAIL stackctl reload-radius"; fail=1; fi
 rad() { compose exec -T -e RADIUS_LAB_SECRET=stacktest-lab-secret freeradius corebalt-radtest "$@" 2>&1; }
 if out=$(rad CB000001 lab-password) && echo "$out" | grep -q 'Access-Accept'; then echo "   ok   CB000001 accepted"
 else echo "$out" | tail -5; echo "   FAIL CB000001 login"; fail=1; fi
@@ -409,6 +413,65 @@ until_ok "the per-tenant query of the Loki rule finds tenant CB" 60 loki_nonempt
 worker_age_min=$(( ($(date +%s) - $(date -d "$(docker inspect -f '{{.State.StartedAt}}' corebalt-tunnel-worker-1)" +%s)) / 60 + 1 ))
 until_ok "the tunnel worker runs no API job (no 'failed for tenant' lines in its ${worker_age_min} minutes)" 10 \
     loki_zero "sum(count_over_time({service=\"tunnel-worker\"} |= \"failed for tenant\" [${worker_age_min}m]))"
+
+echo "== onboarding (infra/ops/runbooks/pilot-onboarding.md, by its recipes): break-glass reset of the platform admin, its first sign-in, a tenant with its Owner, the Owner's first sign-in, a router, a package, a CSV import"
+API=https://admin.corebalt.localhost:8443
+jf() { "$PY" -I -c "import json, sys; d = json.load(sys.stdin); print($1)" 2>/dev/null; }
+totp() { "$PY" -I -c 'import base64, hashlib, hmac, struct, sys, time
+s = sys.argv[1]; key = base64.b32decode(s + "=" * (-len(s) % 8))
+h = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest(); o = h[-1] & 15
+print("%06d" % ((struct.unpack(">I", h[o:o + 4])[0] & 0x7fffffff) % 1000000))' "$1"; }
+post() { # <path> <json body> [curl args]: prints the response body
+    local path=$1 body=$2; shift 2
+    curl -sk --max-time 30 -H 'Content-Type: application/json' "$@" -d "$body" "$API$path"
+}
+step() { # <name> <wanted status> <response>: the sign-in status of a response
+    local st; st=$(echo "$3" | jf 'd["status"]')
+    if [ "$st" = "$2" ]; then echo "   ok   $1 ($2)"; else echo "   FAIL $1: wanted $2, got ${st:-no status}: $(echo "$3" | head -c 300)"; fail=1; return 1; fi
+}
+admin_email=$(envval ISP_BOOTSTRAP_ADMIN_EMAIL)
+# The break-glass reset (ADR 0010; infra/scripts/reset-platform-admin.sh runs the same on the local stack)
+# prints a temporary password once and clears TOTP, so this section runs the same on every run. The
+# password is read into a variable, never printed.
+tmp=$(compose exec -T -e ISP_OPERATOR=stacktest api-1 java -jar /app/app.jar reset-platform-admin "$admin_email" 2>/dev/null | sed -n 's/^    \([^ ]\{8,\}\)$/\1/p' | tail -1)
+[ -n "$tmp" ] && echo "   ok   platform admin reset by the break-glass command (temporary password printed once, not here)" || { echo "   FAIL the break-glass reset printed no temporary password"; fail=1; }
+r=$(post /api/platform/auth/login "{\"email\":\"$admin_email\",\"password\":\"$tmp\"}")
+if step "platform sign-in asks for a new password" CHANGE_PASSWORD "$r"; then
+    r=$(post /api/platform/auth/password "{\"challenge\":\"$(echo "$r" | jf 'd["challenge"]')\",\"newPassword\":\"$(fake)\"}")
+    if step "then TOTP enrolment (secret, otpauth URI and recovery codes in this answer only)" TOTP_ENROLL "$r"; then
+        [ "$(echo "$r" | jf 'len(d["recoveryCodes"])')" -ge 1 ] && echo "   ok   recovery codes came with the enrolment" || { echo "   FAIL no recovery codes"; fail=1; }
+        r=$(post /api/platform/auth/totp/enroll "{\"challenge\":\"$(echo "$r" | jf 'd["challenge"]')\",\"code\":\"$(totp "$(echo "$r" | jf 'd["totpSecret"]')")\"}")
+        step "enrolled with a code from the secret: signed in" SIGNED_IN "$r" && ptoken=$(echo "$r" | jf 'd["accessToken"]')
+    fi
+fi
+code=$(openssl rand -hex 2 | tr '0-9a-f' 'A-P'); sub=$(echo "$code" | tr 'A-P' 'a-p')   # a new tenant every run
+r=$(post /api/platform/tenants "{\"code\":\"$code\",\"name\":\"Stack Test ISP $code\",\"subdomain\":\"$sub\",\"ownerEmail\":\"owner@$sub.corebalt.localhost\",\"ownerName\":\"Stack Owner\",\"ownerPhone\":\"+254700000001\"}" -H "Authorization: Bearer ${ptoken:-none}")
+otp=$(echo "$r" | jf 'd["owner"]["temporaryPassword"]')
+if [ "$(echo "$r" | jf 'd["tenant"]["status"]')" = TRIAL ] && [ -n "$otp" ]; then echo "   ok   tenant $code created in TRIAL; its Owner's temporary password is in this answer only"
+else echo "   FAIL tenant creation: $(echo "$r" | head -c 300)"; fail=1; fi
+r=$(post /api/v1/auth/login "{\"tenant\":\"$code\",\"email\":\"owner@$sub.corebalt.localhost\",\"password\":\"$otp\"}")
+if step "the Owner's first sign-in asks for a new password" CHANGE_PASSWORD "$r"; then
+    r=$(post /api/v1/auth/password "{\"challenge\":\"$(echo "$r" | jf 'd["challenge"]')\",\"newPassword\":\"$(fake)\"}")
+    if step "then TOTP enrolment (the Owner role requires 2FA, A2)" TOTP_ENROLL "$r"; then
+        r=$(post /api/v1/auth/totp/enroll "{\"challenge\":\"$(echo "$r" | jf 'd["challenge"]')\",\"code\":\"$(totp "$(echo "$r" | jf 'd["totpSecret"]')")\"}")
+        step "the Owner is signed in" SIGNED_IN "$r" && stoken=$(echo "$r" | jf 'd["accessToken"]')
+    fi
+fi
+auth=(-H "Authorization: Bearer ${stoken:-none}")
+tip="127.0.$((RANDOM % 250 + 1)).$((RANDOM % 250 + 2))"   # tunnel addresses are unique across tenants; a new one every run
+r=$(post /api/v1/routers "{\"name\":\"stacktest-radtest\",\"tunnelIp\":\"$tip\"}" "${auth[@]}")
+rid=$(echo "$r" | jf 'd["router"]["id"]')
+[ -n "$rid" ] && [ -n "$(echo "$r" | jf 'd["radiusSecret"]')" ] && echo "   ok   router registered; its RADIUS secret is in this answer only (ADR 0009)" || { echo "   FAIL router registration: $(echo "$r" | head -c 300)"; fail=1; }
+compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) from radius_client_v3 where nasname = '$tip'" 2>/dev/null | grep -qx 1 \
+    && echo "   ok   the router is a client in radius_client_v3 (what stackctl reload-radius makes FreeRADIUS load)" || { echo "   FAIL the router is missing from radius_client_v3"; fail=1; }
+r=$(post /api/v1/packages '{"name":"Home 10","downloadKbps":10000,"uploadKbps":5000,"durationMinutes":43200,"price":{"amount":250000,"currency":"KES"}}' "${auth[@]}")
+[ -n "$(echo "$r" | jf 'd["id"]')" ] && echo "   ok   package created" || { echo "   FAIL package: $(echo "$r" | head -c 300)"; fail=1; }
+csv=$(printf 'name,phone,package\nJane Test,0700000002,Home 10\nJohn Test,0700000003,\n')
+r=$(curl -sk --max-time 30 -H 'Content-Type: text/csv' "${auth[@]}" --data-binary "$csv" "$API/api/v1/customer-imports?routerId=$rid")
+if [ "$(echo "$r" | jf 'd["imported"]')" = 2 ] && [ -n "$(echo "$r" | jf 'd["rows"][0]["pppoePassword"]')" ] && [ "$(echo "$r" | jf 'd["rows"][1]["subscriptionId"]')" = None ]; then
+    echo "   ok   CSV import: 2 customers, one PENDING line on the router with its PPPoE password in this answer only"
+else echo "   FAIL CSV import: $(echo "$r" | head -c 300)"; fail=1; fi
+unset tmp otp ptoken stoken auth
 
 echo "== services"
 ./stackctl status

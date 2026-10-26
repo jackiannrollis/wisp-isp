@@ -11,6 +11,10 @@
 #                              its health gate; a failure rolls the previous release back
 #   stackctl rollback          roll the previous release (images.env.previous) back
 #   stackctl status            what is deployed and running
+#   stackctl reload-radius     restart FreeRADIUS so it reads the routers again: it loads radius_client_v3
+#                              at start only, so run it after a router is registered or its secret replaced
+#                              (infra/ops/runbooks/pilot-onboarding.md); sessions stay up, a login during
+#                              the restart is retried by the router
 # Backups, the restore drill and disaster recovery: backupctl, beside this script.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -118,7 +122,11 @@ case "${1:-}" in
         echo "== rolling back from $from to $(release)"
         roll || { echo "stackctl: ROLLBACK FAILED; the stack needs hands (stackctl status)" >&2; exit 3; }
         echo "stackctl: back on release $(release); $from is now the previous one" ;;
+    reload-radius)
+        [ -f images.env ] || { echo "stackctl: nothing deployed yet (no images.env)" >&2; exit 1; }
+        compose restart freeradius >/dev/null 2>&1 || { echo "stackctl: FreeRADIUS did not restart (docker compose logs freeradius)" >&2; exit 1; }
+        echo "stackctl: FreeRADIUS restarted; it read the routers and their secrets (radius_client_v3) at start" ;;
     *)
-        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2
         exit 2 ;;
 esac

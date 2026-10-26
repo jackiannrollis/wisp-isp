@@ -122,7 +122,7 @@ Prometheus keeps 30 days or 10 GB, whichever comes first (`monitoring_prometheus
 ## Known limits
 
 - One host watches itself: when it is down or its disk is locked, no alert leaves it. The dead man's switch is the answer; configure one before production.
-- The RADIUS response-time rule measures the Status-Server round trip inside the container, not a real login's time (which adds the database view). A login probe comes with the failover drill.
+- The RADIUS response-time rule measures the Status-Server round trip inside the container, not a real login's time (which adds the database view). A real login is checked by hand in the failover drill (`failover-drill.md`, The login check); a synthetic login probe is an open item there, because it needs a credential FreeRADIUS accepts in production.
 - `CorebaltReplicationLag` has nothing to measure until the Nairobi replica exists (Q2).
 - node_exporter runs on the compose network: host network interface counters are not collected; the hub's per-peer traffic from `probes wireguard` covers the tunnels.
 - Email delivery, the webhook and the dead man's switch are not exercised by the stack test; test them once after the first provision (above).

@@ -191,6 +191,8 @@ jobs:
         run: >-
           docker run --rm -v "$PWD:/repo:ro" corebalt-ops:local
           sh -c "ansible-lint && ansible-playbook -i inventories/example site.yml data-volume-init.yml unlock.yml backup.yml monitoring.yml --syntax-check"
+      - name: Router onboarding script renders from the example values (every placeholder filled)
+        run: bash infra/ops/render-onboarding.sh infra/ops/onboarding.example.env | grep -q 'corebalt onboarding applied'
       - name: Converge (bootstrap, init-disk, provision, unlock, idempotence, hardening checks)
         run: bash infra/ansible/tests/converge.sh
 

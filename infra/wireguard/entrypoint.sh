@@ -4,6 +4,9 @@
 #   wireguard-hub                                   start the hub (container entrypoint)
 #   wireguard-hub add-peer <name> <pubkey> <cidr>   add or replace a router peer, applied at once
 #   wireguard-hub public-key                        print the hub's public key
+#   wireguard-hub export-peers                      every peer as the add-peer line that recreates it
+#                                                   (public keys and tunnel addresses only), for escrow
+#                                                   and a replacement host (runbooks/failover-drill.md)
 #
 # The hub's private key is generated on first start and never leaves the volume. Peer files hold
 # only a router's public key and tunnel address (/var/lib/wireguard/peers/<name>.conf).
@@ -41,6 +44,14 @@ case "${1:-start}" in
         ;;
     public-key)
         cat "$STATE_DIR/hub.pub"
+        exit 0
+        ;;
+    export-peers)
+        for peer in "$PEER_DIR"/*.conf; do
+            [ -e "$peer" ] || continue
+            printf 'add-peer %s %s %s\n' "$(basename "$peer" .conf)" \
+                "$(sed -n 's/^PublicKey = //p' "$peer")" "$(sed -n 's/^AllowedIPs = //p' "$peer")"
+        done
         exit 0
         ;;
     start) ;;

@@ -88,7 +88,7 @@ The example inventory's `vault.yml` is plain text with obvious placeholders, so 
 
 ### Order on a new server
 
-1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it), and an Object Storage bucket for the backups in the same region, with its own S3 key pair. Point the DNS records at the server: `<domain>`, `admin.<domain>`, `pay.<domain>` and `*.<domain>`.
+1. Create the server (Debian 13) with your SSH key, plus a separate volume for the data disk (do not let Hetzner format or mount it), and an Object Storage bucket for the backups in the same region, with its own S3 key pair. Point the DNS records at the server: `<domain>`, `admin.<domain>`, `pay.<domain>`, `*.<domain>` and `hub-a.<domain>` (the name routers reach the WireGuard hub by, so a replacement host is one record change: `runbooks/failover-drill.md`).
 2. `infra\ops\ops.ps1 secrets staging` (once per inventory, see above).
 3. `infra\ops\ops.ps1 bootstrap staging -Limit staging-1`. This first run connects as root. It:
    - creates the operator account and installs your keys;
@@ -103,6 +103,7 @@ The example inventory's `vault.yml` is plain text with obvious placeholders, so 
 6. Deploy a release (`deploy`, see Deploying). The stack and the monitoring stay down until then.
 7. `infra\ops\ops.ps1 backup staging`, then `infra\ops\ops.ps1 drill staging`: the first backup and the first restore drill, so the host starts from a known-good state (see Backups).
 8. `infra\ops\ops.ps1 monitoring staging`: every scrape target up, no alert but the Watchdog. Then open Grafana through an SSH tunnel (see Monitoring) and check that a test alert reaches you (`runbooks/monitoring.md`).
+9. On staging, onboard a fake tenant with `runbooks/pilot-onboarding.md` (the same steps as for a real ISP; staging never holds the lab seed or production data), including the `radtest` router and the drill line the failover drills use (`runbooks/failover-drill.md`).
 
 `-Check` shows what a run would change without changing it.
 
@@ -159,7 +160,7 @@ PostgreSQL is backed up with pgBackRest from inside the `postgres` container to 
 | `infra\ops\ops.ps1 drill staging` | the restore drill now |
 | `infra\ops\ops.ps1 backup-status staging` | the repository and the last backup and drill results |
 
-On the host, `backupctl` beside `stackctl` does the same (`backup`, `drill`, `status`), plus `stanza` (run by every deploy) and `restore` for disaster recovery; the timers `corebalt-backup` and `corebalt-restore-drill` run the nightly backup and the monthly drill, and skip, like the stack unit, while the data disk is locked.
+On the host, `stackctl reload-radius` restarts FreeRADIUS so it loads a router registered since the last start (`runbooks/pilot-onboarding.md`), and `backupctl` beside `stackctl` does the same (`backup`, `drill`, `status`), plus `stanza` (run by every deploy) and `restore` for disaster recovery; the timers `corebalt-backup` and `corebalt-restore-drill` run the nightly backup and the monthly drill, and skip, like the stack unit, while the data disk is locked.
 
 ## Monitoring
 
@@ -173,6 +174,16 @@ Each stack host watches itself (docs/08 Monitoring and alerts): a second compose
 | On the host | `/srv/corebalt/monitoring/monitorctl status\|check\|reload\|up\|stop`, `/srv/corebalt/monitoring/probes radius\|wireguard\|all` |
 
 Alerts (`infra/monitoring/rules`, unit-tested with promtool; the LogQL ones in `infra/monitoring/loki/rules`) go by email through the inventory's SMTP account and, optionally, to a webhook; the always-firing `Watchdog` goes to a dead man's switch, which is the only way a single host can tell you it is down. The runbook, with every alert and what to do: `runbooks/monitoring.md`.
+
+## Runbooks
+
+| Runbook | Covers |
+|---|---|
+| `runbooks/pilot-onboarding.md` | A tenant ISP from the signed agreement to customers online: the platform console (API only), the Owner's first sign-in and settings, staff, packages, routers (the template renderer `render-onboarding.sh`, the hub peer, `stackctl reload-radius`), the CSV import, the cutover choices, the pilot on manual payments, Daraja go-live, the Gate 1 queries. Staging is onboarded the same way with fake data |
+| `runbooks/failover-drill.md` | The quarterly drill: what runs on staging today with one node (FreeRADIUS outage, hub outage, the core host lost and rebuilt with the hub key and peers from escrow), what waits for the Nairobi node, the login check, the pass criteria and the record (`runbooks/drills/TEMPLATE.md`) |
+| `runbooks/backups.md` | What is backed up, the drill, the alerts, every restore procedure |
+| `runbooks/key-escrow.md` | The secrets that cannot be regenerated, where their copies live, the quarterly check |
+| `runbooks/monitoring.md` | What watches a host, how to reach it, every alert and what to do |
 
 What the stack test proves about this (`infra/stack/test.sh`, also in CI): every configuration validates, the rule unit tests pass, every scrape target comes up, the Watchdog reaches Alertmanager, the public names are probed through the front, the API's logs reach Loki with their tenant, a RADIUS login and a reject go through FreeRADIUS into the status probe and the auth log, and Grafana serves every dashboard. What it cannot: a notification actually delivered (no SMTP in the test), and the probes timer and node metrics on a real host.
 
@@ -209,6 +220,6 @@ The web front also sets the security headers (HSTS, CSP, no framing) and hides `
 
 ### Testing the stack locally
 
-`bash infra/stack/test.sh` builds the four images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, starts the monitoring project beside it (its configurations validated and the rules unit-tested first), validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside, then the monitoring (see Monitoring). Then the deploy scenarios, and the backups against a local S3 server (versitygw with a self-signed certificate): a full backup, the restore drill, a disaster recovery (the database volume removed and restored from the repository, the data checked), and a RADIUS login and a reject through FreeRADIUS. It leaves everything running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed) and at Grafana on `http://127.0.0.1:3000` (user `admin`, the password in `infra/monitoring/.env`); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
+`bash infra/stack/test.sh` builds the four images, starts this exact compose file with Caddy's own CA instead of ACME, `*.corebalt.localhost` names, named volumes and fake secrets on ports 8081/8443, loads the lab seed, starts the monitoring project beside it (its configurations validated and the rules unit-tested first), validates the Caddyfile in DNS mode with both providers, and checks the routing, headers and caching from outside, then the monitoring (see Monitoring). Then the deploy scenarios, and the backups against a local S3 server (versitygw with a self-signed certificate): a full backup, the restore drill, a disaster recovery (the database volume removed and restored from the repository, the data checked), a RADIUS login and a reject through FreeRADIUS after `stackctl reload-radius`, and the onboarding runbook's recipes end to end (the break-glass reset, the platform admin's first sign-in with TOTP, a tenant, its Owner's first sign-in, a router, a package, a CSV import). It leaves everything running for a look at `https://admin.corebalt.localhost:8443` (the certificate is self-signed) and at Grafana on `http://127.0.0.1:3000` (user `admin`, the password in `infra/monitoring/.env`); `bash infra/stack/test.sh down` removes it. CI runs it on every push.
 
 What it cannot prove: a real certificate from Let's Encrypt through your DNS provider, callbacks arriving from Safaricom's addresses, and a real Object Storage endpoint (the URI style and region of the provider).

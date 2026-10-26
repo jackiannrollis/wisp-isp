@@ -1,6 +1,6 @@
 # Backups and restore
 
-PostgreSQL holds everything the platform owns: tenants, customers, subscriptions, the ledger and the receipts, payments, the audit log, the RADIUS credentials (readable in clear only through the RADIUS views, ADR 0009), accounting (`radacct`) and the usage roll-ups. It is the only service that is backed up. This runbook covers the database; the loss of a whole host, hub and router peers included, belongs to the failover-drill runbook (not written yet).
+PostgreSQL holds everything the platform owns: tenants, customers, subscriptions, the ledger and the receipts, payments, the audit log, the RADIUS credentials (readable in clear only through the RADIUS views, ADR 0009), accounting (`radacct`) and the usage roll-ups. It is the only service that is backed up. This runbook covers the database; the loss of a whole host, hub and router peers included, is drill C of the failover-drill runbook (`failover-drill.md`).
 
 ## What is backed up, and what is not
 
@@ -52,7 +52,7 @@ Every restore is run by the operator, never automated. In each, PostgreSQL repla
 4. `sudo /srv/corebalt/stack/backupctl restore` (the newest backup and every archived WAL after it), or `--target "2026-10-22 10:15:00+00"` for a point in time.
 5. `sudo systemctl start corebalt-stack`. PostgreSQL recovers (minutes at most; `docker logs corebalt-postgres-1` shows the replay), the services start behind their health checks.
 6. Check: `backupctl status`, `stackctl status`, sign in to the admin app, a customer's wallet statement. Then `ops backup`.
-7. Point the DNS records at the new host. Routers reach the hub by its public key: restore the hub's key from escrow (`key-escrow.md`) or re-onboard every router; that procedure is the failover-drill runbook's.
+7. Point the DNS records at the new host. Routers reach the hub by its public key: restore the hub's key from escrow (`key-escrow.md`) and replay the escrowed peer list, so no router is re-onboarded: `failover-drill.md`, drill C, steps 3 to 5.
 
 ### B. Point-in-time recovery on the same host (a bad change at a known time)
 
@@ -90,7 +90,7 @@ Keep the extract on the data disk and delete it when done; it is personal data. 
 - **Rotating the bucket's key pair.** New pair at the provider, `ansible-vault edit` the two values, `ops provision` (the stack restarts to pick the file up), then `ops backup`.
 - **The cipher passphrase cannot be changed in place**: the repository is encrypted with it. To rotate, set a new `stack_backup_repo_path` and passphrase, provision, take a full backup, and keep the old repository readable (old passphrase in escrow) until its backups would have expired.
 - **A PostgreSQL major upgrade** is a procedure, not a deploy: `pg_upgrade` on the data directory, `pgbackrest --stanza=main stanza-upgrade`, then a full backup. A release that only bumps the image (minor version, pgBackRest) just restarts the database for a few seconds.
-- **Staging** backs up the same way into its own bucket; it holds the lab seed and test data only (docs/02), so its backups carry no production data.
+- **Staging** backs up the same way into its own bucket; it holds only the fake tenants and customers the onboarding runbook creates there (docs/02), so its backups carry no production data.
 
 ## Compliance
 
