@@ -199,6 +199,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The runner's disk nearly fills with the four images, the monitoring images and the browsers,
+      # and Loki stops ingesting at 90% disk usage; the preinstalled toolchains nobody here uses go first.
+      - name: Free the runner's disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h / | tail -1
       - uses: docker/setup-buildx-action@v4
       - name: Backend image
         uses: docker/build-push-action@v7

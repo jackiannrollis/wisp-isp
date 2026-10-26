@@ -5,8 +5,9 @@
 monitoring_dir: "{{ data_volume_mount | default('/srv/corebalt') }}/monitoring"
 monitoring_data_dir: "{{ data_volume_mount | default('/srv/corebalt') }}"
 monitoring_stack_dir: "{{ monitoring_data_dir }}/stack"
-# The text files backupctl and probes write (the stack role's stack_metrics_dir has the same default).
-monitoring_metrics_dir: "{{ monitoring_data_dir }}/metrics"
+# The text files backupctl and probes write: the stack role's stack_metrics_dir when it is set, else the
+# same default, so one inventory value moves both.
+monitoring_metrics_dir: "{{ stack_metrics_dir | default(monitoring_data_dir ~ '/metrics') }}"
 # The external label on every series, log line and alert of this host: the inventory's name.
 monitoring_environment: "{{ inventory_dir | basename }}"
 monitoring_prometheus_retention: 30d

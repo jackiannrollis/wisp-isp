@@ -95,6 +95,9 @@ class RadiusAuthIT extends IntegrationTest {
                         .withEnv("RADIUS_DB_USER", "isp_radius")
                         .withEnv("RADIUS_DB_PASSWORD", RADIUS_PASSWORD)
                         .withEnv("RADIUS_LAB_SECRET", LAB_SECRET)
+                        // The status site's client secret (sites-available/corebalt-status); the image
+                        // refuses to start without it, like a stack would.
+                        .withEnv("RADIUS_STATUS_SECRET", "radius-it-status-secret-not-a-secret")
                         // CoA interop below: radclient in the container talks to a fake router on the host.
                         .withExtraHost("host.docker.internal", "host-gateway")
                         .withCommand("freeradius", "-f", "-l", "stdout")

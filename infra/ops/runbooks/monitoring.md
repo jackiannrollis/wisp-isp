@@ -117,7 +117,7 @@ Adding a probe target (a tenant's portal name, an external dependency): `monitor
 
 ## Retention and disk
 
-Prometheus keeps 30 days or 10 GB, whichever comes first (`monitoring_prometheus_retention`, `monitoring_prometheus_retention_size`); Loki 30 days (`monitoring_loki_retention`), compacted daily. Both live on the data disk with PostgreSQL, so `CorebaltDiskFillingUp` matters more than usual. Loki's own log volume is dominated by FreeRADIUS auth lines at scale; lower `LOKI_RETENTION` before the disk, not after.
+Prometheus keeps 30 days or 10 GB, whichever comes first (`monitoring_prometheus_retention`, `monitoring_prometheus_retention_size`); Loki 30 days (`monitoring_loki_retention`), compacted daily. Both live on the data disk with PostgreSQL, so `CorebaltDiskFillingUp` matters more than usual. Loki's own log volume is dominated by FreeRADIUS auth lines at scale; lower `LOKI_RETENTION` before the disk, not after. Loki protects the disk by itself: at 90% usage it throttles its write-ahead log and the ingester stops accepting lines (Alloy then logs "final error sending batch" and drops them), so a full data disk silences the logs before it stops the database.
 
 ## Known limits
 
