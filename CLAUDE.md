@@ -49,7 +49,7 @@ unit-tested with promtool, LogQL rules on the FreeRADIUS auth log; `monitorctl`,
 (`infra/ops/runbooks/failover-drill.md`: the RADIUS, hub and lost-host drills rehearsed on staging with one
 node, the drill record template; the production RADIUS drill and the replica promotion wait for node B) and
 the pilot-onboarding runbook (`pilot-onboarding.md`: the platform console by curl, the Owner's first
-sign-in, routers by the template renderer `infra/ops/render-onboarding.sh` plus `corebalt-wg-hub add-peer`
+sign-in, routers by the admin app's generated onboarding script (ADR 0013) plus `corebalt-wg-hub add-peer`
 and `stackctl reload-radius`, the CSV import, the cutover choices, Gate 1 queries), with the stack test
 running the onboarding recipe end to end. Not yet: the Nairobi node (pending Q2).
 
@@ -109,7 +109,6 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
 | Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|secrets\|bootstrap\|provision\|init-disk\|unlock\|deploy\|rollback\|backup\|drill\|backup-status\|monitoring <inventory> [-Limit host] [-Release sha]` | `infra/ops/ops.sh …` |
 | Test the staging/production compose stack locally (local TLS, lab seed, routing checks, the monitoring project with its configuration checks, rule unit tests, targets, probes, Loki and Grafana, deploys, backups against a local S3, restore drill and disaster recovery, a RADIUS login) | `bash infra/stack/test.sh` (Git Bash); `… down` removes it; Grafana at `http://127.0.0.1:3000` | `infra/stack/test.sh` |
-| Render a router's onboarding script from a values file (copy `infra/ops/onboarding.example.env`; the output holds secrets) | `bash infra/ops/render-onboarding.sh <values.env> > router.rsc` | the same |
 | Test the playbooks against a throwaway Debian 13 container | `bash infra/ansible/tests/converge.sh` (Git Bash) | `infra/ansible/tests/converge.sh` |
 | All checks (what CI runs, except the end-to-end suite) | `infra\scripts\test.ps1` | `infra/scripts/test.sh` |
 

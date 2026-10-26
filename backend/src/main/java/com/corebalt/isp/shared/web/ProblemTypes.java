@@ -13,6 +13,7 @@ public final class ProblemTypes {
     public static final URI VALIDATION_FAILED = URI.create(BASE + "validation-failed");
     public static final URI NOT_FOUND = URI.create(BASE + "not-found");
     public static final URI CONFLICT = URI.create(BASE + "conflict");
+    public static final URI SERVICE_UNAVAILABLE = URI.create(BASE + "service-unavailable");
     public static final URI IDEMPOTENCY_KEY_REUSED = URI.create(BASE + "idempotency-key-reused");
     /** A sign-in step was refused (wrong credentials, expired step); deliberately vague. */
     public static final URI SIGN_IN_FAILED = URI.create(BASE + "sign-in-failed");

@@ -59,18 +59,18 @@ Expired users are accepted into `RESTRICTED`, never rejected: a rejected PPPoE c
 
 ## Router onboarding script
 
-Generated per router from the admin dashboard and pasted into the terminal once. It sets:
+Generated per router from the router's page in the admin app (`POST /api/v1/routers/{id}/onboarding-script`, [ADR 0013](adr/0013-router-onboarding-keys-from-the-platform.md)) and pasted into the terminal once; shown once, never stored. The ISP enters its addressing on the router (the PPPoE interface, the PPP local address, the two pools, its management networks); the platform supplies the hub (its public key read from the host, `hub-a.<domain>`, the tunnel address), the pay page's address and fresh secrets: a WireGuard key pair generated for the router (the public key is kept, `wg_public_key`), a new RADIUS secret ([ADR 0009](adr/0009-radius-credentials-readable-only-by-radius.md)), a new REST password (kept encrypted for the tunnel worker) and an SNMP community. It is safe to re-run: pools and the profile are updated in place. It sets:
 
 1. `/system identity` and a `/system note` with the platform router ID
-2. A WireGuard interface with peers for hub A and hub B, tunnel addresses from the platform
+2. A WireGuard interface with the generated private key and peers for hub A and hub B, tunnel addresses from the platform
 3. `/radius` entries for both nodes with services `ppp,hotspot`, the per-router secret and `/radius incoming accept=yes`
 4. `/ppp aaa use-radius=yes accounting=yes interim-update=5m`
-5. The `full` and `restricted` IP pools and the PPPoE server profile that uses RADIUS
+5. The `full` and `restricted` IP pools and the PPPoE profile that uses RADIUS; a PPPoE server only where the interface has none (an ISP's existing server is kept and switched to the profile at the cutover)
 6. Firewall address lists and the restricted-mode NAT and filter rules
 7. A restricted REST API user for the platform (read, PPP active, system resource) and SNMP read-only with a per-router community
 8. NTP so accounting timestamps are right
 
-The platform verifies the script worked by polling `/system/resource` over the tunnel and recording `routeros_version`.
+The platform verifies the script worked by polling `/system/resource` over the tunnel and recording `routeros_version`. The hub's peer list is kept equal to the routers' stored public keys by a sync on the host (ADR 0013), so a rebuilt host has its peers back from the database.
 
 ## Hotspot (v2)
 

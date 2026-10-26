@@ -62,6 +62,8 @@ umask 077
 mkdir -p "$PEER_DIR"
 [ -s "$STATE_DIR/hub.key" ] || wg genkey > "$STATE_DIR/hub.key"
 wg pubkey < "$STATE_DIR/hub.key" > "$STATE_DIR/hub.pub"
+# The public key is public: the API reads it (mounted read-only) to put it in onboarding scripts.
+chmod 0644 "$STATE_DIR/hub.pub"
 
 ip link show wg0 > /dev/null 2>&1 || ip link add wg0 type wireguard
 wg set wg0 private-key "$STATE_DIR/hub.key" listen-port "$LISTEN_PORT"

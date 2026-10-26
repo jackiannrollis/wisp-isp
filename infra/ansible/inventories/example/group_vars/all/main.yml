@@ -16,6 +16,9 @@ data_volume_device: /dev/disk/by-id/scsi-0HC_Volume_EXAMPLE
 data_volume_unlock: manual
 # WireGuard hub port, public on hubs (base opens it, wireguard_hub listens on it).
 wireguard_port: 51820
+# Router onboarding scripts (docs/06): routers dial the hub by stack_hub_endpoint (default
+# hub-a.<platform_domain>, an A record for this host) and restricted customers may reach only
+# stack_public_address (default ansible_host; set it when ansible_host is a name).
 # The GHCR namespace the images are published under (the GitHub user or organisation).
 ghcr_owner: example
 # Wildcard certificate by ACME DNS-01: cloudflare or hetzner (decisions.md 2026-10-21); the API

@@ -7,6 +7,12 @@ stack_acme_dns_provider: cloudflare
 stack_sms_allowlist: ""
 # A (Hetzner core) or B (Nairobi): which hub this host's tunnel worker serves.
 stack_worker_hub: A
+# Router onboarding scripts (docs/06, ADR 0013): how a router reaches this hub and the pay page. The
+# endpoint is a DNS name, so a replacement host is one record change (runbooks/failover-drill.md);
+# the public address is where pay.<domain> resolves (restricted customers may reach only it).
+stack_hub_endpoint: "hub-a.{{ platform_domain }}"
+stack_public_address: "{{ ansible_host }}"
+stack_ntp_servers: pool.ntp.org
 # Image uids of the official images, for the bind-mounted data directories.
 stack_postgres_uid: 999
 stack_rabbitmq_uid: 999

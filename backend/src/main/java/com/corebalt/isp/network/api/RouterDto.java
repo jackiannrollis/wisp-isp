@@ -23,5 +23,14 @@ public record RouterDto(
         String boardName,
         Long uptimeSeconds,
         Integer cpuLoad,
+        // Onboarding (ADR 0013): the WireGuard public key the hub expects (the private key was in the
+        // script once), the addressing the script was generated with, and when.
+        String wgPublicKey,
+        String pppoeInterface,
+        String pppLocalAddress,
+        String poolFull,
+        String poolRestricted,
+        String managementCidrs,
+        Instant onboardingScriptGeneratedAt,
         Instant createdAt,
         Instant updatedAt) {}

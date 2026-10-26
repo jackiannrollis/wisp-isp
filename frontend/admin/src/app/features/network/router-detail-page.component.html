@@ -26,6 +26,10 @@
           <tabler-icon [icon]="icons.more" [size]="18" />
         </button>
         <mat-menu #routerMenu="matMenu" xPosition="before">
+          <button mat-menu-item type="button" (click)="onboardingScript(r)">
+            <tabler-icon [icon]="icons.script" [size]="18" class="menu-icon" />
+            <span>{{ r.wgPublicKey ? 'New onboarding script' : 'Onboarding script' }}</span>
+          </button>
           <button mat-menu-item type="button" (click)="setLogin(r)">
             <tabler-icon [icon]="icons.login" [size]="18" class="menu-icon" />
             <span>{{ r.restUsername ? 'Replace monitoring login' : 'Set monitoring login' }}</span>
@@ -47,8 +51,8 @@
             {{ polling() ? 'Polling…' : 'Poll now' }}
           </button>
         } @else {
-          <button mat-flat-button type="button" (click)="setLogin(r)">
-            <tabler-icon [icon]="icons.login" [size]="16" /> Set monitoring login
+          <button mat-flat-button type="button" (click)="onboardingScript(r)">
+            <tabler-icon [icon]="icons.script" [size]="16" /> Onboarding script
           </button>
         }
       </ng-container>
@@ -99,6 +103,20 @@
     <div>
       <dt>Monitoring login</dt>
       <dd>{{ r.restUsername || 'Not set' }}</dd>
+    </div>
+    <div>
+      <dt>Onboarding script</dt>
+      <dd>
+        {{
+          r.onboardingScriptGeneratedAt
+            ? 'Generated ' + age(r.onboardingScriptGeneratedAt)
+            : 'Not generated yet'
+        }}
+      </dd>
+    </div>
+    <div class="wide">
+      <dt>WireGuard public key</dt>
+      <dd class="mono">{{ r.wgPublicKey || '—' }}</dd>
     </div>
   </dl>
 

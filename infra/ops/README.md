@@ -179,7 +179,7 @@ Alerts (`infra/monitoring/rules`, unit-tested with promtool; the LogQL ones in `
 
 | Runbook | Covers |
 |---|---|
-| `runbooks/pilot-onboarding.md` | A tenant ISP from the signed agreement to customers online: the platform console (API only), the Owner's first sign-in and settings, staff, packages, routers (the template renderer `render-onboarding.sh`, the hub peer, `stackctl reload-radius`), the CSV import, the cutover choices, the pilot on manual payments, Daraja go-live, the Gate 1 queries. Staging is onboarded the same way with fake data |
+| `runbooks/pilot-onboarding.md` | A tenant ISP from the signed agreement to customers online: the platform console (API only), the Owner's first sign-in and settings, staff, packages, routers (the generated onboarding script, the hub peer, `stackctl reload-radius`), the CSV import, the cutover choices, the pilot on manual payments, Daraja go-live, the Gate 1 queries. Staging is onboarded the same way with fake data |
 | `runbooks/failover-drill.md` | The quarterly drill: what runs on staging today with one node (FreeRADIUS outage, hub outage, the core host lost and rebuilt with the hub key and peers from escrow), what waits for the Nairobi node, the login check, the pass criteria and the record (`runbooks/drills/TEMPLATE.md`) |
 | `runbooks/backups.md` | What is backed up, the drill, the alerts, every restore procedure |
 | `runbooks/key-escrow.md` | The secrets that cannot be regenerated, where their copies live, the quarterly check |

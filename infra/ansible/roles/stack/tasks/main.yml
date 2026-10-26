@@ -65,6 +65,15 @@
           backup_s3_endpoint, backup_s3_bucket and backup_s3_region name the inventory's backup bucket
           (inventories/example/group_vars/all/main.yml; infra/ops/runbooks/backups.md).
 
+    - name: Router onboarding values are usable (docs/06, ADR 0013)
+      ansible.builtin.assert:
+        that:
+          - stack_hub_endpoint is match('^[a-z0-9.-]+$')
+          - stack_public_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+        fail_msg: >-
+          stack_hub_endpoint must be the DNS name routers dial (hub-a.<domain>) and stack_public_address the
+          IPv4 address pay.<domain> resolves to; set stack_public_address when ansible_host is a name.
+
     - name: Stack directory
       ansible.builtin.file:
         path: "{{ stack_dir }}/postgres-init"

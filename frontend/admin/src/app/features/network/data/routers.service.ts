@@ -10,6 +10,8 @@ import { components } from '../../../shared/models';
 export type Router = components['schemas']['RouterDto'];
 export type RouterWithSecret = components['schemas']['RouterSecretDto'];
 export type RouterSessions = components['schemas']['RouterSessionsDto'];
+export type RouterOnboardingRequest = components['schemas']['RouterOnboardingRequest'];
+export type RouterOnboardingScript = components['schemas']['RouterOnboardingScriptDto'];
 
 const ROUTERS = `${API_BASE}/routers`;
 
@@ -45,6 +47,17 @@ export class RoutersService {
   /** The RADIUS secret in the answer is shown once and never again. */
   register(name: string, tunnelIp: string): Observable<RouterWithSecret> {
     return this.http.post<RouterWithSecret>(ROUTERS, { name, tunnelIp });
+  }
+
+  /**
+   * The onboarding script (docs/06, ADR 0013): shown once; it carries a new WireGuard private key, a
+   * new RADIUS secret and a new REST password, and the platform keeps only the public key.
+   */
+  onboardingScript(
+    id: string,
+    request: RouterOnboardingRequest,
+  ): Observable<RouterOnboardingScript> {
+    return this.http.post<RouterOnboardingScript>(`${ROUTERS}/${id}/onboarding-script`, request);
   }
 
   newRadiusSecret(id: string): Observable<RouterWithSecret> {

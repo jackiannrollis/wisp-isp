@@ -8,3 +8,4 @@ backupctl
 pgbackrest.conf
 metrics/
 deploy.log
+hub.pub

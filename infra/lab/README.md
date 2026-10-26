@@ -75,7 +75,7 @@ infra\lab\scripts\lab.ps1 status      # tunnel, PPPoE sessions, queues, address 
 infra\lab\scripts\lab.ps1 check       # FULL: real sites over HTTP and HTTPS
 ```
 
-The onboarding script is `routeros/onboarding.rsc.tmpl`, the eight steps of docs/06 in order;
+The onboarding script is the platform's own template, `backend/src/main/resources/routeros/onboarding.rsc.tmpl` (the API renders it for real routers, ADR 0013; the lab renders it the same way with a key pair from the hub container), the eight steps of docs/06 in order;
 `routeros/lab-base.rsc.tmpl` is what a real ISP router already has (WAN, NAT, resolver).
 
 ## Demo: the core flow on the network side

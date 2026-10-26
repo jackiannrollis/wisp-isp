@@ -1,19 +1,20 @@
-# Corebalt router onboarding script (docs/06, Router onboarding script; N1, N5, N6).
+# Corebalt router onboarding script (docs/06, Router onboarding script; N1, N5, N6; ADR 0013).
 # Generated for {{ROUTER_NAME}} ({{ROUTER_ID}}). Paste once into the router terminal; safe to re-run:
-# every object it creates carries a "corebalt" comment and is replaced on the next run.
+# every object it creates carries a "corebalt" comment and is replaced or updated on the next run.
 # It never writes a customer into router configuration (N1): customers come from RADIUS.
-#
-# Step-2 lab stand-in for the generator the network module will own. Placeholders are filled by
-# infra/lab/scripts/lab.ps1; production adds hub B and RADIUS node B where marked.
+# It holds this router's WireGuard private key, RADIUS secret, REST password and SNMP community,
+# which the platform never shows again: delete the file once the router has run it.
 
 # 1. Identity and the platform router ID
 /system identity set name="{{ROUTER_NAME}}"
 /system note set note="Corebalt router {{ROUTER_ID}}" show-at-login=no
 
-# 2. WireGuard to the hubs. RADIUS, CoA, REST and SNMP travel only through the tunnel (N6).
+# 2. WireGuard to the hubs, with the key pair the platform generated for this router (its public key
+# is what the hub expects). RADIUS, CoA, REST and SNMP travel only through the tunnel (N6).
 :if ([:len [/interface wireguard find name=wg-corebalt]] = 0) do={
     /interface wireguard add name=wg-corebalt listen-port=13231 mtu=1420 comment="corebalt"
 }
+/interface wireguard set [find name=wg-corebalt] private-key="{{WG_PRIVATE_KEY}}"
 /interface wireguard peers remove [find interface=wg-corebalt]
 /interface wireguard peers add interface=wg-corebalt name=corebalt-hub-a public-key="{{HUB_A_PUBLIC_KEY}}" \
     endpoint-address={{HUB_A_ENDPOINT}} endpoint-port={{HUB_A_PORT}} allowed-address={{HUB_A_TUNNEL_IP}}/32 \
@@ -32,16 +33,33 @@
 # 4. PPP authentication and accounting through RADIUS
 /ppp aaa set use-radius=yes accounting=yes interim-update=5m
 
-# 5. The full and restricted pools and the PPPoE server profile that uses RADIUS
-/interface pppoe-server server remove [find service-name="corebalt"]
-/ppp profile remove [find name="corebalt-radius"]
-/ip pool remove [find comment~"corebalt"]
-/ip pool add name=full ranges={{FULL_POOL}} comment="corebalt full"
-/ip pool add name=restricted ranges={{RESTRICTED_POOL}} comment="corebalt restricted"
-/ppp profile add name=corebalt-radius local-address={{PPP_LOCAL_ADDRESS}} dns-server={{PPP_LOCAL_ADDRESS}} \
-    change-tcp-mss=yes only-one=yes comment="corebalt: speed, pool and address list come from RADIUS"
-/interface pppoe-server server add service-name=corebalt interface={{PPPOE_INTERFACE}} \
-    default-profile=corebalt-radius authentication=pap,chap one-session-per-host=yes disabled=no
+# 5. The full and restricted pools and the PPPoE profile that uses RADIUS. Existing pools and the
+# profile are updated in place (a re-run on a live router must not remove what sessions use). A PPPoE
+# server is added only where the interface has none: a router already serving customers keeps its own
+# server, and its default-profile is switched to corebalt-radius at the cutover (the onboarding runbook).
+:if ([:len [/ip pool find name=full]] = 0) do={
+    /ip pool add name=full ranges={{FULL_POOL}} comment="corebalt full"
+} else={
+    /ip pool set [find name=full] ranges={{FULL_POOL}} comment="corebalt full"
+}
+:if ([:len [/ip pool find name=restricted]] = 0) do={
+    /ip pool add name=restricted ranges={{RESTRICTED_POOL}} comment="corebalt restricted"
+} else={
+    /ip pool set [find name=restricted] ranges={{RESTRICTED_POOL}} comment="corebalt restricted"
+}
+:if ([:len [/ppp profile find name=corebalt-radius]] = 0) do={
+    /ppp profile add name=corebalt-radius local-address={{PPP_LOCAL_ADDRESS}} dns-server={{PPP_LOCAL_ADDRESS}} \
+        change-tcp-mss=yes only-one=yes comment="corebalt: speed, pool and address list come from RADIUS"
+} else={
+    /ppp profile set [find name=corebalt-radius] local-address={{PPP_LOCAL_ADDRESS}} dns-server={{PPP_LOCAL_ADDRESS}} \
+        change-tcp-mss=yes only-one=yes
+}
+:if ([:len [/interface pppoe-server server find interface={{PPPOE_INTERFACE}}]] = 0) do={
+    /interface pppoe-server server add service-name=corebalt interface={{PPPOE_INTERFACE}} \
+        default-profile=corebalt-radius authentication=pap,chap one-session-per-host=yes disabled=no
+} else={
+    :log warning "corebalt: a PPPoE server already exists on {{PPPOE_INTERFACE}}; at the cutover set its default-profile=corebalt-radius"
+}
 
 # 6. Address lists and the restricted-mode rules (docs/06, Restricted mode; N3). RADIUS puts
 # restricted sessions in the "restricted" list: they may resolve DNS and reach the portal and pay

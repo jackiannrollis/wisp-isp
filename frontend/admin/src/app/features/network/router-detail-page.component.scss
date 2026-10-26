@@ -144,3 +144,13 @@
 .danger {
   color: var(--app-error);
 }
+
+/* Onboarding (ADR 0013): the WireGuard public key spans the row and keeps its shape. */
+.facts .wide {
+  grid-column: 1 / -1;
+}
+
+.facts .mono {
+  font-family: var(--mat-sys-code-font, ui-monospace, monospace);
+  word-break: break-all;
+}

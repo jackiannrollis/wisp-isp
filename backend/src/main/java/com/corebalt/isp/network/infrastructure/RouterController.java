@@ -4,7 +4,10 @@ import com.corebalt.isp.network.api.RouterDto;
 import com.corebalt.isp.network.api.RouterSessionsDto;
 import com.corebalt.isp.network.application.SessionViews;
 import com.corebalt.isp.network.api.RouterRequest;
+import com.corebalt.isp.network.api.RouterOnboardingRequest;
+import com.corebalt.isp.network.api.RouterOnboardingScriptDto;
 import com.corebalt.isp.network.api.RouterSecretDto;
+import com.corebalt.isp.network.application.RouterOnboarding;
 import com.corebalt.isp.network.application.RouterService;
 import com.corebalt.isp.shared.web.PageRequests;
 import com.corebalt.isp.shared.web.PageResponse;
@@ -35,10 +38,12 @@ class RouterController {
 
     private final RouterService service;
     private final SessionViews sessions;
+    private final RouterOnboarding onboarding;
 
-    RouterController(final RouterService service, final SessionViews sessions) {
+    RouterController(final RouterService service, final SessionViews sessions, final RouterOnboarding onboarding) {
         this.service = service;
         this.sessions = sessions;
+        this.onboarding = onboarding;
     }
 
     @GetMapping("/{id}/sessions")
@@ -95,6 +100,16 @@ class RouterController {
     ResponseEntity<Void> poll(@PathVariable final UUID id) {
         service.requestPoll(id);
         return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/onboarding-script")
+    @PreAuthorize("hasAuthority('network.write')")
+    @Operation(summary = "Generate the router's onboarding script (docs/06), shown only this once: it carries a new WireGuard "
+            + "private key, a new RADIUS secret (FreeRADIUS loads it at its next reload) and a new REST password, which the "
+            + "platform keeps for monitoring; the previous ones stop working once the router runs the script")
+    ResponseEntity<RouterOnboardingScriptDto> onboardingScript(
+            @PathVariable final UUID id, @Valid @RequestBody final RouterOnboardingRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(onboarding.generate(id, request));
     }
 
     @PostMapping("/{id}/radius-secret")

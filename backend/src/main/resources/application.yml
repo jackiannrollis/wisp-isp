@@ -133,6 +133,22 @@ isp:
       enabled: true
       interval: 1s
       batch-size: 100
+  network:
+    # Router onboarding scripts (docs/06; ADR 0013): hub A as the routers reach it. The hub's public key
+    # is read from a mounted file at each request (the host's /var/lib/wireguard/hub.pub; the local
+    # stack's wireguard volume), never copied into configuration, so a restored hub key is picked up.
+    onboarding:
+      hub-a:
+        public-key-file: ${ISP_HUB_A_PUBLIC_KEY_FILE:}
+        # The DNS name routers dial (hub-a.<domain> on a host; here the machine as the lab sees it).
+        endpoint: ${ISP_HUB_A_ENDPOINT:corebalt.localhost}
+        port: ${ISP_HUB_A_PORT:51820}
+        # The hub's tunnel address with the prefix routers share.
+        address: ${ISP_HUB_A_ADDRESS:10.200.0.1/24}
+      # Where restricted customers may go: the public address pay.<domain> resolves to, plain HTTP.
+      portal-address: ${ISP_PORTAL_ADDRESS:127.0.0.1}
+      pay-page-port: ${ISP_PAY_PAGE_PORT:80}
+      ntp-servers: ${ISP_NTP_SERVERS:pool.ntp.org}
 
 ---
 # The tunnel worker (ADR 0011): the same image as the API, connected as isp_worker. It polls routers

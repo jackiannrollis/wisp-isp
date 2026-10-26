@@ -24,7 +24,7 @@ curl() { command curl --connect-to ::127.0.0.1: "$@"; }
 # the monitoring project's test files live in ../monitoring the same way.
 MON=../monitoring
 cleanup_files() {
-    rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl pgbackrest.conf metrics
+    rm -rf .env images.env images.env.previous images.env.failed images.env.new compose.override.yml stackctl backupctl pgbackrest.conf metrics hub.pub
     rm -rf "$MON/.env" "$MON/compose.override.yml" "$MON/alertmanager.yml" "$MON/secrets" "$MON/targets.d" "$MON/monitorctl" "$MON/probes"
 }
 mon() { (cd "$MON" && docker compose -f compose.yml -f compose.override.yml --env-file .env "$@"); }
@@ -103,6 +103,10 @@ grep -q '^RADIUS_STATUS_SECRET=' .env || printf 'RADIUS_STATUS_SECRET=%s\nISP_DB
 # The first platform admin (ADR 0010), for the onboarding recipe below; its password is reset by the
 # break-glass command at every run, so the value here matters only for the first start.
 grep -q '^ISP_BOOTSTRAP_ADMIN_EMAIL=' .env || printf 'ISP_BOOTSTRAP_ADMIN_EMAIL=platform-admin@corebalt.localhost\nISP_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$(fake)" >> .env
+# Router onboarding scripts (ADR 0013): no hub here, so a fake hub public key in a file the API mounts,
+# and the values a host gets from its inventory.
+[ -s hub.pub ] || echo "$(openssl rand -base64 32)" > hub.pub
+grep -q '^HUB_PUBLIC_KEY_FILE=' .env || printf 'HUB_PUBLIC_KEY_FILE=./hub.pub\nHUB_A_ENDPOINT=hub-a.corebalt.localhost\nWG_HUB_ADDRESS=10.200.0.1/24\nPUBLIC_ADDRESS=127.0.0.1\n' >> .env
 # The backup repository for the test: versitygw from compose.override.yml, self-signed, fake credentials
 # (a host gets this file from Ansible, roles/stack/templates/pgbackrest.conf.j2). A fresh repository
 # path per run: the database volume may be a new cluster since the last run, which an existing stanza
@@ -465,6 +469,12 @@ rid=$(echo "$r" | jf 'd["router"]["id"]')
 [ -n "$rid" ] && [ -n "$(echo "$r" | jf 'd["radiusSecret"]')" ] && echo "   ok   router registered; its RADIUS secret is in this answer only (ADR 0009)" || { echo "   FAIL router registration: $(echo "$r" | head -c 300)"; fail=1; }
 compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) from radius_client_v3 where nasname = '$tip'" 2>/dev/null | grep -qx 1 \
     && echo "   ok   the router is a client in radius_client_v3 (what stackctl reload-radius makes FreeRADIUS load)" || { echo "   FAIL the router is missing from radius_client_v3"; fail=1; }
+r=$(post "/api/v1/routers/$rid/onboarding-script" '{"pppoeInterface":"ether2","pppLocalAddress":"10.10.0.1","poolFull":"10.10.0.10-10.10.0.250","poolRestricted":"10.11.0.10-10.11.0.250","managementCidrs":"192.168.88.0/24"}' "${auth[@]}")
+script=$(echo "$r" | jf 'd["script"]')
+if [ -n "$script" ] && ! echo "$script" | grep -q '{{' && echo "$script" | grep -q "public-key=\"$(cat hub.pub)\"" && echo "$script" | grep -q "endpoint-address=hub-a.corebalt.localhost" \
+    && [ "$(echo "$r" | jf 'd["router"]["restUsername"]')" = corebalt-api ] && [ "$(echo "$r" | jf 'd["router"]["wgPublicKey"]' | wc -c)" -eq 45 ]; then
+    echo "   ok   onboarding script generated: the hub's key from the mounted file, every placeholder filled, the router's WireGuard public key kept, the REST login set"
+else echo "   FAIL onboarding script: $(echo "$r" | head -c 300)"; fail=1; fi
 r=$(post /api/v1/packages '{"name":"Home 10","downloadKbps":10000,"uploadKbps":5000,"durationMinutes":43200,"price":{"amount":250000,"currency":"KES"}}' "${auth[@]}")
 [ -n "$(echo "$r" | jf 'd["id"]')" ] && echo "   ok   package created" || { echo "   FAIL package: $(echo "$r" | head -c 300)"; fail=1; }
 csv=$(printf 'name,phone,package\nJane Test,0700000002,Home 10\nJohn Test,0700000003,\n')

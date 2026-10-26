@@ -29,6 +29,16 @@ public final class SecretGenerator {
         return generate(SHARED_SECRET_LENGTH);
     }
 
+    /** The RouterOS REST password the onboarding script sets and the tunnel worker polls with: 24 characters. */
+    public static String restPassword() {
+        return generate(24);
+    }
+
+    /** The router's SNMP read-only community: 20 characters, set by the script, not kept by the platform. */
+    public static String snmpCommunity() {
+        return generate(20);
+    }
+
     static String generate(final int length) {
         final StringBuilder secret = new StringBuilder(length);
         for (int i = 0; i < length; i++) {

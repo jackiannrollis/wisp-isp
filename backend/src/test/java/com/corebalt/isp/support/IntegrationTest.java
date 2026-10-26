@@ -1,5 +1,10 @@
 package com.corebalt.isp.support;
 
+import com.corebalt.isp.network.domain.WireGuardKeys;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -56,6 +61,23 @@ public abstract class IntegrationTest {
         REDIS.start();
     }
 
+    /** The hub's public key the onboarding scripts carry (ADR 0013): a generated one, in a temporary file. */
+    public static final String HUB_PUBLIC_KEY = WireGuardKeys.generate().publicKey();
+    public static final String HUB_ENDPOINT = "hub-a.example.test";
+    public static final String PORTAL_ADDRESS = "192.0.2.20";
+    private static final Path HUB_PUBLIC_KEY_FILE = hubPublicKeyFile();
+
+    private static Path hubPublicKeyFile() {
+        try {
+            final Path file = Files.createTempFile("corebalt-hub", ".pub");
+            Files.writeString(file, HUB_PUBLIC_KEY + "\n");
+            file.toFile().deleteOnExit();
+            return file;
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     @DynamicPropertySource
     static void containerProperties(final DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -68,6 +90,9 @@ public abstract class IntegrationTest {
         registry.add("isp.mpesa.daraja.production-url", DARAJA::baseUrl);
         registry.add("isp.sms.at.sandbox-url", AT::baseUrl);
         registry.add("isp.sms.at.production-url", AT::baseUrl);
+        registry.add("isp.network.onboarding.hub-a.public-key-file", () -> HUB_PUBLIC_KEY_FILE.toString());
+        registry.add("isp.network.onboarding.hub-a.endpoint", () -> HUB_ENDPOINT);
+        registry.add("isp.network.onboarding.portal-address", () -> PORTAL_ADDRESS);
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
         registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);

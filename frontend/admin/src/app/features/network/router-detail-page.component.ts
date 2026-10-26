@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   IconAlertTriangle,
   IconDotsVertical,
+  IconFileCode,
   IconKey,
   IconPlugConnectedX,
   IconRefresh,
@@ -30,7 +31,7 @@ import { formatAge, formatDateTime, formatDuration } from '../../shared/ui/forma
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
 import { Router, RouterWithSecret, RoutersService } from './data/routers.service';
-import { RestCredentialDialogComponent } from './router-dialogs';
+import { OnboardingScriptDialogComponent, RestCredentialDialogComponent } from './router-dialogs';
 
 /** The worker polls on request; its answer lands within a few seconds (ADR 0011). */
 const POLL_SETTLE_MS = 4000;
@@ -67,6 +68,7 @@ export class RouterDetailPageComponent {
     refresh: IconRefresh,
     more: IconDotsVertical,
     login: IconKey,
+    script: IconFileCode,
     stop: IconPlugConnectedX,
     secret: IconShieldLock,
     alert: IconAlertTriangle,
@@ -111,6 +113,18 @@ export class RouterDetailPageComponent {
       .open(RestCredentialDialogComponent, { data: { router } })
       .afterClosed()
       .subscribe((saved) => saved && this.reload());
+  }
+
+  /** The script is shown once (ADR 0013); the page reloads afterwards for the new key and login. */
+  protected onboardingScript(router: Router): void {
+    this.dialog
+      .open(OnboardingScriptDialogComponent, {
+        data: { router },
+        disableClose: true,
+        width: '720px',
+      })
+      .afterClosed()
+      .subscribe((generated) => generated && this.reload());
   }
 
   protected stopMonitoring(router: Router): void {

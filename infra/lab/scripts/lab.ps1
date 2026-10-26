@@ -42,6 +42,8 @@ $ImageDir = Join-Path $LabDir "images"
 $VmDir = Join-Path $LabDir "out\vms"
 $BaseImage = Join-Path $ImageDir "chr-$RouterOsVersion.vhdx"
 $TemplateDir = Join-Path $LabDir "routeros"
+# The onboarding script's template is the platform's own (the API renders it for real routers, ADR 0013).
+$OnboardingTemplate = Join-Path $LabDir "..\..\backend\src\main\resources\routeros\onboarding.rsc.tmpl"
 
 $values = Read-DotEnv
 $AdminPassword = Get-EnvValue $values "LAB_CHR_ADMIN_PASSWORD"
@@ -116,7 +118,8 @@ function Wait-Ros([string] $Address) {
 }
 
 function Format-Template([string] $Name, [hashtable] $Values) {
-    $text = Get-Content -Raw (Join-Path $TemplateDir $Name)
+    $path = if ([IO.Path]::IsPathRooted($Name)) { $Name } else { Join-Path $TemplateDir $Name }
+    $text = Get-Content -Raw $path
     foreach ($key in $Values.Keys) { $text = $text.Replace("{{$key}}", [string] $Values[$key]) }
     if ($text -match '\{\{([A-Z_0-9]+)\}\}') { throw "template ${Name}: no value for $($Matches[1])" }
     return $text
@@ -230,13 +233,18 @@ switch ($Command) {
         Invoke-Ros $router (Format-Template "lab-base.rsc.tmpl" @{ ROUTER_NAME = "cb-lab-chr-1"; WAN_INTERFACE = "ether1" }) | Out-Null
         $hubKey = (Invoke-Compose exec -T wireguard wireguard-hub public-key | Select-Object -Last 1).Trim()
         $restPassword = New-RandomToken
-        $onboarding = Format-Template "onboarding.rsc.tmpl" @{
+        # The router's WireGuard pair, generated here like the platform does (ADR 0013): the private key
+        # goes into the script, the public key to the hub.
+        $wgKeys = @(Invoke-Compose exec -T wireguard sh -c 'k=$(wg genkey); echo $k; echo $k | wg pubkey' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $wgPrivate = $wgKeys[-2]; $wgPublic = $wgKeys[-1]
+        $onboarding = Format-Template $OnboardingTemplate @{
             ROUTER_NAME        = "cb-lab-chr-1"
             ROUTER_ID          = "01900000-0000-7000-8000-0000000000a2"
             HUB_A_PUBLIC_KEY   = $hubKey
             HUB_A_ENDPOINT     = $hostAddress
             HUB_A_PORT         = $WgPort
             HUB_A_TUNNEL_IP    = $HubTunnelIp
+            WG_PRIVATE_KEY     = $wgPrivate
             TUNNEL_ADDRESS     = "$ChrTunnelIp/$HubPrefix"
             TUNNEL_IP          = $ChrTunnelIp
             RADIUS_SECRET      = $RadiusSecret
@@ -254,8 +262,7 @@ switch ($Command) {
         }
         Invoke-Ros $router $onboarding | Out-Null
 
-        $wg = Get-Ros $router "interface/wireguard" | Where-Object name -eq "wg-corebalt"
-        Invoke-Compose exec -T wireguard wireguard-hub add-peer cb-lab-chr-1 $wg."public-key" "$ChrTunnelIp/32" | Out-Host
+        Invoke-Compose exec -T wireguard wireguard-hub add-peer cb-lab-chr-1 $wgPublic "$ChrTunnelIp/32" | Out-Host
 
         Write-Host "Loading lab fixtures and restarting FreeRADIUS"
         & (Join-Path $PSScriptRoot "seed.ps1") | Out-Null

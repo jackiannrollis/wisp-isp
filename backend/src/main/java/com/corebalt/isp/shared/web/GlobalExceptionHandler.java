@@ -45,6 +45,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemResponseWriter.problem(HttpStatus.NOT_FOUND, ProblemTypes.NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    ProblemDetail unavailable(final ServiceUnavailableException e) {
+        return ProblemResponseWriter.problem(HttpStatus.SERVICE_UNAVAILABLE, ProblemTypes.SERVICE_UNAVAILABLE, e.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     ProblemDetail conflict(final ConflictException e) {
         return ProblemResponseWriter.problem(HttpStatus.CONFLICT, ProblemTypes.CONFLICT, e.getMessage());

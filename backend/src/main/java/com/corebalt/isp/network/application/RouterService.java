@@ -170,7 +170,7 @@ public class RouterService implements RouterDirectory, RouterNames {
         return routers.findById(routerId).orElseThrow(() -> new NotFoundException("Router"));
     }
 
-    private static InetAddress ipv4(final String text) {
+    static InetAddress ipv4(final String text) {
         try {
             // A dotted-quad literal never triggers a DNS lookup.
             final InetAddress address = InetAddress.getByName(text.strip());
@@ -183,7 +183,7 @@ public class RouterService implements RouterDirectory, RouterNames {
         throw InvalidRequestException.of("tunnelIp", "must be an IPv4 address");
     }
 
-    private static RouterDto toDto(final Router router) {
+    static RouterDto toDto(final Router router) {
         return new RouterDto(
                 router.getId(),
                 router.getName(),
@@ -199,6 +199,13 @@ public class RouterService implements RouterDirectory, RouterNames {
                 router.getBoardName(),
                 router.getUptimeSeconds(),
                 router.getCpuLoad(),
+                router.getWgPublicKey(),
+                router.getPppoeInterface(),
+                router.getPppLocalAddress() == null ? null : router.getPppLocalAddress().getHostAddress(),
+                router.getPoolFull(),
+                router.getPoolRestricted(),
+                router.getManagementCidrs(),
+                router.getOnboardingScriptGeneratedAt(),
                 router.getCreatedAt(),
                 router.getUpdatedAt());
     }

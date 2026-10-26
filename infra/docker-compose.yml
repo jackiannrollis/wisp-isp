@@ -80,14 +80,27 @@ services:
       ISP_ALLOWED_ORIGINS: ${ISP_ALLOWED_ORIGINS:-http://localhost:4200,http://localhost:4201,http://localhost:8088}
       ISP_BOOTSTRAP_ADMIN_EMAIL: ${ISP_BOOTSTRAP_ADMIN_EMAIL:-}
       ISP_BOOTSTRAP_ADMIN_PASSWORD: ${ISP_BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Router onboarding scripts (docs/06, ADR 0013): the hub as a router reaches it. The hub's public
+      # key is read from the wireguard volume (mounted read-only below); the endpoint and the public
+      # address are this machine as the lab router sees it (infra/lab/README.md).
+      ISP_HUB_A_PUBLIC_KEY_FILE: /run/wireguard/hub.pub
+      ISP_HUB_A_ENDPOINT: ${HUB_A_ENDPOINT:-corebalt.localhost}
+      ISP_HUB_A_PORT: ${WG_PORT:-51820}
+      ISP_HUB_A_ADDRESS: ${WG_HUB_ADDRESS:-10.200.0.1/24}
+      ISP_PORTAL_ADDRESS: ${PUBLIC_ADDRESS:-127.0.0.1}
+      ISP_PAY_PAGE_PORT: ${CADDY_PAYPAGE_PORT:-8089}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - wireguard-data:/run/wireguard:ro
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      wireguard:
         condition: service_healthy
 
   # WireGuard hub (ADR 0006, N6): lab routers peer here; RADIUS, CoA, REST and SNMP to routers only

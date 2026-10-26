@@ -70,6 +70,23 @@ public class Router {
 
     @Column(name = "cpu_load", insertable = false, updatable = false)
     private Integer cpuLoad;
+    // Onboarding (docs/06, ADR 0013): the router's WireGuard public key (the pair is generated here,
+    // the private key handed over once in the script) and the ISP's addressing the script needs.
+    @Column(name = "wg_public_key")
+    private String wgPublicKey;
+    @Column(name = "pppoe_interface")
+    private String pppoeInterface;
+    @JdbcTypeCode(SqlTypes.INET)
+    @Column(name = "ppp_local_address")
+    private InetAddress pppLocalAddress;
+    @Column(name = "pool_full")
+    private String poolFull;
+    @Column(name = "pool_restricted")
+    private String poolRestricted;
+    @Column(name = "management_cidrs")
+    private String managementCidrs;
+    @Column(name = "onboarding_script_generated_at")
+    private Instant onboardingScriptGeneratedAt;
 
     protected Router() {}
 
@@ -107,6 +124,48 @@ public class Router {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    /** What an onboarding script was generated with; the new WireGuard public key replaces the old at once. */
+    public void onboard(
+            final String wgPublicKey, final String pppoeInterface, final InetAddress pppLocalAddress, final String poolFull,
+            final String poolRestricted, final String managementCidrs, final Instant now) {
+        this.wgPublicKey = wgPublicKey;
+        this.pppoeInterface = pppoeInterface;
+        this.pppLocalAddress = pppLocalAddress;
+        this.poolFull = poolFull;
+        this.poolRestricted = poolRestricted;
+        this.managementCidrs = managementCidrs;
+        this.onboardingScriptGeneratedAt = now;
+        this.updatedAt = now;
+    }
+
+    public String getWgPublicKey() {
+        return wgPublicKey;
+    }
+
+    public String getPppoeInterface() {
+        return pppoeInterface;
+    }
+
+    public InetAddress getPppLocalAddress() {
+        return pppLocalAddress;
+    }
+
+    public String getPoolFull() {
+        return poolFull;
+    }
+
+    public String getPoolRestricted() {
+        return poolRestricted;
+    }
+
+    public String getManagementCidrs() {
+        return managementCidrs;
+    }
+
+    public Instant getOnboardingScriptGeneratedAt() {
+        return onboardingScriptGeneratedAt;
     }
 
     public String getStatus() {

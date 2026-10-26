@@ -29,7 +29,21 @@ x-backend-env: &backend-env
   CALLBACK_BASE_URL: https://${PLATFORM_DOMAIN}
   # Staging only: SMS to these test numbers alone; empty in production.
   ISP_SMS_ALLOWLIST: ${SMS_ALLOWLIST:-}
+  # Router onboarding scripts (docs/06, ADR 0013): hub A as routers reach it. The hub's public key is
+  # the host's /var/lib/wireguard/hub.pub, mounted read-only into both API instances (below).
+  ISP_HUB_A_PUBLIC_KEY_FILE: /run/wireguard/hub.pub
+  ISP_HUB_A_ENDPOINT: ${HUB_A_ENDPOINT:?}
+  ISP_HUB_A_PORT: ${WG_PORT:-51820}
+  ISP_HUB_A_ADDRESS: ${WG_HUB_ADDRESS:?}
+  ISP_PORTAL_ADDRESS: ${PUBLIC_ADDRESS:?}
+  ISP_PAY_PAGE_PORT: "80"
+  ISP_NTP_SERVERS: ${NTP_SERVERS:-pool.ntp.org}
   JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+
+# The hub's public key, read by the API at each script generation (a key restored from escrow is seen
+# at once); the local test points it at a fake file.
+x-hub-key: &hub-key
+  - ${HUB_PUBLIC_KEY_FILE:-/var/lib/wireguard/hub.pub}:/run/wireguard/hub.pub:ro
 
 x-backend-health: &backend-health
   test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
@@ -118,6 +132,7 @@ services:
       <<: *backend-env
       ISP_BOOTSTRAP_ADMIN_EMAIL: ${ISP_BOOTSTRAP_ADMIN_EMAIL:-}
       ISP_BOOTSTRAP_ADMIN_PASSWORD: ${ISP_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes: *hub-key
     healthcheck: *backend-health
     depends_on:
       postgres: { condition: service_healthy }
@@ -132,6 +147,7 @@ services:
       ISP_SCHEDULING_ENABLED: "false"
       ISP_OUTBOX_RELAY_ENABLED: "false"
       ISP_BOOTSTRAP_ENABLED: "false"
+    volumes: *hub-key
     healthcheck: *backend-health
     depends_on:
       api-1: { condition: service_healthy }
