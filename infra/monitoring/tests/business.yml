@@ -21,6 +21,13 @@ tests:
         values: "0 0 1 1 1 1 1 1 1 1"
       - series: 'isp_identity_otp_bursts_total{instance="api-2"}'
         values: "0 0 2 2 2 2 2 2 2 2"
+      # Gate 1: the last hour counts; the 30-day window and a tenant with none late do not fire.
+      - series: 'isp_gate1_restores_late{instance="api-1",tenant="ACME",window="1h"}'
+        values: "0 0 2+0x10"
+      - series: 'isp_gate1_restores_late{instance="api-1",tenant="ACME",window="30d"}'
+        values: "5+0x12"
+      - series: 'isp_gate1_restores_late{instance="api-1",tenant="KILI",window="1h"}'
+        values: "0+0x12"
     alert_rule_test:
       - eval_time: 6m
         alertname: CorebaltWalletDrift
@@ -74,3 +81,13 @@ tests:
             exp_annotations:
               summary: "Bursts of portal sign-in codes"
               description: "docs/08: more SMS codes requested than the per-phone or per-address limit allows, from one source. Someone probing the portal sign-in, or a broken client."
+      - eval_time: 1m
+        alertname: CorebaltGate1RestoreLate
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CorebaltGate1RestoreLate
+        exp_alerts:
+          - exp_labels: { severity: warning, tenant: ACME }
+            exp_annotations:
+              summary: "2 restore(s) of tenant ACME slower than 60 seconds or missed in the last hour"
+              description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and waited more than a minute after the callback to be restored, or neither a Disconnect answer nor a new session came within 10 minutes. CorebaltCoaFailed or messages waiting in RabbitMQ are the usual causes; the console's tenant page shows the restores of the period."

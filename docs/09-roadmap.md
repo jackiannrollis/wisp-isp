@@ -23,7 +23,7 @@ The smallest product an ISP would pay for: PPPoE billing that collects and recon
 | Admin dashboard | Subscribers by state, expected and collected revenue, routers online, active sessions, an action queue, recent payments and a collection trend; customer, payment and session screens |
 | Customer portal | Status, package, expiry, usage, Pay Now, payment history, receipts |
 
-**Gate 1:** the pilot ISP completes two billing cycles with no manual reconnects, payment matching above 98% automatic, and no restore slower than 60 seconds after callback.
+**Gate 1:** the pilot ISP completes two billing cycles with no manual reconnects, payment matching above 98% automatic, and no restore slower than 60 seconds after callback. The platform measures all three per tenant (ADR 0018: the console's tenant page, `GET /api/platform/tenants/{id}/gate1`, the Platform dashboard); manual payments count for neither matching nor restores, so the two cycles count from Daraja go-live.
 
 ## v2 · Hotspot and portal
 

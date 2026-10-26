@@ -67,7 +67,7 @@ The monolith is one deployable, but its modules are strict. Spring Modulith veri
 | `notifications` | Templates, SMS dispatch (WhatsApp and email later), delivery log | `CustomerNotified` | `SubscriptionReminderDue`, `CreditApplied`, `PaymentUnmatched`, `SubscriptionPackageChanged`, `UsageThresholdReached` (SMS); `RouterOffline`, `RouterOnline`, `SessionReauthorizationFailed`, `SessionReauthorized` (staff alerts) |
 | `hotspot` (v2) | Hotspot plans, captive portal API, vouchers, hotspot sessions | `VoucherRedeemed` | `PaymentReceived` |
 | `support` (v2) | Tickets, outages, technician assignment | `TicketUpdated` | `RouterOffline` |
-| `reporting` | Dashboard counts, revenue and usage reports, read from the replica | — | — |
+| `reporting` | Dashboard counts, revenue and usage reports, read from the replica; Gate 1 measured per tenant (restores of RESTRICTED lines by callback payments, ADR 0018) | — | `CreditApplied`, `SessionReauthorized` (Gate 1) |
 
 Rules:
 

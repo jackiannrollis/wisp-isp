@@ -41,6 +41,7 @@
 
 .section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--app-space-3);
@@ -120,4 +121,16 @@ table {
 h1 app-status-chip {
   vertical-align: middle;
   margin-left: var(--app-space-2);
+}
+
+.note {
+  margin: 0;
+  padding-top: 0;
+  font: var(--mat-sys-body-small);
+}
+
+.period {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
 }

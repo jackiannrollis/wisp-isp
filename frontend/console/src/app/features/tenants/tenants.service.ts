@@ -7,6 +7,7 @@ import {
   CreateTenant,
   CreatedTenant,
   Impersonation,
+  Gate1,
   Invitation,
   Staff,
   StaffPage,
@@ -63,6 +64,13 @@ export class TenantsService {
   /** An unused invitation only (409 for an active member); the new temporary password is shown once. */
   reissueInvitation(id: string, staffId: string): Observable<Invitation> {
     return this.http.post<Invitation>(`${TENANTS}/${id}/staff/${staffId}/invitation`, null);
+  }
+
+  /** Gate 1 over the last {@code days} days (ADR 0018), measured by the platform. */
+  gate1(id: string, days: number): Observable<Gate1> {
+    return this.http.get<Gate1>(`${TENANTS}/${id}/gate1`, {
+      params: new HttpParams().set('days', days),
+    });
   }
 
   /** The last 100 impersonations, every tenant. */

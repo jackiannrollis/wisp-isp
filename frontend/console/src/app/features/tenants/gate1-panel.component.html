@@ -1,0 +1,101 @@
+<section class="panel" aria-labelledby="gate1-title">
+  <div class="section">
+    <div class="section-head">
+      <h2 id="gate1-title">Gate 1</h2>
+      <div class="period">
+        <span id="gate1-period" class="muted">Last days</span>
+        <mat-button-toggle-group
+          hideSingleSelectionIndicator
+          aria-labelledby="gate1-period"
+          [value]="days()"
+          (change)="days.set($event.value)"
+        >
+          @for (period of periods; track period) {
+            <mat-button-toggle [value]="period">{{ period }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+      </div>
+    </div>
+    <p class="muted">
+      The pilot passes after two billing cycles with payment matching above 98% automatic, no
+      restore slower than 60 seconds after the callback and no reconnects that needed hands
+      (docs/09). Measured from what the platform recorded: M-Pesa callbacks, renewals, router
+      answers and new sessions.
+    </p>
+  </div>
+
+  @if (gate1.error()) {
+    <div class="empty">
+      <p>Gate 1 could not be loaded.</p>
+      <button mat-stroked-button type="button" (click)="gate1.reload()">Try again</button>
+    </div>
+  } @else if (view(); as v) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Criterion</th>
+            <th>Measured</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Payment matching above 98% automatic</td>
+            <td>
+              {{ v.matching.percent }}
+              <span class="muted"
+                >({{ v.matching.automatic }} of
+                {{ v.matching.automatic + v.matching.byStaff + v.matching.unmatched }} callback
+                payments)</span
+              >
+            </td>
+            <td><app-status-chip [status]="v.results.matching" /></td>
+          </tr>
+          <tr>
+            <td>No restore slower than 60 seconds after the callback</td>
+            <td>
+              slowest {{ v.restores.max }}, 95% within {{ v.restores.p95 }}
+              <span class="muted"
+                >(slower {{ v.restores.slower }} · missed {{ v.restores.missed }})</span
+              >
+            </td>
+            <td><app-status-chip [status]="v.results.restores" /></td>
+          </tr>
+          <tr>
+            <td>No reconnects that needed hands</td>
+            <td>
+              CoA failures {{ v.reconnects.coaFailed }} · routers offline
+              {{ v.reconnects.routerOffline }} · restores missed {{ v.reconnects.missed }}
+            </td>
+            <td><app-status-chip [status]="v.results.reconnects" /></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <dl class="facts">
+      <div>
+        <dt>Callback payments</dt>
+        <dd>
+          {{ v.matching.automatic }} automatic · {{ v.matching.byStaff }} by staff ·
+          {{ v.matching.unmatched }} unmatched
+        </dd>
+      </div>
+      <div>
+        <dt>Restores</dt>
+        <dd>
+          {{ v.restores.total }} in all · {{ v.restores.completed }} done ·
+          {{ v.restores.pending }} waiting
+        </dd>
+      </div>
+    </dl>
+    <p class="section muted note">
+      A restore is timed from the callback to the renewal when the line was offline, otherwise to
+      the router taking the Disconnect or a new session, within 10 minutes; later, it is missed.
+      Reconnect alerts stand in for staff hands: a reconnect done on the router itself leaves no
+      trace in the platform.
+    </p>
+  } @else {
+    <p class="section muted">Loading…</p>
+  }
+</section>

@@ -1,5 +1,5 @@
 # Business signals from the backend's own gauges and counters (docs/08 Monitoring: wallet drift, M-Pesa
-# callbacks, CoA failures; docs/06 routers). The gauges are kept by api-1's jobs; max() reads them whoever
+# callbacks, CoA failures; docs/06 routers; Gate 1, ADR 0018). The gauges are kept by api-1's jobs; max() reads them whoever
 # reports. Unit tests: tests/business.yml.
 groups:
   - name: corebalt-business
@@ -51,6 +51,13 @@ groups:
         annotations:
           summary: "{{ $labels.action }} requests given up after the retries in the last 15 minutes"
           description: "N5: the router did not acknowledge after three retries, or refused. The session keeps its old profile until its Session-Timeout (at most a day, S4). The router's tunnel (handshake) and its RADIUS secret are the usual causes."
+      - alert: CorebaltGate1RestoreLate
+        expr: max by (tenant) (isp_gate1_restores_late{window="1h"}) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} restore(s) of tenant {{ $labels.tenant }} slower than 60 seconds or missed in the last hour"
+          description: "Gate 1 (docs/09, ADR 0018): a customer paid by M-Pesa and waited more than a minute after the callback to be restored, or neither a Disconnect answer nor a new session came within 10 minutes. CorebaltCoaFailed or messages waiting in RabbitMQ are the usual causes; the console's tenant page shows the restores of the period."
       - alert: CorebaltOtpBursts
         expr: increase(isp_identity_otp_bursts_total[15m]) > 0
         labels:

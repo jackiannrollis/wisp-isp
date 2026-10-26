@@ -1,8 +1,10 @@
 package com.corebalt.isp.network.api;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Router status, live sessions and usage for the dashboard and portal; current tenant only. */
@@ -19,6 +21,18 @@ public interface NetworkStatistics {
 
     /** One line's days, oldest first; days without traffic are absent (N7). */
     List<UsageDay> dailyUsage(UUID subscriptionId, LocalDate from, LocalDate to);
+
+    /**
+     * When the line's first session in [from, to] started (radacct, docs/06 Accounting): a customer
+     * back online after a restore (Gate 1, ADR 0018). Empty when none started.
+     */
+    Optional<Instant> firstSessionStart(UUID subscriptionId, Instant from, Instant to);
+
+    /**
+     * Whether the line had a live session at {@code at} (radacct, the same 48-hour window AccessChanges
+     * uses): a line without one needs no Disconnect when it is restored, its next login is FULL (ADR 0018).
+     */
+    boolean sessionOpenAt(UUID subscriptionId, Instant at);
 
     /** Input is what the router received from the customer (upload), output what it sent (download). */
     record UsageTotals(long inputOctets, long outputOctets) {}

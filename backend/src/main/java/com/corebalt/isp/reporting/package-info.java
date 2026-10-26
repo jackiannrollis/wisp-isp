@@ -1,5 +1,6 @@
 /**
- * reporting: Dashboard counts and revenue and usage reports, read from the replica.
+ * reporting: Dashboard counts and revenue and usage reports, read from the replica; Gate 1 measured
+ * per tenant (restores, matching, reconnects needing hands; ADR 0018).
  *
  * <p>See docs/02-architecture.md for what this module owns, publishes and consumes.
  */
@@ -13,7 +14,8 @@
                 "subscriptions :: api",
                 "billing :: api",
                 "payments :: api",
-                "network :: api"
+                "network :: api",
+                "notifications :: api"
         })
 package com.corebalt.isp.reporting;
 

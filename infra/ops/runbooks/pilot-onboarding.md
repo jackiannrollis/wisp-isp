@@ -130,36 +130,13 @@ Until Daraja go-live every payment is entered by hand, so the pilot runs on manu
 
 The operator watches Grafana: `Network: RADIUS and tunnels` (the tenant's reject rate, `CorebaltRadiusTenantRejectRateHigh`), the Platform dashboard, and the staff alerts of the tenant (`CorebaltStaffAlertsOpen`). `CorebaltMpesaCallbacksSilent` is silent itself until go-live.
 
-**Gate 1** (docs/09): two billing cycles with no manual reconnects, payment matching above 98% automatic, no restore slower than 60 seconds after the callback. Where the numbers come from, on the host (`cd /srv/corebalt/stack && sudo docker compose --env-file .env --env-file images.env exec -u postgres postgres psql -d isp`, then `\set code 'ACME'`); all three are approximations the API does not yet report:
+**Gate 1** (docs/09): two billing cycles with no manual reconnects, payment matching above 98% automatic, no restore slower than 60 seconds after the callback. The platform measures it (ADR 0018): the console's tenant page, section Gate 1 (the last 7, 30, 60 or 90 days, each criterion met, not met or nothing to judge yet), or `GET /api/platform/tenants/<id>/gate1?days=60` with a platform token; the Platform dashboard has the same per tenant for the last 30 days, and `CorebaltGate1RestoreLate` fires when a restore took longer than 60 seconds or was missed in the last hour.
 
-```sql
--- Payments matched without a staff assignment, last 30 days; manual entries count as staff-matched
-select count(*) filter (where status = 'MATCHED' and matched_by is null) as automatic,
-       count(*) filter (where status = 'MATCHED' and matched_by is not null) as by_staff,
-       count(*) filter (where status = 'UNMATCHED') as unmatched,
-       round(100.0 * count(*) filter (where status = 'MATCHED' and matched_by is null) / nullif(count(*), 0), 1) as automatic_pct
-from payments_payment
-where tenant_id = (select id from tenancy_tenant where code = :'code') and received_at >= now() - interval '30 days';
+- Matching counts payments that arrived by M-Pesa callback; a restore is a callback payment that renewed a RESTRICTED line, timed from the platform storing the callback. Manual payments count for neither, so **the two cycles count from Daraja go-live** (step 8), not from the start of the pilot on manual payments.
+- A restore ends at the renewal when the line had no live session, otherwise when the router answers the Disconnect or the line starts a new session, within 10 minutes; later, it is missed.
+- Reconnects that needed hands have no direct signal: the console counts CoA failures and routers offline (staff alerts) and missed restores. Ask the ISP's staff as well: a reconnect done on the router itself leaves no trace in the platform.
 
--- Restore time: a matched payment to the acknowledged CoA or Disconnect of that customer's line, last 30 days.
--- Approximate: only the last CoA per line is kept (network_line_coa), so a line restored twice counts once.
-select count(*) as restores,
-       round(percentile_disc(0.95) within group (order by extract(epoch from c.last_coa_at - p.matched_at))) as p95_seconds,
-       round(max(extract(epoch from c.last_coa_at - p.matched_at))) as max_seconds
-from payments_payment p
-join subscriptions_subscription s on s.tenant_id = p.tenant_id and s.customer_id = p.customer_id
-join network_line_coa c on c.tenant_id = s.tenant_id and c.subscription_id = s.id
-where p.tenant_id = (select id from tenancy_tenant where code = :'code') and p.status = 'MATCHED'
-  and p.matched_at >= now() - interval '30 days' and c.last_coa_result in ('ACK', 'SESSION_GONE')
-  and c.last_coa_at between p.matched_at and p.matched_at + interval '10 minutes';
-
--- Reconnects that needed hands: CoA failures and routers offline raised in the last 30 days
-select kind, count(*) as raised, count(*) filter (where cleared_at is null) as still_open
-from notifications_alert
-where tenant_id = (select id from tenancy_tenant where code = :'code') and kind in ('COA_FAILED', 'ROUTER_OFFLINE')
-  and raised_at >= now() - interval '30 days'
-group by kind;
-```
+File the period's numbers (a screenshot of the console section, or the API answer) with the drill records.
 
 ## 8. Daraja go-live (Owner, Finance)
 
@@ -188,4 +165,4 @@ When Safaricom approves the app: in Settings, M-Pesa, replace the credentials wi
 | Cutover chosen and done; first logins and the first restore watched | Owner, technician | Sessions screen; the auth log |
 | Pilot running on manual payments; weekly reconciliation | Finance | Payments, reconciliation runs |
 | Daraja live: URLs registered, a real payment matched | Owner, Finance | Settings, M-Pesa; Payments |
-| Gate 1 measured after two cycles | Corebalt | the three queries above, filed with the drill records |
+| Gate 1 measured after two cycles from Daraja go-live | Corebalt | the console's Gate 1 section (ADR 0018), filed with the drill records |

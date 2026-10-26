@@ -1879,8 +1879,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A tenant's staff, to choose whom to impersonate */
+        /** A tenant's staff, every status unless one is asked for (ACTIVE to choose whom to impersonate, INVITED to find an Owner whose invitation to reissue) */
         get: operations["staff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/tenants/{tenantId}/gate1": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gate 1 over the last days: payment matching, restore times and reconnects needing hands */
+        get: operations["gate1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3062,6 +3079,55 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
+        };
+        Gate1Dto: {
+            /** Format: date-time */
+            from?: string;
+            /** Format: date-time */
+            to?: string;
+            matching?: components["schemas"]["Matching"];
+            restores?: components["schemas"]["Restores"];
+            reconnects?: components["schemas"]["Reconnects"];
+            targets?: components["schemas"]["Targets"];
+        };
+        Matching: {
+            /** Format: int64 */
+            automatic?: number;
+            /** Format: int64 */
+            byStaff?: number;
+            /** Format: int64 */
+            unmatched?: number;
+            /** Format: double */
+            automaticPercent?: number;
+        };
+        Reconnects: {
+            /** Format: int64 */
+            coaFailedAlerts?: number;
+            /** Format: int64 */
+            routerOfflineAlerts?: number;
+            /** Format: int64 */
+            missedRestores?: number;
+        };
+        Restores: {
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            completed?: number;
+            /** Format: int64 */
+            pending?: number;
+            /** Format: int64 */
+            missed?: number;
+            /** Format: int64 */
+            slowerThan60s?: number;
+            /** Format: int64 */
+            p95Seconds?: number;
+            /** Format: int64 */
+            maxSeconds?: number;
+        };
+        Targets: {
+            matchingAbove98?: boolean;
+            noRestoreSlowerThan60s?: boolean;
+            noReconnectsNeedingHands?: boolean;
         };
     };
     responses: never;
@@ -6026,7 +6092,9 @@ export interface operations {
     };
     staff: {
         parameters: {
-            query?: never;
+            query?: {
+                status?: string;
+            };
             header?: never;
             path: {
                 tenantId: string;
@@ -6042,6 +6110,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PageResponseStaffDto"];
+                };
+            };
+        };
+    };
+    gate1: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Gate1Dto"];
                 };
             };
         };

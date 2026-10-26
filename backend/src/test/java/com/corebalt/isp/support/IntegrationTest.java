@@ -28,7 +28,8 @@ import org.testcontainers.utility.MountableFile;
             "isp.mpesa.jobs.initial-delay=1h",
             "isp.mpesa.callbacks.sweep-initial-delay=1h",
             "isp.sms.initial-delay=1h",
-            "isp.network.jobs.enabled=false"})
+            "isp.network.jobs.enabled=false",
+            "isp.reporting.jobs.enabled=false"})
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 

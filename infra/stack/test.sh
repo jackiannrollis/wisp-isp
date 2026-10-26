@@ -515,6 +515,10 @@ compose exec -T -u postgres postgres psql -X -Atq -d isp -c "select count(*) fro
     && echo "   ok   no ledger entry for the activation (B1)" || { echo "   FAIL a ledger entry appeared for the cutover import"; fail=1; }
 r=$(post /api/v1/notifications/moved-notices "{\"importBatchId\":\"$bid\"}" "${auth[@]}")
 [ "$(echo "$r" | jf 'd["queued"]')" = 1 ] && echo "   ok   the \"we've moved\" SMS is queued once for the batch (M1)" || { echo "   FAIL moved notice: $(echo "$r" | head -c 300)"; fail=1; }
+# Gate 1 (ADR 0018) through the console host: a tenant with no callback payment yet has nothing to judge.
+r=$(curl -sk --max-time 30 -H "Authorization: Bearer ${ptoken:-none}" "https://console.corebalt.localhost:8443/api/platform/tenants/$tid/gate1?days=30")
+[ "$(echo "$r" | jf 'd["restores"]["total"]')" = 0 ] && [ "$(echo "$r" | jf 'd["targets"]["matchingAbove98"]')" = None ] \
+    && echo "   ok   Gate 1 through the console host: no restores and no matching to judge yet for the new tenant" || { echo "   FAIL Gate 1: $(echo "$r" | head -c 300)"; fail=1; }
 # Router retirement (N10, ADR 0015) and the host's routersync, run for real against this stack's database
 # with a stand-in hub that only keeps peer files: the onboarded router is a peer, then retired with a
 # replacement taking its lines, then its peer is removed and FreeRADIUS reloaded without its secret.

@@ -9,6 +9,9 @@ const TONES: Record<string, 'success' | 'warning' | 'error' | 'neutral'> = {
   SUSPENDED: 'error',
   DISABLED: 'neutral',
   ENDED: 'neutral',
+  MET: 'success',
+  NOT_MET: 'error',
+  NO_DATA: 'neutral',
 };
 
 /** A status as a coloured label: colour and text together, never colour alone. */

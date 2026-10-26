@@ -17,16 +17,23 @@ import {
   PasswordDialogComponent,
   PasswordDialogData,
 } from './tenant-dialogs';
+import { Gate1PanelComponent } from './gate1-panel.component';
 import { TenantsService } from './tenants.service';
 
 /**
  * One tenant as Corebalt sees it (docs/07 Platform layer): its status (activate, suspend with a reason,
- * reinstate), the cutover window (ADR 0014), its staff with an unused invitation reissued, and the
- * impersonations of its staff. Everything here is recorded in the tenant's audit log and the platform's.
+ * reinstate), the cutover window (ADR 0014), Gate 1 as measured (ADR 0018), its staff with an unused
+ * invitation reissued, and the impersonations of its staff. Everything here is recorded in the tenant's audit log and the platform's.
  */
 @Component({
   selector: 'app-tenant-page',
-  imports: [MatButtonModule, MatSnackBarModule, RouterLink, StatusChipComponent],
+  imports: [
+    Gate1PanelComponent,
+    MatButtonModule,
+    MatSnackBarModule,
+    RouterLink,
+    StatusChipComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tenant-page.component.html',
   styleUrl: './tenants.scss',

@@ -32,6 +32,31 @@ export function statusLabel(status: string | null | undefined): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** A Gate 1 criterion as a status for the chip: met, not met, or nothing to judge yet (null). */
+export function criterion(met: boolean | null | undefined): 'MET' | 'NOT_MET' | 'NO_DATA' {
+  if (met === true) {
+    return 'MET';
+  }
+  return met === false ? 'NOT_MET' : 'NO_DATA';
+}
+
+/** "45 s", "2 min", "2 min 5 s", or a dash when there is nothing measured. */
+export function formatSeconds(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) {
+    return '—';
+  }
+  if (seconds < 60) {
+    return `${seconds} s`;
+  }
+  const rest = seconds % 60;
+  return `${Math.floor(seconds / 60)} min${rest ? ` ${rest} s` : ''}`;
+}
+
+/** "99.2%", or a dash when there were no payments. */
+export function formatPercent(percent: number | null | undefined): string {
+  return percent === null || percent === undefined ? '—' : `${percent.toFixed(1)}%`;
+}
+
 /** The value of a datetime-local input for an instant, in the viewer's time zone. */
 export function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

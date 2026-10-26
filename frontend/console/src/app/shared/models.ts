@@ -12,6 +12,7 @@ export type Invitation = components['schemas']['Invitation'];
 export type Staff = components['schemas']['StaffDto'];
 export type StaffPage = components['schemas']['PageResponseStaffDto'];
 export type Impersonation = components['schemas']['ImpersonationDto'];
+export type Gate1 = components['schemas']['Gate1Dto'];
 
 /** The claims the console reads from its own token (never trusted: the server checks every call). */
 export interface PlatformClaims {

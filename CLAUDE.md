@@ -50,7 +50,7 @@ unit-tested with promtool, LogQL rules on the FreeRADIUS auth log; `monitorctl`,
 node, the drill record template; the production RADIUS drill and the replica promotion wait for node B) and
 the pilot-onboarding runbook (`pilot-onboarding.md`: the platform console by curl, the Owner's first
 sign-in, routers by the admin app's generated onboarding script (ADR 0013) plus `corebalt-wg-hub add-peer`
-and `stackctl reload-radius`, the CSV import, the cutover choices, Gate 1 queries), with the stack test
+and `stackctl reload-radius`, the CSV import, the cutover choices, Gate 1 from the console), with the stack test
 running the onboarding recipe end to end. Pilot readiness (ADR 0013): the admin app generates a router's
 onboarding script with a WireGuard key pair made by the platform (the public key kept, the private key
 in the script once), a new RADIUS secret and REST login; the host timer `corebalt-routersync` keeps
@@ -69,7 +69,11 @@ its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-pee
 console (ADR 0016) is a third Angular app at `console.<domain>`: platform sign-in, tenants (create,
 activate, suspend, reinstate), the cutover window, staff with invitation reissue, impersonations with
 "end"; tenant subdomains may not take the platform's names. Starting an impersonation is API-only
-(hand-off proposed in ADR 0017, Q17). Not yet: the Nairobi node (pending Q2).
+(hand-off proposed in ADR 0017, Q17). Gate 1 is measured by the platform (ADR 0018): the reporting
+module times each callback payment that restores a RESTRICTED line from the stored callback to the
+renewal (no live session) or the router's answer or a new session, within 10 minutes; matching over
+callback payments; reconnect alerts as the proxy for hands; on the console's tenant page, the platform
+API, per-tenant gauges and `CorebaltGate1RestoreLate`. Not yet: the Nairobi node (pending Q2).
 
 ## Commands
 
