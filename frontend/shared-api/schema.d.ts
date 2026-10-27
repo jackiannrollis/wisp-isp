@@ -918,6 +918,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/impersonation/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the impersonation this token belongs to; the token stops working at once */
+        post: operations["end"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers": {
         parameters: {
             query?: never;
@@ -1112,6 +1129,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/impersonation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange a single-use impersonation hand-off code (60 seconds) for the impersonation's token */
+        post: operations["impersonation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/tenants": {
         parameters: {
             query?: never;
@@ -1189,7 +1223,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Act as a tenant staff member for at most 30 minutes; recorded in the tenant's audit log */
+        /** Act as a tenant staff member for at most 30 minutes; recorded in the tenant's audit log. Answers a single-use hand-off code (60 seconds) and the admin app link with it, never the token (ADR 0017) */
         post: operations["impersonate"];
         delete?: never;
         options?: never;
@@ -1224,7 +1258,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** End an impersonation; its token stops working at the next request */
-        post: operations["end"];
+        post: operations["end_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2563,6 +2597,23 @@ export interface components {
             currentPassword: string;
             newPassword: string;
         };
+        ImpersonationDto: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            platformAdminId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            staffUserId?: string;
+            reason?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+        };
         AdjustmentRequest: {
             amount: components["schemas"]["MoneyDto"];
             reason: string;
@@ -2650,6 +2701,18 @@ export interface components {
             email: string;
             password: string;
         };
+        HandoffCode: {
+            code: string;
+        };
+        Exchanged: {
+            accessToken?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: uuid */
+            impersonationId?: string;
+            staffName?: string;
+            platformAdminName?: string;
+        };
         CreateTenant: {
             code?: string;
             name?: string;
@@ -2675,30 +2738,16 @@ export interface components {
         Started: {
             /** Format: uuid */
             id?: string;
-            accessToken?: string;
+            code?: string;
+            /** Format: date-time */
+            codeExpiresAt?: string;
             /** Format: date-time */
             expiresAt?: string;
             /** Format: uuid */
             tenantId?: string;
             /** Format: uuid */
             staffUserId?: string;
-        };
-        ImpersonationDto: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: uuid */
-            platformAdminId?: string;
-            /** Format: uuid */
-            tenantId?: string;
-            /** Format: uuid */
-            staffUserId?: string;
-            reason?: string;
-            /** Format: date-time */
-            startedAt?: string;
-            /** Format: date-time */
-            expiresAt?: string;
-            /** Format: date-time */
-            endedAt?: string;
+            openUrl?: string;
         };
         PlatformLogin: {
             email: string;
@@ -4849,6 +4898,26 @@ export interface operations {
             };
         };
     };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImpersonationDto"];
+                };
+            };
+        };
+    };
     list_5: {
         parameters: {
             query?: {
@@ -5140,6 +5209,30 @@ export interface operations {
             };
         };
     };
+    impersonation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffCode"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Exchanged"];
+                };
+            };
+        };
+    };
     tenants: {
         parameters: {
             query?: never;
@@ -5303,7 +5396,7 @@ export interface operations {
             };
         };
     };
-    end: {
+    end_1: {
         parameters: {
             query?: never;
             header?: never;

@@ -118,9 +118,12 @@ class PlatformController {
     }
 
     @PostMapping("/tenants/{tenantId}/impersonations")
-    @Operation(summary = "Act as a tenant staff member for at most 30 minutes; recorded in the tenant's audit log")
-    Impersonations.Started impersonate(@PathVariable final UUID tenantId, @Valid @RequestBody final ImpersonationRequest request) {
-        return impersonations.start(admin(), tenantId, request.staffUserId(), request.reason(), request.minutes());
+    @Operation(summary = "Act as a tenant staff member for at most 30 minutes; recorded in the tenant's audit log. Answers a "
+            + "single-use hand-off code (60 seconds) and the admin app link with it, never the token (ADR 0017)")
+    ResponseEntity<Impersonations.Started> impersonate(@PathVariable final UUID tenantId,
+                                                       @Valid @RequestBody final ImpersonationRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(impersonations.start(admin(), tenantId, request.staffUserId(), request.reason(), request.minutes()));
     }
 
     @GetMapping("/impersonations")

@@ -9,6 +9,21 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/login-page.component').then((m) => m.LoginPageComponent),
   },
+  // ADR 0017: the console's hand-off into an impersonation, and where it ends; outside the guard.
+  {
+    path: 'impersonate',
+    title: 'Impersonation',
+    loadComponent: () =>
+      import('./features/auth/impersonate-page.component').then((m) => m.ImpersonatePageComponent),
+  },
+  {
+    path: 'impersonation-ended',
+    title: 'Impersonation ended',
+    loadComponent: () =>
+      import('./features/auth/impersonate-page.component').then(
+        (m) => m.ImpersonationEndedPageComponent,
+      ),
+  },
   {
     path: '',
     loadComponent: () => import('./core/layout/shell.component').then((m) => m.ShellComponent),

@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 
 import { errorMessage } from '../../core/api/requests';
 import { cutoverUntil, MAX_CUTOVER_DAYS, toLocalInput } from '../../shared/format';
-import { CreatedTenant, Tenant } from '../../shared/models';
+import { CreatedTenant, ImpersonationStarted, Staff, Tenant } from '../../shared/models';
 import { TenantsService } from './tenants.service';
 
 const COMMON = [
@@ -317,5 +317,113 @@ export class CutoverWindowDialogComponent {
         this.busy.set(false);
       },
     });
+  }
+}
+
+/**
+ * ADR 0017: Corebalt support acting as a tenant's staff member. The reason or ticket goes to the tenant's own
+ * audit log. The start gives a single-use link, valid 60 seconds, that opens the admin app as that member in a
+ * new tab; the token never passes through the console. Money, secrets, the account's policy, staff and
+ * paid_until imports stay closed in that session whatever the member's role.
+ */
+@Component({
+  selector: 'app-act-as-dialog',
+  imports: COMMON,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: STYLES,
+  template: `
+    <h2 mat-dialog-title>Act as {{ data.member.displayName }}</h2>
+    <mat-dialog-content>
+      @if (started(); as s) {
+        <p class="hint">
+          Started. Open the admin app within a minute: the link works once. The session ends at
+          {{ until(s.expiresAt) }}, or with End in its banner.
+        </p>
+        <a
+          mat-flat-button
+          [href]="s.openUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          (click)="opened()"
+        >
+          Open the admin app as {{ data.member.displayName }}
+        </a>
+      } @else {
+        <p class="hint">
+          {{ data.tenant.name }} sees the reason in its audit log, with every action you take.
+          Manual payments, wallet adjustments, secrets, the account's settings, staff and paid_until
+          imports stay closed.
+        </p>
+        <form [formGroup]="form" id="act-as-form" (ngSubmit)="start()">
+          <mat-form-field appearance="outline">
+            <mat-label>Reason or ticket</mat-label>
+            <input matInput formControlName="reason" maxlength="500" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Minutes (at most 30)</mat-label>
+            <input matInput type="number" formControlName="minutes" min="1" max="30" />
+          </mat-form-field>
+          @if (error(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+        </form>
+      }
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      @if (started()) {
+        <button mat-button type="button" (click)="done()">Close</button>
+      } @else {
+        <button mat-button type="button" mat-dialog-close>Cancel</button>
+        <button
+          mat-flat-button
+          type="submit"
+          form="act-as-form"
+          [disabled]="form.invalid || busy()"
+        >
+          Start
+        </button>
+      }
+    </mat-dialog-actions>
+  `,
+})
+export class ActAsDialogComponent {
+  protected readonly data = inject<{ tenant: Tenant; member: Staff }>(MAT_DIALOG_DATA);
+  private readonly tenants = inject(TenantsService);
+  private readonly ref =
+    inject<MatDialogRef<ActAsDialogComponent, ImpersonationStarted>>(MatDialogRef);
+  protected readonly busy = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly started = signal<ImpersonationStarted | null>(null);
+  protected readonly form = inject(NonNullableFormBuilder).group({
+    reason: ['', [Validators.required, Validators.maxLength(500)]],
+    minutes: [30, [Validators.required, Validators.min(1), Validators.max(30)]],
+  });
+
+  protected until(iso: string | undefined): string {
+    return iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  }
+
+  protected start(): void {
+    const { reason, minutes } = this.form.getRawValue();
+    this.busy.set(true);
+    this.error.set(null);
+    this.tenants
+      .impersonate(this.data.tenant.id ?? '', this.data.member.id ?? '', reason.trim(), minutes)
+      .subscribe({
+        next: (started) => this.started.set(started),
+        error: (e: unknown) => {
+          this.error.set(errorMessage(e));
+          this.busy.set(false);
+        },
+      });
+  }
+
+  /** The link is single use: once opened, the dialog closes and the list shows the live impersonation. */
+  protected opened(): void {
+    setTimeout(() => this.done());
+  }
+
+  protected done(): void {
+    this.ref.close(this.started() ?? undefined);
   }
 }

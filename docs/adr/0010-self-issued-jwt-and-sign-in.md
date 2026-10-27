@@ -62,6 +62,7 @@ Up to step 7 the API trusted an unsigned stub token in local and test profiles. 
 - An impersonation token is a separate STAFF token for the chosen active staff member. It carries `act` (the platform admin) and `imp` (the impersonation id), lasts at most 30 minutes (also a database check) and has no refresh token.
 - Start and end, by the admin or on expiry, are written to the tenant's own audit log as actor PLATFORM with `on_behalf_of` the staff member, and to the platform audit log.
 - Ending it makes the token fail at the next request.
+- Amended by [ADR 0017](0017-impersonation-hand-off.md): the token reaches the admin app only by exchanging a single-use code, and never carries the permissions support may not use.
 
 ## Consequences
 

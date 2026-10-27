@@ -68,8 +68,12 @@ to a replacement, its secret, REST login and open sessions go at once, and the h
 its hub peer and reloads FreeRADIUS within a minute (`corebalt-wg-hub remove-peer`). The platform
 console (ADR 0016) is a third Angular app at `console.<domain>`: platform sign-in, tenants (create,
 activate, suspend, reinstate), the cutover window, staff with invitation reissue, impersonations with
-"end"; tenant subdomains may not take the platform's names. Starting an impersonation is API-only
-(ADR 0017 accepted: the hand-off by a single-use code is the next slice). Gate 1 is measured by the
+"end"; tenant subdomains may not take the platform's names. Impersonation hand-off (ADR 0017): the
+console's "Act as" (a reason or ticket, at most 30 minutes) gives a link with a single-use code valid
+60 seconds; the admin app exchanges it for the token, kept in memory only (no refresh, no cookie), and
+shows a banner with the countdown and End; manual payments, wallet adjustments, secrets (so opening
+lines, the customer import and router registration too), `settings.write`, staff and `paid_until`
+imports are refused server-side whatever the role. Gate 1 is measured by the
 platform (ADR 0018): the reporting module times each callback payment that lifts a line to full speed
 (cut off, grace throttle, fair use) from the stored callback to the renewal (no live session) or the
 router's answer or a new session, within 10 minutes; matching over callback payments; manual reconnects

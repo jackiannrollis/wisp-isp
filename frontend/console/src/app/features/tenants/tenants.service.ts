@@ -7,6 +7,7 @@ import {
   CreateTenant,
   CreatedTenant,
   Impersonation,
+  ImpersonationStarted,
   Gate1,
   Invitation,
   Staff,
@@ -70,6 +71,23 @@ export class TenantsService {
   gate1(id: string, days: number): Observable<Gate1> {
     return this.http.get<Gate1>(`${TENANTS}/${id}/gate1`, {
       params: new HttpParams().set('days', days),
+    });
+  }
+
+  /**
+   * ADR 0017: act as an active staff member for at most 30 minutes, with a reason or ticket the tenant reads in
+   * its audit log. The answer carries a single-use hand-off code (60 seconds) and the admin app link with it.
+   */
+  impersonate(
+    tenantId: string,
+    staffUserId: string,
+    reason: string,
+    minutes: number,
+  ): Observable<ImpersonationStarted> {
+    return this.http.post<ImpersonationStarted>(`${TENANTS}/${tenantId}/impersonations`, {
+      staffUserId,
+      reason,
+      minutes,
     });
   }
 

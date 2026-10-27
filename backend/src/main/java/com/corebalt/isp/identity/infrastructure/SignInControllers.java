@@ -1,5 +1,6 @@
 package com.corebalt.isp.identity.infrastructure;
 
+import com.corebalt.isp.identity.application.Impersonations;
 import com.corebalt.isp.identity.application.PlatformSignIn;
 import com.corebalt.isp.identity.application.PortalSignIn;
 import com.corebalt.isp.identity.application.SignIn;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.Map;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -70,10 +72,24 @@ final class SignInControllers {
 
         private final StaffSignIn signIn;
         private final Sessions sessions;
+        private final Impersonations impersonations;
 
-        Staff(final StaffSignIn signIn, final Sessions sessions) {
+        Staff(final StaffSignIn signIn, final Sessions sessions, final Impersonations impersonations) {
             this.signIn = signIn;
             this.sessions = sessions;
+            this.impersonations = impersonations;
+        }
+
+        record HandoffCode(@NotBlank @Size(max = 100) String code) {}
+
+        /**
+         * ADR 0017: the admin app's hand-off page exchanges the console's single-use code for the impersonation
+         * token. No refresh token and no cookie: the token lives in the page's memory until the impersonation ends.
+         */
+        @PostMapping("/impersonation")
+        @Operation(summary = "Exchange a single-use impersonation hand-off code (60 seconds) for the impersonation's token")
+        ResponseEntity<Impersonations.Exchanged> impersonation(@Valid @RequestBody final HandoffCode request) {
+            return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(impersonations.exchange(request.code()));
         }
 
         @PostMapping("/login")

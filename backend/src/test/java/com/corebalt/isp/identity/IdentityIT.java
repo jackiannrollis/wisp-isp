@@ -510,7 +510,9 @@ class IdentityIT extends IntegrationTest {
 
         final JsonNode started = platform.post("/api/platform/tenants/" + tenant.id() + "/impersonations",
                 "{\"staffUserId\":\"" + target.id() + "\",\"reason\":\"ticket 42\",\"minutes\":10}").json();
-        final Api acting = new Api(port, started.get("accessToken").asString());
+        // ADR 0017: the start answers a single-use code; the admin app exchanges it for the token.
+        final Api acting = new Api(port, post("/api/v1/auth/impersonation", Map.of("code", started.get("code").asString()))
+                .json().get("accessToken").asString());
         final JsonNode me = acting.get("/api/v1/me").json();
         assertThat(me.get("id").asString()).isEqualTo(target.id().toString());
         assertThat(me.get("impersonatedBy").asString()).isNotBlank();

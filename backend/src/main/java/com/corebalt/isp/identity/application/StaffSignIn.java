@@ -163,7 +163,8 @@ public class StaffSignIn {
         final TenantRef tenant = tenants.find(staff.tenantId()).orElseThrow();
         return new Me(staff.id(), staff.email(), tx.execute(s -> jdbc.sql("select display_name from identity_staff_user where id = :id")
                 .param("id", staffId).query(String.class).single()), tenant.id(), tenant.code(), tenant.name(), staff.roleName(),
-                staff.permissions(), staff.totpEnabled(), impersonatedBy);
+                impersonatedBy == null ? staff.permissions() : Permissions.allowedWhileImpersonating(staff.permissions()),
+                staff.totpEnabled(), impersonatedBy);
     }
 
     /** Signed in: the current password proves it is them; every session ends, including this one. */

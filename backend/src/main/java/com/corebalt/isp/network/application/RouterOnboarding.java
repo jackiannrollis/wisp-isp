@@ -7,6 +7,7 @@ import com.corebalt.isp.network.domain.SecretGenerator;
 import com.corebalt.isp.network.domain.WireGuardKeys;
 import com.corebalt.isp.network.infrastructure.RadiusCredentials;
 import com.corebalt.isp.network.infrastructure.RouterRepository;
+import com.corebalt.isp.shared.security.CurrentActor;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.shared.web.InvalidRequestException;
@@ -89,6 +90,7 @@ public class RouterOnboarding {
 
     @Transactional
     public RouterOnboardingScriptDto generate(final UUID routerId, final RouterOnboardingRequest request) {
+        CurrentActor.requireNotImpersonating("A router onboarding script (its keys and secrets)"); // ADR 0017: secrets stay with the tenant
         if (request.poolFull().equals(request.poolRestricted())) {
             throw InvalidRequestException.of("poolRestricted", "must differ from the full pool: the restricted-mode rules match it");
         }

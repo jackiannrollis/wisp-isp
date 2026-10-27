@@ -92,6 +92,9 @@
                     Reissue invitation
                   </button>
                 }
+                @if (member.status === 'ACTIVE' && t.status !== 'SUSPENDED') {
+                  <button mat-button type="button" (click)="actAs(t, member)">Act as</button>
+                }
               </td>
             </tr>
           } @empty {
@@ -110,8 +113,8 @@
     <div class="section">
       <h2 id="imp-title">Impersonations</h2>
       <p class="muted">
-        Corebalt acting as one of its staff, at most 30 minutes, visible in the tenant's own audit
-        log. Starting one from here comes next; today it is started through the API.
+        Corebalt acting as one of its staff (Act as, above), at most 30 minutes, visible in the
+        tenant's own audit log, without money, secrets, settings, staff or paid_until imports.
       </p>
     </div>
     <div class="table-wrap">

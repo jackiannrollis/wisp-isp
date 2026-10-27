@@ -2,6 +2,7 @@ package com.corebalt.isp.subscriptions.application;
 
 import com.corebalt.isp.customers.api.CustomerFacade;
 import com.corebalt.isp.customers.api.CustomerSummary;
+import com.corebalt.isp.shared.security.CurrentActor;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.packages.api.PackageCatalog;
@@ -89,6 +90,7 @@ public class LineService implements SubscriptionDirectory, LineRouters {
 
     @Transactional
     public LineOpenedDto open(final CreateLineRequest request) {
+        CurrentActor.requireNotImpersonating("Opening a line (its first PPPoE password is shown once)"); // ADR 0017: secrets stay with the tenant
         final CustomerSummary customer =
                 customers.find(request.customerId()).orElseThrow(() -> new NotFoundException("Customer"));
         final PackageSummary pkg =
@@ -184,6 +186,7 @@ public class LineService implements SubscriptionDirectory, LineRouters {
 
     @Transactional
     public PppoeCredentialDto regeneratePassword(final UUID subscriptionId) {
+        CurrentActor.requireNotImpersonating("A new PPPoE password"); // ADR 0017: secrets stay with the tenant
         final Subscription line = load(subscriptionId);
         return new PppoeCredentialDto(line.getId(), line.getPppoeUsername(), credentials.regenerate(line.getId()));
     }

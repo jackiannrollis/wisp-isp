@@ -12,6 +12,12 @@ export class PermissionService {
   private readonly auth = inject(AuthService);
 
   readonly permissions = computed(() => new Set(this.auth.claims()?.permissions ?? []));
+  /**
+   * ADR 0017: false while Corebalt support impersonates. Actions that set or show a secret (a line's first
+   * PPPoE password, a new one, router secrets, onboarding scripts, monitoring logins, the customer import)
+   * are hidden then; the server refuses them anyway.
+   */
+  readonly mayHandleSecrets = computed(() => !this.auth.impersonating());
 
   has(code: string): boolean {
     return this.permissions().has(code);

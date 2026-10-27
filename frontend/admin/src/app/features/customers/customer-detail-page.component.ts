@@ -128,6 +128,8 @@ export class CustomerDetailPageComponent {
     return {
       editCustomer: p.has('customers.write'),
       manageLines: p.has('subscriptions.write'),
+      // Opening a line shows its first PPPoE password, a secret (ADR 0017).
+      openLines: p.has('subscriptions.write') && this.permissions.mayHandleSecrets(),
       seeMoney: p.has('finance.read'),
       recordPayment: p.has('payments.record_manual'),
       stk: p.has('payments.stk'),
@@ -323,7 +325,13 @@ export class CustomerDetailPageComponent {
         run: () => this.changePackage(line),
       });
     }
-    actions.push({ label: 'New PPPoE password', icon: IconKey, run: () => this.newPassword(line) });
+    if (this.permissions.mayHandleSecrets()) {
+      actions.push({
+        label: 'New PPPoE password',
+        icon: IconKey,
+        run: () => this.newPassword(line),
+      });
+    }
     if (line.state === 'ACTIVE') {
       actions.push({
         label: 'Disconnect sessions',

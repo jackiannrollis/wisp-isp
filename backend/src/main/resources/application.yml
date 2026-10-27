@@ -103,6 +103,8 @@ logging:
     com.corebalt.isp: INFO
 
 isp:
+  # The admin app's address, where the console sends an impersonation's hand-off code (ADR 0017).
+  admin-app-url: ${ISP_ADMIN_APP_URL:http://localhost:4200}
   auth:
     # ADR 0010: RS256 signing key from the environment only (base64 PKCS#8 DER), never a file in the image.
     jwt:

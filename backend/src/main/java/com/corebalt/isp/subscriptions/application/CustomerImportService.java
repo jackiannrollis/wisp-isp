@@ -134,6 +134,7 @@ public class CustomerImportService {
     @Transactional
     public CustomerImportResultDto importCsv(final String csv, final UUID routerId, final LocalTime timeOfDay,
                                              final String confirmation) {
+        CurrentActor.requireNotImpersonating("Importing customers (it sets line passwords)"); // ADR 0017: secrets stay with the tenant
         final Parsed parsed = parseAndValidate(csv, routerId, timeOfDay);
         final CustomerImportPreviewDto summary = parsed.summary();
         if (summary.activation().total() > 0 && !summary.confirmation().equals(confirmation)) {

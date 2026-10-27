@@ -85,6 +85,10 @@ export class RouterDetailPageComponent {
   protected readonly age = formatAge;
   protected readonly duration = formatDuration;
   protected readonly canWrite = computed(() => this.permissions.permissions().has('network.write'));
+  /** Scripts, secrets and monitoring logins are secrets (ADR 0017: hidden while impersonating). */
+  protected readonly secrets = computed(
+    () => this.canWrite() && this.permissions.mayHandleSecrets(),
+  );
   protected readonly polling = signal(false);
 
   protected readonly router = rxResource({

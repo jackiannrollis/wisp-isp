@@ -3,6 +3,7 @@ package com.corebalt.isp.shared.security;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -66,7 +67,22 @@ public final class Permissions {
             PAYMENTS_STK, PAYMENTS_RECONCILE, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_NOTIFICATIONS, SETTINGS_WRITE,
             STAFF_MANAGE, AUDIT_READ, FINANCE_READ);
 
+    /**
+     * ADR 0017: what Corebalt support may never do while impersonating, whatever the impersonated role holds:
+     * money (manual payments, wallet adjustments; credit notes and refunds join when their codes exist, v2),
+     * secrets, the account's own policy, staff and roles, and paid_until imports. Left out of the token at
+     * issue and dropped again here, so the token is never the authority (A2). Secret operations under broader
+     * codes are refused by {@link CurrentActor#requireNotImpersonating}.
+     */
+    public static final Set<String> BLOCKED_WHILE_IMPERSONATING = Set.of(
+            PAYMENTS_RECORD_MANUAL, BILLING_ADJUST, SETTINGS_SECRETS, SETTINGS_WRITE, STAFF_MANAGE, SUBSCRIPTIONS_IMPORT_ACTIVE);
+
     private Permissions() {}
+
+    /** The codes an impersonation token may carry: the staff member's, less the blocked ones. */
+    public static List<String> allowedWhileImpersonating(final List<String> codes) {
+        return codes == null ? List.of() : codes.stream().filter(c -> !BLOCKED_WHILE_IMPERSONATING.contains(c)).toList();
+    }
 
     /** Authorities of a verified token: its type, then (staff only) its permission codes. */
     static AbstractAuthenticationToken authentication(final Jwt jwt) {
@@ -77,7 +93,10 @@ public final class Permissions {
         }
         final List<String> codes = jwt.getClaimAsStringList(CLAIM);
         if (codes != null && Tokens.STAFF.equals(type)) {
-            codes.stream().filter(ALL::contains).map(SimpleGrantedAuthority::new).forEach(authorities::add);
+            final boolean impersonating = jwt.hasClaim(Tokens.ACTOR);
+            codes.stream().filter(ALL::contains)
+                    .filter(code -> !impersonating || !BLOCKED_WHILE_IMPERSONATING.contains(code))
+                    .map(SimpleGrantedAuthority::new).forEach(authorities::add);
         }
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
     }

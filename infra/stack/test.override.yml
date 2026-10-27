@@ -7,9 +7,11 @@ services:
   api-1:
     environment:
       ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://console.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
+      ISP_ADMIN_APP_URL: https://admin.corebalt.localhost:8443
   api-2:
     environment:
       ISP_ALLOWED_ORIGINS: https://admin.corebalt.localhost:8443,https://console.corebalt.localhost:8443,https://pay.corebalt.localhost:8443,https://*.corebalt.localhost:8443
+      ISP_ADMIN_APP_URL: https://admin.corebalt.localhost:8443
   postgres:
     volumes:
       - pg:/var/lib/postgresql/data

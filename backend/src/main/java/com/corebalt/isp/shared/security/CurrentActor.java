@@ -57,6 +57,27 @@ public final class CurrentActor {
         return token().filter(t -> Tokens.PLATFORM.equals(t.getClaimAsString(Tokens.TYPE))).flatMap(CurrentActor::subject);
     }
 
+    /**
+     * ADR 0017: secrets stay with the tenant, so an operation that sets or reveals one (a PPPoE password, a
+     * router's RADIUS secret, onboarding script or REST login) is refused while Corebalt support impersonates,
+     * even under a permission the impersonated role holds. 403, like a missing permission.
+     */
+    public static void requireNotImpersonating(final String what) {
+        if (impersonating()) {
+            throw new AccessDeniedException(what + " is not allowed while impersonating (ADR 0017)");
+        }
+    }
+
+    /** Whether Corebalt support is behind the current request (ADR 0017). */
+    public static boolean impersonating() {
+        return actingPlatformAdmin().isPresent();
+    }
+
+    /** The impersonation an impersonation token belongs to ({@code imp}); otherwise empty. */
+    public static Optional<UUID> impersonationId() {
+        return token().map(t -> t.getClaimAsString("imp")).flatMap(CurrentActor::parse);
+    }
+
     /** The platform admin behind an impersonation token ({@code act.sub}); otherwise empty. */
     public static Optional<UUID> actingPlatformAdmin() {
         return token().map(t -> t.getClaims().get(Tokens.ACTOR))

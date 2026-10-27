@@ -420,6 +420,10 @@ out=$(./stackctl probe-setup 2>&1); echo "$out" | grep -q '^0 line(s) created' &
 until_ok "the probe's far-future line logs in FULL through FreeRADIUS (isp_probe_radius_login_ok 1)" 180 q_eq 'isp_probe_radius_login_ok{hub="A",line="full"}' 1
 until_ok "the probe's expired line logs in RESTRICTED (isp_probe_radius_login_ok 1)" 60 q_eq 'isp_probe_radius_login_ok{hub="A",line="restricted"}' 1
 until_ok "text-file metrics still readable" 30 q_eq node_textfile_scrape_error 0
+# The log checks use logins of their own: the ones made in the first seconds after reload-radius restarted
+# FreeRADIUS were missing from Loki in one run while later lines arrived, and the probe's logins alone
+# would satisfy the OK check.
+rad CB000001 lab-password >/dev/null || true; rad CB000006 lab-password >/dev/null || true   # a reject exits non-zero
 until_ok "the accepted login in Loki (radius_outcome OK)" 90 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="OK" [15m]))'
 until_ok "the rejected login in Loki (radius_outcome incorrect)" 60 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="incorrect" [15m]))'
 until_ok "the per-tenant query of the Loki rule finds tenant CB" 60 loki_nonempty 'sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [15m]))'
@@ -525,6 +529,27 @@ r=$(post /api/v1/notifications/moved-notices "{\"importBatchId\":\"$bid\"}" "${a
 r=$(curl -sk --max-time 30 -H "Authorization: Bearer ${ptoken:-none}" "https://console.corebalt.localhost:8443/api/platform/tenants/$tid/gate1?days=30")
 [ "$(echo "$r" | jf 'd["restores"]["total"]')" = 0 ] && [ "$(echo "$r" | jf 'd["targets"]["matchingAbove98"]')" = None ] \
     && echo "   ok   Gate 1 through the console host: no restores and no matching to judge yet for the new tenant" || { echo "   FAIL Gate 1: $(echo "$r" | head -c 300)"; fail=1; }
+# The impersonation hand-off (ADR 0017): the console starts it with a reason and gets a link to the admin
+# host with a single-use code in its fragment, never a token; the admin app exchanges the code once for a
+# token it keeps in memory (no cookie), which is refused what support may not do even as the Owner.
+ownerid=$(curl -sk --max-time 30 -H "Authorization: Bearer ${ptoken:-none}" "$API/api/platform/tenants/$tid/staff?status=ACTIVE" | jf 'd["items"][0]["id"]')
+r=$(post "/api/platform/tenants/$tid/impersonations" "{\"staffUserId\":\"$ownerid\",\"reason\":\"Stack test ticket ST-1\",\"minutes\":5}" -H "Authorization: Bearer ${ptoken:-none}")
+hcode=$(echo "$r" | jf 'd["code"]')
+if [ -n "$hcode" ] && [ "$(echo "$r" | jf 'd["openUrl"]')" = "$API/impersonate#code=$hcode" ] && [ "$(echo "$r" | jf '"accessToken" in d')" = False ]; then
+    echo "   ok   impersonation started by the console: a link to the admin host with a single-use code, no token"
+else echo "   FAIL impersonation start: $(echo "$r" | head -c 300)"; fail=1; fi
+hdr=$(mktemp)
+r=$(post /api/v1/auth/impersonation "{\"code\":\"$hcode\"}" -D "$hdr")
+itoken=$(echo "$r" | jf 'd["accessToken"]')
+if [ -n "$itoken" ] && ! grep -qi '^set-cookie' "$hdr" && grep -qi '^cache-control:.*no-store' "$hdr"; then
+    echo "   ok   the admin host exchanged the code for the token, without a cookie and not cacheable"
+else echo "   FAIL hand-off exchange: $(echo "$r" | head -c 300)"; fail=1; fi
+rm -f "$hdr"
+check "the same hand-off code again" 401 "$API/api/v1/auth/impersonation" -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$hcode\"}"
+check "impersonating: customers readable" 200 "$API/api/v1/customers" -H "Authorization: Bearer ${itoken:-none}"
+check "impersonating the Owner: M-Pesa secrets refused" 403 "$API/api/v1/settings/mpesa" -H "Authorization: Bearer ${itoken:-none}"
+check "End from the admin app" 200 "$API/api/v1/impersonation/end" -X POST -H "Authorization: Bearer ${itoken:-none}"
+check "the ended impersonation's token" 401 "$API/api/v1/me" -H "Authorization: Bearer ${itoken:-none}"
 # Router retirement (N10, ADR 0015) and the host's routersync, run for real against this stack's database
 # with a stand-in hub that only keeps peer files: the onboarded router is a peer, then retired with a
 # replacement taking its lines, then its peer is removed and FreeRADIUS reloaded without its secret.

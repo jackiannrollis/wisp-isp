@@ -83,7 +83,8 @@
       }
     </form>
 
-    @if (current.value(); as c) {
+    <!-- The server leaves the URL out while Corebalt support impersonates: its token is a secret (ADR 0017). -->
+    @if (current.value()?.deliveryReportUrl; as deliveryReportUrl) {
       <section class="panel side" aria-labelledby="dlr-title">
         <h2 id="dlr-title" class="section-title">Delivery reports</h2>
         <p class="help">
@@ -94,8 +95,8 @@
           <div>
             <dt>Delivery report URL</dt>
             <dd>
-              <code>{{ c.deliveryReportUrl }}</code>
-              <app-copy-button [value]="c.deliveryReportUrl ?? ''" label="delivery report URL" />
+              <code>{{ deliveryReportUrl }}</code>
+              <app-copy-button [value]="deliveryReportUrl" label="delivery report URL" />
             </dd>
           </div>
         </dl>

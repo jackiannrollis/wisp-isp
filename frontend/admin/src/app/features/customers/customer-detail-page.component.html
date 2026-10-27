@@ -83,7 +83,7 @@
             <tabler-icon [icon]="icons.offline" [size]="16" /> Paid but still offline
           </button>
         }
-        @if (can().manageLines && c.status !== 'ARCHIVED') {
+        @if (can().openLines && c.status !== 'ARCHIVED') {
           <button mat-stroked-button type="button" (click)="addLine()">
             <tabler-icon [icon]="icons.add" [size]="16" /> Add line
           </button>

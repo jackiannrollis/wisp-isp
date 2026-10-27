@@ -109,7 +109,11 @@ export class CustomerImportPageComponent {
 
   protected readonly canImport = computed(() => {
     const p = this.permissions.permissions();
-    return p.has('customers.write') && p.has('subscriptions.write');
+    return (
+      p.has('customers.write') &&
+      p.has('subscriptions.write') &&
+      this.permissions.mayHandleSecrets()
+    );
   });
   protected readonly canActivate = computed(() =>
     this.permissions.permissions().has('subscriptions.import_active'),

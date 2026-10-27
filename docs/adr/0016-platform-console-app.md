@@ -13,7 +13,7 @@ docs/07 asks for a separate platform console, with its own roles, for Corebalt s
 - **Screens:** sign-in (new password, authenticator set-up with the recovery codes shown once, code or recovery code); tenants (list with status and cutover window, create with the Owner's temporary password shown once); a tenant's page (activate, suspend with a reason, reinstate; open, move or close the cutover window; staff of every status with "reissue invitation" for an invitation never used; recent impersonations with "end").
 - **Reserved subdomains:** `admin`, `pay`, `console`, `www`, `api`, `hub-a` and `hub-b` are refused as a tenant's portal subdomain (400 naming the list).
 - **API change:** the console's staff list returns every status (an `INVITED` Owner is the one whose invitation may need reissuing); `status` narrows it.
-- **Not in this decision:** starting an impersonation from the console. Its token must reach the admin app on another origin, which is a trust decision of its own (proposed in ADR 0017, open question Q17); until then it is started through the API.
+- **Not in this decision:** starting an impersonation from the console. Its token must reach the admin app on another origin, which is a trust decision of its own (proposed in ADR 0017, open question Q17); until then it is started through the API. Since built: "Act as" on a tenant's page ([ADR 0017](0017-impersonation-hand-off.md)).
 
 ## Consequences
 

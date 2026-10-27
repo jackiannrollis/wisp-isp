@@ -192,9 +192,12 @@ public class SmsSettings {
     @Transactional(readOnly = true)
     public SettingsView view() {
         final Stored stored = stored().orElseThrow(() -> new NotFoundException("SMS settings"));
-        final String token = secrets.reveal(SecretKind.SMS_CALLBACK_TOKEN).orElse("");
+        // ADR 0017: the token is a secret, so Corebalt support impersonating sees the settings without the URL.
+        final String deliveryReportUrl = CurrentActor.impersonating()
+                ? null
+                : callbackBaseUrl + "/callbacks/sms/" + secrets.reveal(SecretKind.SMS_CALLBACK_TOKEN).orElse("") + "/delivery";
         return new SettingsView(stored.username(), stored.senderId(), stored.sandbox(), stored.enabled(),
-                stored.start().toString(), stored.end().toString(), callbackBaseUrl + "/callbacks/sms/" + token + "/delivery");
+                stored.start().toString(), stored.end().toString(), deliveryReportUrl);
     }
 
     @Transactional(readOnly = true)

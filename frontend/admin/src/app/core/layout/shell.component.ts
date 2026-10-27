@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
@@ -21,6 +21,7 @@ import { catchError, map, of, switchMap, timer } from 'rxjs';
 
 import { AlertsService } from '../../features/alerts/data/alerts.service';
 import { AuthService } from '../auth/auth.service';
+import { formatCountdown } from '../auth/impersonation';
 import { PermissionService } from '../permissions/permission.service';
 import { ThemeMode, ThemeModeService } from '../theme/theme-mode.service';
 import { TenantThemeService } from '../theme/tenant-theme.service';
@@ -60,6 +61,14 @@ export class ShellComponent {
 
   protected readonly branding = this.tenantTheme.branding;
   protected readonly me = this.auth.me;
+  /** ADR 0017: Corebalt support acting as this member, with the time left. */
+  protected readonly impersonation = this.auth.impersonation;
+  private readonly now = toSignal(timer(0, 1000).pipe(map(() => Date.now())), {
+    initialValue: Date.now(),
+  });
+  protected readonly countdown = computed(() =>
+    formatCountdown((this.impersonation()?.expiresAt ?? 0) - this.now()),
+  );
   protected readonly groups = computed(() => visibleNav(this.permissions.permissions()));
   /** Open alerts for the navigation badge; a failed poll just hides the badge until the next one. */
   protected readonly badges = toSignal(
@@ -104,7 +113,25 @@ export class ShellComponent {
       .join(''),
   );
 
+  constructor() {
+    // An impersonation that expired or was refused leaves this tab for the ended page.
+    effect(() => {
+      if (this.auth.impersonationEnded()) {
+        this.tenantTheme.reset();
+        void this.router.navigate(['/impersonation-ended']);
+      }
+    });
+  }
+
+  protected async endImpersonation(): Promise<void> {
+    await this.auth.endImpersonation();
+  }
+
   protected async signOut(): Promise<void> {
+    if (this.auth.impersonating()) {
+      await this.endImpersonation();
+      return;
+    }
     await this.auth.logout();
     this.tenantTheme.reset();
     await this.router.navigate(['/login']);

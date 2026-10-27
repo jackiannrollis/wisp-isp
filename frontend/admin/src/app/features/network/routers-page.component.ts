@@ -54,7 +54,7 @@ import { RegisterRouterDialogComponent } from './router-dialogs';
       title="Routers"
       subtitle="Status comes from the monitoring poll every 60 seconds over the WireGuard tunnel."
     >
-      @if (canWrite()) {
+      @if (canRegister()) {
         <button actions mat-flat-button type="button" (click)="register()">
           <tabler-icon [icon]="icons.add" [size]="18" /> Register router
         </button>
@@ -92,6 +92,10 @@ export class RoutersPageComponent {
 
   protected readonly icons = { add: IconPlus };
   protected readonly canWrite = computed(() => this.permissions.permissions().has('network.write'));
+  /** Registering shows the router's RADIUS secret once (ADR 0017: not while impersonating). */
+  protected readonly canRegister = computed(
+    () => this.canWrite() && this.permissions.mayHandleSecrets(),
+  );
   protected readonly version = signal(0);
   protected readonly link = (r: Router) => `/network/${r.id}`;
   protected readonly status = routerStatus;

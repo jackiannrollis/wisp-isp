@@ -1,3 +1,12 @@
+@if (impersonation(); as imp) {
+  <div class="impersonation" role="status">
+    <span
+      >Corebalt support acting as <strong>{{ imp.staffName }}</strong> · ends in
+      <span class="countdown">{{ countdown() }}</span></span
+    >
+    <button mat-flat-button type="button" (click)="endImpersonation()">End</button>
+  </div>
+}
 <header class="topbar">
   @if (overlay()) {
     <button mat-icon-button type="button" aria-label="Open navigation" (click)="sidenav.toggle()">

@@ -27,6 +27,8 @@ x-backend-env: &backend-env
   # The admin app, the provider-neutral pay page and every tenant portal (ADR 0010 Origin check).
   ISP_ALLOWED_ORIGINS: https://admin.${PLATFORM_DOMAIN:?},https://console.${PLATFORM_DOMAIN},https://pay.${PLATFORM_DOMAIN},https://*.${PLATFORM_DOMAIN}
   CALLBACK_BASE_URL: https://${PLATFORM_DOMAIN}
+  # Where the console opens an impersonation's hand-off (ADR 0017).
+  ISP_ADMIN_APP_URL: https://admin.${PLATFORM_DOMAIN}
   # Staging only: SMS to these test numbers alone; empty in production.
   ISP_SMS_ALLOWLIST: ${SMS_ALLOWLIST:-}
   # Router onboarding scripts (docs/06, ADR 0013): hub A as routers reach it. The hub's public key is

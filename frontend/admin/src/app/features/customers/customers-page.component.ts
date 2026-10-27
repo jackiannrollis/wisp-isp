@@ -91,7 +91,12 @@ export class CustomersPageComponent {
   );
   protected readonly canImport = computed(() => {
     const p = this.permissions.permissions();
-    return p.has('customers.write') && p.has('subscriptions.write');
+    // The import opens lines with PPPoE passwords, a secret (ADR 0017: not while impersonating).
+    return (
+      p.has('customers.write') &&
+      p.has('subscriptions.write') &&
+      this.permissions.mayHandleSecrets()
+    );
   });
   protected readonly link = (c: Customer) => `/customers/${c.id}`;
 

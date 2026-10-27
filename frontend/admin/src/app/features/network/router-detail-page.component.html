@@ -26,24 +26,30 @@
           <tabler-icon [icon]="icons.more" [size]="18" />
         </button>
         <mat-menu #routerMenu="matMenu" xPosition="before">
-          <button mat-menu-item type="button" (click)="onboardingScript(r)">
-            <tabler-icon [icon]="icons.script" [size]="18" class="menu-icon" />
-            <span>{{ r.wgPublicKey ? 'New onboarding script' : 'Onboarding script' }}</span>
-          </button>
-          <button mat-menu-item type="button" (click)="setLogin(r)">
-            <tabler-icon [icon]="icons.login" [size]="18" class="menu-icon" />
-            <span>{{ r.restUsername ? 'Replace monitoring login' : 'Set monitoring login' }}</span>
-          </button>
+          @if (secrets()) {
+            <button mat-menu-item type="button" (click)="onboardingScript(r)">
+              <tabler-icon [icon]="icons.script" [size]="18" class="menu-icon" />
+              <span>{{ r.wgPublicKey ? 'New onboarding script' : 'Onboarding script' }}</span>
+            </button>
+            <button mat-menu-item type="button" (click)="setLogin(r)">
+              <tabler-icon [icon]="icons.login" [size]="18" class="menu-icon" />
+              <span>{{
+                r.restUsername ? 'Replace monitoring login' : 'Set monitoring login'
+              }}</span>
+            </button>
+          }
           @if (r.restUsername) {
             <button mat-menu-item type="button" (click)="stopMonitoring(r)">
               <tabler-icon [icon]="icons.stop" [size]="18" class="menu-icon" />
               <span>Stop monitoring</span>
             </button>
           }
-          <button mat-menu-item type="button" class="danger" (click)="newSecret(r)">
-            <tabler-icon [icon]="icons.secret" [size]="18" class="menu-icon" />
-            <span>New RADIUS secret</span>
-          </button>
+          @if (secrets()) {
+            <button mat-menu-item type="button" class="danger" (click)="newSecret(r)">
+              <tabler-icon [icon]="icons.secret" [size]="18" class="menu-icon" />
+              <span>New RADIUS secret</span>
+            </button>
+          }
           <button mat-menu-item type="button" class="danger" (click)="retire(r)">
             <tabler-icon [icon]="icons.retire" [size]="18" class="menu-icon" />
             <span>Retire router</span>
@@ -54,7 +60,7 @@
             <tabler-icon [icon]="icons.refresh" [size]="16" />
             {{ polling() ? 'Polling…' : 'Poll now' }}
           </button>
-        } @else {
+        } @else if (secrets()) {
           <button mat-flat-button type="button" (click)="onboardingScript(r)">
             <tabler-icon [icon]="icons.script" [size]="16" /> Onboarding script
           </button>

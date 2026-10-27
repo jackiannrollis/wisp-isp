@@ -8,6 +8,7 @@ import com.corebalt.isp.network.api.RouterSecretDto;
 import com.corebalt.isp.network.domain.Router;
 import com.corebalt.isp.network.infrastructure.RadiusCredentials;
 import com.corebalt.isp.network.infrastructure.RouterRepository;
+import com.corebalt.isp.shared.security.CurrentActor;
 import com.corebalt.isp.shared.audit.AuditEntry;
 import com.corebalt.isp.shared.audit.AuditTrail;
 import com.corebalt.isp.shared.id.UuidV7;
@@ -64,6 +65,7 @@ public class RouterService implements RouterDirectory, RouterNames {
 
     @Transactional
     public RouterSecretDto register(final RouterRequest request) {
+        CurrentActor.requireNotImpersonating("Registering a router (its RADIUS secret is shown once)"); // ADR 0017: secrets stay with the tenant
         routers.findByNameIgnoreCase(request.name().strip()).ifPresent(other -> {
             throw new ConflictException("A router named '" + other.getName() + "' already exists.");
         });
@@ -80,6 +82,7 @@ public class RouterService implements RouterDirectory, RouterNames {
 
     @Transactional
     public RouterSecretDto regenerateSecret(final UUID routerId) {
+        CurrentActor.requireNotImpersonating("A new router RADIUS secret"); // ADR 0017: secrets stay with the tenant
         final Router router = active(routerId);
         return new RouterSecretDto(toDto(router), credentials.regenerateRouterSecret(router.getId()));
     }
@@ -115,6 +118,7 @@ public class RouterService implements RouterDirectory, RouterNames {
      */
     @Transactional
     public RouterDto setRestCredential(final UUID routerId, final String username, final String password) {
+        CurrentActor.requireNotImpersonating("A router's REST login"); // ADR 0017: secrets stay with the tenant
         final Router router = active(routerId);
         if (username == null || username.isBlank() || username.length() > 64) {
             throw InvalidRequestException.of("username", "1 to 64 characters");

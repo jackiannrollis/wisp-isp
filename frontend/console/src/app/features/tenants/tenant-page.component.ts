@@ -11,6 +11,7 @@ import { formatDateTime, formatDateTimeOrClosed } from '../../shared/format';
 import { Impersonation, Invitation, Staff, Tenant } from '../../shared/models';
 import { StatusChipComponent } from '../../shared/status-chip.component';
 import {
+  ActAsDialogComponent,
   ConfirmDialogComponent,
   ConfirmDialogData,
   CutoverWindowDialogComponent,
@@ -145,6 +146,14 @@ export class TenantPageComponent {
         });
       }
     });
+  }
+
+  /** ADR 0017: the dialog starts the impersonation and gives the single-use link into the admin app. */
+  protected actAs(t: Tenant, member: Staff): void {
+    this.dialog
+      .open(ActAsDialogComponent, { data: { tenant: t, member }, width: '480px' })
+      .afterClosed()
+      .subscribe((started) => started && this.allImpersonations.reload());
   }
 
   protected end(i: Impersonation): void {

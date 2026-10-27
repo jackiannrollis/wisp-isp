@@ -23,8 +23,13 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
         return throwError(() => error);
       }
+      const impersonating = auth.impersonating();
       return from(auth.restore()).pipe(
         switchMap((restored) => {
+          if (!restored && impersonating) {
+            void router.navigate(['/impersonation-ended']);
+            return throwError(() => error);
+          }
           if (!restored) {
             void router.navigate(['/login'], { queryParams: { next: router.url } });
             return throwError(() => error);

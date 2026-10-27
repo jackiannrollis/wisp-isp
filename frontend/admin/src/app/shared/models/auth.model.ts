@@ -4,6 +4,27 @@ export interface TokenClaims {
   tenant_id?: string;
   permissions?: string[];
   exp?: number;
+  /** RFC 8693 actor: the Corebalt platform admin behind an impersonation (ADR 0017). */
+  act?: { sub?: string };
+  /** The impersonation an impersonation token belongs to. */
+  imp?: string;
+}
+
+/** What `POST /api/v1/auth/impersonation` answers for a hand-off code (ADR 0017). */
+export interface ImpersonationExchange {
+  accessToken: string;
+  expiresAt: string;
+  impersonationId: string;
+  staffName: string;
+  platformAdminName: string;
+}
+
+/** An impersonated session: who acts as whom, until when. Never stored anywhere but memory. */
+export interface Impersonation {
+  id: string;
+  staffName: string;
+  platformAdminName: string;
+  expiresAt: number;
 }
 
 /** The sign-in steps of `POST /api/v1/auth/...` (ADR 0010). */
