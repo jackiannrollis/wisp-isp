@@ -65,4 +65,51 @@ class RadiusPacketTest {
         packet[21] = (byte) 200; // attribute length past the end
         assertThatThrownBy(() -> RadiusPacket.parse(packet, packet.length)).isInstanceOf(IllegalArgumentException.class);
     }
+    /** RFC 2865, section 7.1: secret "xyzzy5461", password "arctangent" and the authenticator given there. */
+    @Test
+    void ADR0019_passwordHidingMatchesTheRfcExample() {
+        final byte[] authenticator = HexFormat.of().parseHex("0f403f9473978057bd83d5cb98f4227a");
+        final byte[] hidden = RadiusPacket.hidePassword("arctangent".getBytes(StandardCharsets.UTF_8),
+                "xyzzy5461".getBytes(StandardCharsets.UTF_8), authenticator);
+        assertThat(HexFormat.of().formatHex(hidden)).isEqualTo("0dbe708d93d413ce3196e43f782a0aee");
+    }
+
+    @Test
+    void ADR0019_anAccessRequestCarriesTheHiddenPasswordAndAValidMessageAuthenticator() throws Exception {
+        final byte[] authenticator = HexFormat.of().parseHex("00112233445566778899aabbccddeeff");
+        final byte[] packet = RadiusPacket.accessRequest(7, authenticator, "CBPR000001", "a-long-probe-password-fake-1",
+                List.of(RadiusPacket.Attribute.address(RadiusPacket.NAS_IP_ADDRESS,
+                        (java.net.Inet4Address) java.net.InetAddress.getByName("172.31.255.2"))), SECRET);
+        final RadiusPacket parsed = RadiusPacket.parse(packet, packet.length);
+        assertThat(parsed.code()).isEqualTo(RadiusPacket.ACCESS_REQUEST);
+        assertThat(parsed.identifier()).isEqualTo(7);
+        assertThat(parsed.authenticator()).isEqualTo(authenticator);
+        assertThat(parsed.string(RadiusPacket.USER_NAME)).contains("CBPR000001");
+        final byte[] hidden = parsed.attributes().stream().filter(a -> a.type() == RadiusPacket.USER_PASSWORD).findFirst()
+                .orElseThrow().value();
+        assertThat(hidden).hasSize(32).isEqualTo(RadiusPacket.hidePassword(
+                "a-long-probe-password-fake-1".getBytes(StandardCharsets.UTF_8), SECRET, authenticator));
+        assertThat(new String(hidden, StandardCharsets.ISO_8859_1)).doesNotContain("probe-password");
+        assertThat(parsed.attributes().stream().filter(a -> a.type() == RadiusPacket.NAS_IP_ADDRESS).findFirst().orElseThrow().value())
+                .isEqualTo(new byte[] {(byte) 172, 31, (byte) 255, 2});
+
+        // RFC 3579: HMAC-MD5 over the packet with the Message-Authenticator zeroed, keyed by the secret.
+        final byte[] zeroed = packet.clone();
+        java.util.Arrays.fill(zeroed, zeroed.length - 16, zeroed.length, (byte) 0);
+        assertThat(zeroed[zeroed.length - 18]).isEqualTo((byte) RadiusPacket.MESSAGE_AUTHENTICATOR);
+        final javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacMD5");
+        mac.init(new javax.crypto.spec.SecretKeySpec(SECRET, "HmacMD5"));
+        assertThat(java.util.Arrays.copyOfRange(packet, packet.length - 16, packet.length)).isEqualTo(mac.doFinal(zeroed));
+    }
+
+    @Test
+    void ADR0019_anAccessAcceptIsReadWithItsPool() {
+        final byte[] authenticator = HexFormat.of().parseHex("00112233445566778899aabbccddeeff");
+        final byte[] accept = RadiusPacket.response(RadiusPacket.ACCESS_ACCEPT, 7, authenticator,
+                List.of(RadiusPacket.Attribute.string(RadiusPacket.FRAMED_POOL, "restricted")), SECRET);
+        final RadiusPacket reply = RadiusPacket.parse(accept, accept.length);
+        assertThat(reply.answers(authenticator, SECRET)).isTrue();
+        assertThat(reply.answers(authenticator, "another-secret-fake".getBytes(StandardCharsets.UTF_8))).isFalse();
+        assertThat(reply.string(RadiusPacket.FRAMED_POOL)).contains("restricted");
+    }
 }

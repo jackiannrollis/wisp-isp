@@ -168,6 +168,11 @@ services:
       SERVER_PORT: "8090"
       ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
       ISP_DB_APP_USER: isp_worker
+      # The synthetic login probe (ADR 0019): FreeRADIUS in the same namespace, from 127.0.0.3, the probe NAS
+      # that infra/lab/scripts/seed creates (probe-setup A 127.0.0.3).
+      ISP_PROBE_ENABLED: "true"
+      ISP_PROBE_RADIUS_HOST: 127.0.0.1
+      ISP_PROBE_NAS_ADDRESS: 127.0.0.3
       ISP_DB_APP_PASSWORD: ${ISP_DB_WORKER_PASSWORD:?set in infra/.env}
       ISP_RABBITMQ_HOST: rabbitmq
       ISP_RABBITMQ_USER: ${RABBITMQ_USER:-isp}

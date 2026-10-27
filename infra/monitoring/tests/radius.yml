@@ -44,3 +44,49 @@ tests:
             exp_annotations:
               summary: "Over 10% of RADIUS logins rejected on this node"
               description: "docs/08 (platform-wide; the per-tenant rule comes from the auth log in Loki): 25% of Access-Requests rejected over 5 minutes. N3: only PENDING, SUSPENDED and TERMINATED lines and wrong credentials are rejected, so a bulk suspension or a router with stale credentials is the likely cause. Grafana, Network dashboard."
+  # ADR 0019: the login probe, one alert per hub and line; then absent.
+  - interval: 1m
+    input_series:
+      - series: 'isp_probe_radius_login_ok{instance="tunnel-worker",hub="A",line="full"}'
+        values: "1 1 0 0 0 0 0 0"
+      - series: 'isp_probe_radius_login_ok{instance="tunnel-worker",hub="A",line="restricted"}'
+        values: "1+0x8"
+      - series: 'isp_probe_radius_login_ok{instance="tunnel-worker-b",hub="B",line="restricted"}'
+        values: "1 1 1 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CorebaltRadiusLoginProbeFailed
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CorebaltRadiusLoginProbeFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, hub: A, line: full }
+            exp_annotations:
+              summary: "The login probe of hub A fails for its full line"
+              description: "ADR 0019: the tunnel worker of this hub logs in the probe tenant's lines through its FreeRADIUS every minute, as a router would. For 3 minutes the full line was refused, got no answer, or got the wrong profile: real customers' logins through this node are likely failing the same way. The worker log says how (RADIUS login probe); docker compose logs freeradius; the database and the RADIUS views."
+      - eval_time: 6m
+        alertname: CorebaltRadiusLoginProbeFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, hub: A, line: full }
+            exp_annotations:
+              summary: "The login probe of hub A fails for its full line"
+              description: "ADR 0019: the tunnel worker of this hub logs in the probe tenant's lines through its FreeRADIUS every minute, as a router would. For 3 minutes the full line was refused, got no answer, or got the wrong profile: real customers' logins through this node are likely failing the same way. The worker log says how (RADIUS login probe); docker compose logs freeradius; the database and the RADIUS views."
+          - exp_labels: { severity: critical, hub: B, line: restricted }
+            exp_annotations:
+              summary: "The login probe of hub B fails for its restricted line"
+              description: "ADR 0019: the tunnel worker of this hub logs in the probe tenant's lines through its FreeRADIUS every minute, as a router would. For 3 minutes the restricted line was refused, got no answer, or got the wrong profile: real customers' logins through this node are likely failing the same way. The worker log says how (RADIUS login probe); docker compose logs freeradius; the database and the RADIUS views."
+      - eval_time: 6m
+        alertname: CorebaltRadiusLoginProbeMissing
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'up{job="tunnel-worker"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CorebaltRadiusLoginProbeMissing
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "No RADIUS login probe results on this host"
+              description: "ADR 0019: no probe result for 10 minutes. The tunnel worker is down or its probe is off, or this hub was never set up (stackctl probe-setup)."

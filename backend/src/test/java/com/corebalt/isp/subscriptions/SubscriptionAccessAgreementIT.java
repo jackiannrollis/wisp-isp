@@ -235,11 +235,12 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
         try (PreparedStatement insert = db.prepareStatement("""
                 insert into subscriptions_subscription
                     (id, tenant_id, customer_id, package_id, router_id, pppoe_username, state, expires_at, grace_days,
-                     paused_at, pause_until, terminated_at, cycle_started_at, grace_mode)
+                     paused_at, pause_until, terminated_at, cycle_started_at, grace_mode, activation_cause)
                 values (?, ?, ?, ?, ?, ?, ?, now() + cast(? as interval) + cast(? as interval), ?,
                         now() - cast(? as interval), now() + cast(? as interval),
                         case when ? = 'TERMINATED' then now() end,
-                        case when ? = 'UNKNOWN' then null else now() - interval '1 day' end, ?)
+                        case when ? = 'UNKNOWN' then null else now() - interval '1 day' end, ?,
+                        case when ? = 'PENDING' then null else 'RENEWAL' end)
                 """);
              PreparedStatement usage = db.prepareStatement("""
                 insert into network_line_usage (tenant_id, subscription_id, cycle_started_at, octets, updated_at)
@@ -262,6 +263,7 @@ class SubscriptionAccessAgreementIT extends IntegrationTest {
                 insert.setString(13, c.state());
                 insert.setString(14, c.usage().name());
                 insert.setString(15, c.lineGraceMode());
+                insert.setString(16, c.state()); // S12: a fixture line past PENDING was renewed
                 insert.addBatch();
                 // NONE sits one byte under the allowance; STALE and UNKNOWN carry more than the cap.
                 final String cycle = c.usage() == Usage.STALE ? "40 days" : "1 day";

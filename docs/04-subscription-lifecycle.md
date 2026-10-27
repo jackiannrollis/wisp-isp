@@ -92,9 +92,21 @@ The same logic lives in two places that must agree: the SQL function `subscripti
 - `TERMINATED` revokes the PPPoE password (RADIUS rejects it with "Account terminated") and frees the static IP; the customer, ledger and accounting history remain for records and lawful requests. Any wallet balance is settled by refund or credit note.
 - **Cancel before activation.** A `PENDING` line that was never paid (the customer changed their mind, the installation fell through) is closed with `POST /api/v1/subscriptions/{id}/cancel`. It needs `customers.write`, a reason and an `Idempotency-Key`; it writes an audit row and publishes `SubscriptionStateChanged` (`PENDING` to `TERMINATED`) like every transition (S9). The PPPoE credential is revoked, so the RADIUS view has nothing for the line. The wallet is untouched: money paid towards the line stays as credit, and a refund takes the normal road. Only a `PENDING` line can be cancelled; an active one is terminated. Nothing cancels a line automatically: the dashboard's action queue lists lines pending for more than 14 days, for staff to chase or cancel (decisions.md 2026-10-21).
 
+## How a line becomes active
+
+A line leaves `PENDING` for `ACTIVE` by exactly one of three causes (S12), kept on the line as `activation_cause` and in its audit row and `SubscriptionStateChanged`:
+
+| Cause | Path | Payment |
+|---|---|---|
+| `RENEWAL` | the first renewal from the wallet (S5, B5) | yes: the ledger debit |
+| `IMPORTED` | the cutover import, within the tenant's open cutover window (S11, below) | collected by the ISP's old system |
+| `PROBE` | the platform's `probe-setup` command, for the internal probe tenant only ([ADR 0019](adr/0019-synthetic-radius-login-probe.md)) | none: the probe tenant is Corebalt's own, never an ISP's |
+
+No other path may activate a line. The database refuses an activation without a cause, any change to a recorded cause, and `PROBE` on any tenant but the probe tenant; a test pins the three entry points in code. Resuming a paused line (S7) or lifting a suspension (S8) returns an activated line to `ACTIVE` and is not an activation; cancelling a line before activation (S9) needs no cause.
+
 ## The cutover import
 
-The one activation that is not a payment (S11, [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)): an ISP moving existing, paying customers onto the platform imports them with the expiry each one already paid for in the old system, so nobody loses paid days and nobody gets a free cycle.
+One of the two activations that are not a payment, and the only one for an ISP's customers (S11, [ADR 0014](adr/0014-cutover-import-with-current-expiry.md)): an ISP moving existing, paying customers onto the platform imports them with the expiry each one already paid for in the old system, so nobody loses paid days and nobody gets a free cycle.
 
 - The CSV column `paid_until` opens the line `ACTIVE` with that expiry; `cycle_started_at` is one package duration before it, so fair use counts the right cycle (N9); grace is copied as a renewal copies it (S6). A date alone (`2026-11-15`) means the time of day chosen on the import, default 12:00, in the tenant's zone: an expiry in daytime, when customers can pay and staff can help. A past date is allowed: the line is `ACTIVE` and expired, so RADIUS sends the customer to the pay page instead of rejecting them.
 - Bounded three ways: `paid_until` at most one package duration ahead; only while the tenant's **cutover window** is open, which a Corebalt platform admin opens for at most 30 days and which closes by itself; only by a holder of `subscriptions.import_active`, a permission of the built-in Owner role alone, with 2FA.

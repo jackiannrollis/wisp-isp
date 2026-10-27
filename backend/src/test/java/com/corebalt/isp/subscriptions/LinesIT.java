@@ -184,10 +184,10 @@ class LinesIT extends IntegrationTest {
         return "{\"customerId\":\"" + customer + "\",\"packageId\":\"" + pkg + "\",\"routerId\":\"" + router + "\"}";
     }
 
-    /** Lifecycle is step 4; make the line ACTIVE directly so the view returns its password. */
+    /** Lifecycle is step 4; make the line ACTIVE directly (as if renewed, S12) so the view returns its password. */
     private static void activate(final String subscriptionId) {
         OwnerSql.client()
-                .sql("update subscriptions_subscription set state = 'ACTIVE', expires_at = now() + interval '30 days' where id = cast(:id as uuid)")
+                .sql("update subscriptions_subscription set state = 'ACTIVE', expires_at = now() + interval '30 days', activation_cause = 'RENEWAL' where id = cast(:id as uuid)")
                 .param("id", subscriptionId)
                 .update();
     }

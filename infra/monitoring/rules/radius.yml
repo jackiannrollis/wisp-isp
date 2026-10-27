@@ -1,8 +1,10 @@
 # FreeRADIUS, from the counters the probes script reads over Status-Server every minute
 # (infra/monitoring/probes.sh writes /srv/corebalt/metrics/corebalt_radius.prom). docs/08 asks for the
 # reject rate per tenant and the p95 response time: the per-tenant rate is a Loki rule on the auth log
-# (loki/rules/fake/radius.yml); the round trip of the status request stands in for the response time
-# until a login probe exists. Unit tests: tests/radius.yml.
+# (loki/rules/fake/radius.yml); the round trip of the status request is the response time without the
+# database. The synthetic login probe (ADR 0019, the tunnel worker's isp_probe_radius_login_* gauges) logs in
+# the probe tenant's two lines through each hub's node every minute: a real login, view and profile included.
+# Unit tests: tests/radius.yml.
 groups:
   - name: corebalt-radius
     rules:
@@ -14,6 +16,22 @@ groups:
         annotations:
           summary: "FreeRADIUS does not answer Status-Server"
           description: "The status probe inside the freeradius container got no answer for 5 minutes: FreeRADIUS is down or wedged. Routers fall back to node B (pending Q2); existing sessions continue (docs/08). docker compose logs freeradius."
+      - alert: CorebaltRadiusLoginProbeFailed
+        expr: min by (hub, line) (isp_probe_radius_login_ok) == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The login probe of hub {{ $labels.hub }} fails for its {{ $labels.line }} line"
+          description: "ADR 0019: the tunnel worker of this hub logs in the probe tenant's lines through its FreeRADIUS every minute, as a router would. For 3 minutes the {{ $labels.line }} line was refused, got no answer, or got the wrong profile: real customers' logins through this node are likely failing the same way. The worker log says how (RADIUS login probe); docker compose logs freeradius; the database and the RADIUS views."
+      - alert: CorebaltRadiusLoginProbeMissing
+        expr: absent(isp_probe_radius_login_ok)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No RADIUS login probe results on this host"
+          description: "ADR 0019: no probe result for 10 minutes. The tunnel worker is down or its probe is off, or this hub was never set up (stackctl probe-setup)."
       - alert: CorebaltRadiusSlow
         expr: corebalt_radius_status_round_trip_seconds > 0.2
         for: 5m

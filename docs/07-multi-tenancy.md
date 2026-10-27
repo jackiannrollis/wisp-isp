@@ -56,6 +56,7 @@ Corebalt staff use a separate platform console, with its own roles, for the work
 - Platform monitoring: RADIUS success rates per tenant, callback gaps, queue depth
 - Billing the ISPs for the platform itself (per active subscriber or flat tiers; open question)
 - Impersonation of a tenant admin for support, always logged and visible to the tenant
+- The internal probe tenant (`INTERNAL`, [ADR 0019](adr/0019-synthetic-radius-login-probe.md)): Corebalt's own, holding the two lines of the synthetic RADIUS login probe, created only by the `probe-setup` command. It is never listed, found by code or subdomain, signed into or visited by a scheduled job, and kept out of Gate 1, the per-tenant RADIUS views and the reconciliation report; its lines are the only ones activated with cause `PROBE` (S12).
 
 ## Tenant onboarding checklist
 

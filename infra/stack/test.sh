@@ -413,6 +413,12 @@ grep -q '^corebalt_radius_up 1$' metrics/corebalt_radius.prom 2>/dev/null && gre
     && echo "   ok   counters written: $(grep -E '^corebalt_radius_access_(requests|accepts|rejects)_total' metrics/corebalt_radius.prom | tr '\n' ' ')" \
     || { echo "   FAIL RADIUS metrics"; cat metrics/corebalt_radius.prom 2>/dev/null; fail=1; }
 until_ok "RADIUS counters scraped (corebalt_radius_up 1)" 60 q_eq corebalt_radius_up 1
+echo "== the synthetic login probe (ADR 0019): stackctl probe-setup, then the worker logs in both probe lines through FreeRADIUS"
+if out=$(./stackctl probe-setup 2>&1) && echo "$out" | grep -q 'Probe NAS probe-a'; then echo "   ok   $(echo "$out" | grep -E 'Probe NAS|created\.' | tr '\n' ' ')"
+else echo "$out"; echo "   FAIL stackctl probe-setup"; fail=1; fi
+out=$(./stackctl probe-setup 2>&1); echo "$out" | grep -q '^0 line(s) created' && echo "   ok   probe-setup again creates nothing" || { echo "$out"; echo "   FAIL probe-setup is not idempotent"; fail=1; }
+until_ok "the probe's far-future line logs in FULL through FreeRADIUS (isp_probe_radius_login_ok 1)" 180 q_eq 'isp_probe_radius_login_ok{hub="A",line="full"}' 1
+until_ok "the probe's expired line logs in RESTRICTED (isp_probe_radius_login_ok 1)" 60 q_eq 'isp_probe_radius_login_ok{hub="A",line="restricted"}' 1
 until_ok "text-file metrics still readable" 30 q_eq node_textfile_scrape_error 0
 until_ok "the accepted login in Loki (radius_outcome OK)" 90 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="OK" [15m]))'
 until_ok "the rejected login in Loki (radius_outcome incorrect)" 60 loki_gt0 'sum(count_over_time({service="freeradius"} | radius_outcome="incorrect" [15m]))'

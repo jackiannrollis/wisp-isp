@@ -32,6 +32,11 @@ public record SubscriptionStateChanged(
          * The cutover import activated the line with the expiry its customer paid for in the old
          * system (S11, ADR 0014): no payment, and nothing for any consumer to do.
          */
-        IMPORTED
+        IMPORTED,
+        /**
+         * The platform's probe setup activated a line of the probe tenant (S12, ADR 0019): no payment, no
+         * session, nothing for any consumer to do.
+         */
+        PROBE
     }
 }

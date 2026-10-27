@@ -75,8 +75,9 @@ public class AccessChanges {
     /** Returns how many sessions were asked to change. */
     public int stateChanged(final SubscriptionStateChanged event) {
         if (event.cause() == SubscriptionStateChanged.Cause.AUTO_RESUME_RECORDED
-                || event.cause() == SubscriptionStateChanged.Cause.IMPORTED) {
-            return 0; // nothing to change: a resume the view already applied, or a new line without a session (S11)
+                || event.cause() == SubscriptionStateChanged.Cause.IMPORTED
+                || event.cause() == SubscriptionStateChanged.Cause.PROBE) {
+            return 0; // nothing to change: a resume the view already applied, or a new line without a session (S11, S12)
         }
         return request(event.subscriptionId(), Action.DISCONNECT, null,
                 "state " + event.fromState() + " to " + event.toState());

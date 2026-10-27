@@ -1,5 +1,6 @@
 package com.corebalt.isp.subscriptions.domain;
 
+import com.corebalt.isp.tenancy.api.ProbeTenant;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -86,6 +87,11 @@ public class Subscription {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    /** S12: why the line left PENDING; null until then (and on lines cancelled before activation). */
+    @Column(name = "activation_cause")
+    @Enumerated(EnumType.STRING)
+    private ActivationCause activationCause;
+
     /** When the current cycle began: the last renewal (Q12 default); null until the first renewal after V202610211000. */
     @Column(name = "cycle_started_at")
     private Instant cycleStartedAt;
@@ -149,12 +155,11 @@ public class Subscription {
         final Instant base;
         if (state == SubscriptionState.PENDING) {
             base = now;
-            activatedAt = now;
+            activate(ActivationCause.RENEWAL, now);
         } else {
             final Instant graceEndsAt = expiresAt.plus(Duration.ofDays(this.graceDays));
             base = now.isBefore(graceEndsAt) ? expiresAt : now;
         }
-        state = SubscriptionState.ACTIVE;
         expiresAt = base.plus(period);
         this.graceDays = graceDays;
         this.graceMode = graceMode;
@@ -180,14 +185,48 @@ public class Subscription {
         if (paidUntil.isAfter(now.plus(period))) {
             throw new LifecycleViolation("S11: paid_until is more than one package duration ahead.");
         }
-        state = SubscriptionState.ACTIVE;
+        activate(ActivationCause.IMPORTED, now);
         expiresAt = paidUntil;
-        activatedAt = now;
         cycleStartedAt = paidUntil.minus(period);
         this.graceDays = graceDays;
         this.graceMode = graceMode;
         updatedAt = now;
         return new Transition(SubscriptionState.PENDING, SubscriptionState.ACTIVE, false);
+    }
+
+    /**
+     * S12, ADR 0019: a line of the probe tenant opens ACTIVE with the expiry the probe needs, far ahead
+     * (expected FULL) or long past (expected RESTRICTED, no grace). No payment and no ledger entry; only the
+     * platform's probe setup calls it, and only for {@link ProbeTenant}, which
+     * the database checks too.
+     */
+    public Transition activateForProbe(final Instant expiresAt, final Instant now) {
+        if (!ProbeTenant.is(tenantId)) {
+            throw new LifecycleViolation("S12: PROBE activates only lines of the probe tenant.");
+        }
+        if (state != SubscriptionState.PENDING) {
+            throw new LifecycleViolation("S12: only a PENDING line can be activated for the probe; this one is " + state + ".");
+        }
+        activate(ActivationCause.PROBE, now);
+        this.expiresAt = expiresAt;
+        cycleStartedAt = now;
+        graceDays = 0;
+        graceMode = GraceMode.FULL_SPEED;
+        updatedAt = now;
+        return new Transition(SubscriptionState.PENDING, SubscriptionState.ACTIVE, false);
+    }
+
+    /**
+     * S12: the one place a line leaves PENDING for ACTIVE, reached only from {@link #renew},
+     * {@link #activateByImport} and {@link #activateForProbe} (Subscription12Test, ActivationCauseIT).
+     */
+    private void activate(final ActivationCause cause, final Instant now) {
+        if (state != SubscriptionState.PENDING) {
+            throw new LifecycleViolation("S12: only a PENDING line is activated; this one is " + state + ".");
+        }
+        state = SubscriptionState.ACTIVE;
+        activatedAt = now;
+        activationCause = cause;
     }
 
     /**
@@ -411,6 +450,10 @@ public class Subscription {
     /** The grace mode this cycle was sold with, or {@code tenantMode} for a line renewed before it was kept. */
     public GraceMode graceModeOr(final GraceMode tenantMode) {
         return graceMode != null ? graceMode : tenantMode;
+    }
+
+    public ActivationCause getActivationCause() {
+        return activationCause;
     }
 
     public Instant getCycleStartedAt() {

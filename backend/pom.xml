@@ -21,6 +21,7 @@
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
         <spring-modulith.version>2.1.1</spring-modulith.version>
+        <archunit.version>1.4.2</archunit.version>
         <springdoc.version>3.1.1</springdoc.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <bouncycastle.version>1.86</bouncycastle.version>
@@ -144,6 +145,13 @@
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- S12: which code may move a line out of PENDING (ActivationEntryPointsTest). The version Spring Modulith brings. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

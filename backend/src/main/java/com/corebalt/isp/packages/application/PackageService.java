@@ -40,6 +40,7 @@ public class PackageService implements PackageCatalog {
     }
 
     @Transactional
+    @Override
     public PackageDto create(final PackageRequest request) {
         final PackageType type = parse(PackageType.class, "type", request.type(), PackageType.PPPOE);
         requireUniqueName(request.name(), null);

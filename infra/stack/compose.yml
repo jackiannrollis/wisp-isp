@@ -170,6 +170,11 @@ services:
       ISP_REDIS_PASSWORD: ${REDIS_PASSWORD}
       ISP_MASTER_KEY: ${ISP_MASTER_KEY}
       ISP_WORKER_HUB: ${WORKER_HUB:-A}
+      # The synthetic login probe (ADR 0019): from its fixed address on radius-probe, which is the probe NAS
+      # of this hub (stackctl probe-setup), to FreeRADIUS on the same network.
+      ISP_PROBE_ENABLED: ${PROBE_ENABLED:-true}
+      ISP_PROBE_RADIUS_HOST: ${PROBE_RADIUS_ADDRESS:-172.31.255.3}
+      ISP_PROBE_NAS_ADDRESS: ${PROBE_WORKER_ADDRESS:-172.31.255.2}
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=50
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8090 && printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
@@ -177,6 +182,10 @@ services:
       timeout: 5s
       start_period: 120s
       retries: 5
+    networks:
+      default: {}
+      radius-probe:
+        ipv4_address: ${PROBE_WORKER_ADDRESS:-172.31.255.2}
     depends_on:
       api-1: { condition: service_healthy }
 
@@ -198,6 +207,10 @@ services:
     ports:
       - "${WG_HUB_IP:?}:${RADIUS_AUTH_PORT:-1812}:1812/udp"
       - "${WG_HUB_IP}:${RADIUS_ACCT_PORT:-1813}:1813/udp"
+    networks:
+      default: {}
+      radius-probe:
+        ipv4_address: ${PROBE_RADIUS_ADDRESS:-172.31.255.3}
     depends_on:
       api-1: { condition: service_healthy }
 
@@ -219,3 +232,14 @@ services:
       - ${DATA_DIR:-/srv/corebalt}/caddy/data:/data
       - ${DATA_DIR:-/srv/corebalt}/caddy/config:/config
     # No depends_on: the front stays up through an API restart and answers 502 until it is back.
+
+# The synthetic login probe's own network (ADR 0019): only the tunnel worker and FreeRADIUS, at fixed addresses,
+# so FreeRADIUS knows the worker as the hub's probe NAS. Internal: nothing leaves through it. Each hub has its
+# own subnet (roles/stack: 172.31.255.0/29 on hub A, 172.31.254.0/29 on hub B), since both nodes read one
+# router table and a tunnel address is unique.
+networks:
+  radius-probe:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${PROBE_SUBNET:-172.31.255.0/29}

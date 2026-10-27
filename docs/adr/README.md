@@ -22,6 +22,7 @@ Each record states the context, the decision and its consequences at the time it
 | [0016](0016-platform-console-app.md) | The platform console: a third Angular app at `console.<domain>` | Accepted |
 | [0017](0017-impersonation-hand-off.md) | Impersonation hand-off from the console to the admin app | Proposed (Q17) |
 | [0018](0018-gate1-measured-by-the-platform.md) | Gate 1 measured by the platform | Accepted |
+| [0019](0019-synthetic-radius-login-probe.md) | The synthetic RADIUS login probe and the internal probe tenant | Accepted |
 
 ## Writing a new record
 

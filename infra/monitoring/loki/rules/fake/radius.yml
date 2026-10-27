@@ -9,12 +9,12 @@ groups:
       - alert: CorebaltRadiusTenantRejectRateHigh
         expr: |
           (
-            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome="incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m]))
+            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome="incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" | tenant != "CBPR" [5m]))
               /
-            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m]))
+            sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" | tenant != "CBPR" [5m]))
           ) > 0.1
           and
-          sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" [5m])) >= 20
+          sum by (tenant) (count_over_time({service="freeradius"} | radius_outcome=~"OK|incorrect" | regexp `\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != "" | tenant != "CBPR" [5m])) >= 20
         for: 5m
         labels:
           severity: warning

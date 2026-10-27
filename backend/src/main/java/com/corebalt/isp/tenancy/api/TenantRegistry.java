@@ -18,6 +18,12 @@ public interface TenantRegistry {
 
     List<TenantRef> list();
 
+    /**
+     * Creates the probe tenant ({@link ProbeTenant}, INTERNAL) when it does not exist yet; for the platform's
+     * {@code probe-setup} command only (ADR 0019). Every other method here ignores it.
+     */
+    void ensureProbeTenant();
+
     /** A new tenant in TRIAL (docs/07 onboarding step 1). */
     TenantRef create(String code, String name, String subdomain);
 
@@ -47,8 +53,9 @@ public interface TenantRegistry {
 
     record TenantRef(UUID id, String code, String name, String subdomain, String status, Instant cutoverWindowUntil) {
 
+        /** Trial and active tenants; never a suspended one, nor an INTERNAL one (ADR 0019). */
         public boolean canSignIn() {
-            return !"SUSPENDED".equals(status);
+            return "TRIAL".equals(status) || "ACTIVE".equals(status);
         }
 
         public boolean cutoverWindowOpen(final Instant now) {

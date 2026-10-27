@@ -287,11 +287,11 @@ class RadiusAuthIT extends IntegrationTest {
                                    select ?, t.id, ?, 'Kept Legacy', ? from t returning id, tenant_id),
                              s as (insert into subscriptions_subscription
                                        (id, tenant_id, customer_id, package_id, router_id, pppoe_username, username_kept,
-                                        state, expires_at, grace_days, cycle_started_at)
+                                        state, expires_at, grace_days, cycle_started_at, activation_cause)
                                    select ?, c.tenant_id, c.id,
                                           (select id from packages_package p where p.tenant_id = c.tenant_id order by p.id limit 1),
                                           (select id from network_router r where r.tenant_id = c.tenant_id and host(r.tunnel_ip_a) = ?),
-                                          ?, true, 'ACTIVE', now() + interval '30 days', 0, now() - interval '1 day'
+                                          ?, true, 'ACTIVE', now() + interval '30 days', 0, now() - interval '1 day', 'IMPORTED'
                                    from c returning id, tenant_id)
                         insert into network_radius_credential (id, tenant_id, subscription_id, secret)
                         select ?, s.tenant_id, s.id, ? from s

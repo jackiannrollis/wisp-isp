@@ -1,0 +1,25 @@
+# ADR 0019 · The synthetic RADIUS login probe and the internal probe tenant
+
+**Status:** Accepted
+**Date:** 2026-10-27
+
+## Context
+
+docs/08 asks for the real RADIUS response time and for warning when logins fail. The monitoring only asked FreeRADIUS for its status (Status-Server inside the container), which proves the process answers, not that a router's login gets through the client list, the database views and the profile logic. A real login needs a credential FreeRADIUS accepts on every production node, and nothing could hold one without becoming a fake customer of a real ISP: it would appear in the ISP's lists, counts, jobs and Gate 1. The user decided (2026-10-27) how such a credential may exist.
+
+## Decision
+
+- **An internal probe tenant.** `Corebalt Probe`, code `CBPR`, subdomain `probe`, with the fixed id `0191f0be-0000-7000-8000-000000000001` (`tenancy.api.ProbeTenant`) and the new tenant status `INTERNAL`. The registry never lists it or finds it by id, code or subdomain, so it cannot be signed into (staff or portal), seen in the console, or named by any platform endpoint; `probe` is a reserved subdomain. `TenantDirectory` visits TRIAL and ACTIVE tenants only, so no scheduled job touches it: no renewal, reminder, reconciliation, Gate 1 gauge or router poll. The per-tenant RADIUS log views and the Loki reject-rate rule leave its code out. (Metering, Q1, is not built; it would read the same directory.)
+- **Created only by a platform command.** `probe-setup <hub> <nas-address>` (`java -jar app.jar`, like `reset-platform-admin`; `stackctl probe-setup` on a host; the lab seed locally) creates, idempotently: the tenant, a package and a customer, a probe NAS for the hub (a router row named `probe-<hub>` at the worker's probe address, with a RADIUS secret issued into `network_radius_credential` and never shown), and two lines opened like any line and activated with cause **PROBE** (S12): one paid until 2099-12-31 (expected FULL), one expired on 2000-01-01 with no grace (expected RESTRICTED). It prints names and dates, never a secret.
+- **S12 holds it to the probe tenant.** A line leaves PENDING for ACTIVE only by RENEWAL (ledger-backed), IMPORTED (the cutover import) or PROBE. The cause is stored (`subscriptions_subscription.activation_cause`); a trigger refuses an activation without one and any change to it; a check refuses PROBE on any tenant but the fixed id. In code, one private `Subscription.activate` behind three entry points, each with a single caller (`ActivationEntryPointsTest`, ArchUnit).
+- **The worker reads the probe's passwords through one view.** `v_radius_probe_credential_v1` returns the probe tenant's active lines with their PPPoE passwords; the tenant id is a literal of the view, not a parameter or a setting, and only `isp_worker` may select from it (T4, ADR 0009 amended). The NAS secret comes from `radius_client_v3`, which the worker already reads for CoA.
+- **The probe runs in each hub's tunnel worker** (ADR 0011), on its own executor every minute: an Access-Request per line (PAP, the password hidden per RFC 2865, a Message-Authenticator per RFC 3579), from the probe NAS address to that hub's FreeRADIUS, then Access-Accept with `Framed-Pool` `full` for the far-future line and `restricted` for the expired one. Gauges per hub and line: `isp_probe_radius_login_ok` and `isp_probe_radius_login_seconds`; failures counted by outcome. `CorebaltRadiusLoginProbeFailed` (critical, 3 minutes) fires per hub and line; `CorebaltRadiusLoginProbeMissing` (warning) when a host has no probe results.
+- **Where the packets come from.** FreeRADIUS knows a client by its source address. On a host the worker and FreeRADIUS share a small internal Docker network, `radius-probe`, at fixed addresses (worker `.2`, FreeRADIUS `.3`) in a /29 per hub (`172.31.255.0/29` on hub A, `172.31.254.0/29` on hub B; roles/stack), because both nodes read one router table and a tunnel address is unique. The probe NAS of a hub is the worker's address there. Locally the worker shares the hub's namespace with FreeRADIUS and probes `127.0.0.1` from `127.0.0.3` (the lab's radtest NAS are `.1` and `.2`).
+
+## Consequences
+
+- Each node's real login path is watched every minute, separately for node A and node B (node B once it exists, Q2): the client list, `v_radius_auth_v7`, the profile function and the database behind them.
+- The node-level RADIUS counters (logins per minute, Status-Server figures) include the probe's two requests a minute per hub; they have no tenant to filter on.
+- The probe lines need no renewal: the far-future one stays FULL until 2099, the expired one stays RESTRICTED. A future change to the view or the profile logic that breaks either shows within three minutes.
+- The activation trigger refuses a PENDING line leaving for anything but TERMINATED without a cause. An API instance of the previous release activating a line during a rolling deploy would fail and be retried by its queue; nothing ran in production before this release.
+- `probe-setup` must run once per host after the first deploy (pilot-onboarding runbook); until then `CorebaltRadiusLoginProbeMissing` reminds.

@@ -1,8 +1,10 @@
 package com.corebalt.isp.network.infrastructure;
 
 import java.io.ByteArrayOutputStream;
+import java.net.Inet4Address;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -10,15 +12,22 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * The few RADIUS packets the tunnel worker sends and reads: Disconnect and CoA (RFC 5176) with their
  * ACK and NAK. Requests carry the RFC 2866-style authenticator, MD5(code, identifier, length, sixteen
  * zero octets, attributes, secret); a reply is accepted only when its authenticator, MD5 over the
- * reply with the request's authenticator in place plus the secret, proves it knew the secret.
+ * reply with the request's authenticator in place plus the secret, proves it knew the secret. The
+ * login probe (ADR 0019) also sends an Access-Request (RFC 2865): a random authenticator, the password
+ * hidden as section 5.2 says, and a Message-Authenticator (RFC 3579), which FreeRADIUS may require.
  */
 public final class RadiusPacket {
 
+    public static final int ACCESS_REQUEST = 1;
+    public static final int ACCESS_ACCEPT = 2;
+    public static final int ACCESS_REJECT = 3;
     public static final int DISCONNECT_REQUEST = 40;
     public static final int DISCONNECT_ACK = 41;
     public static final int DISCONNECT_NAK = 42;
@@ -27,6 +36,11 @@ public final class RadiusPacket {
     public static final int COA_NAK = 45;
 
     public static final int USER_NAME = 1;
+    public static final int USER_PASSWORD = 2;
+    public static final int NAS_IP_ADDRESS = 4;
+    public static final int SESSION_TIMEOUT = 27;
+    public static final int MESSAGE_AUTHENTICATOR = 80;
+    public static final int FRAMED_POOL = 88;
     public static final int VENDOR_SPECIFIC = 26;
     public static final int ACCT_SESSION_ID = 44;
     public static final int ERROR_CAUSE = 101;
@@ -35,6 +49,7 @@ public final class RadiusPacket {
 
     public static final int MIKROTIK_VENDOR = 14988;
     public static final int MIKROTIK_RATE_LIMIT = 8;
+    public static final int MIKROTIK_ADDRESS_LIST = 19;
 
     private static final int HEADER = 20;
     private static final int MAX_LENGTH = 4096;
@@ -52,6 +67,10 @@ public final class RadiusPacket {
 
         public static Attribute integer(final int type, final int value) {
             return new Attribute(0, type, ByteBuffer.allocate(4).putInt(value).array());
+        }
+
+        public static Attribute address(final int type, final Inet4Address value) {
+            return new Attribute(0, type, value.getAddress());
         }
     }
 
@@ -75,6 +94,41 @@ public final class RadiusPacket {
         final byte[] packet = assemble(code, identifier, new byte[16], attributes);
         System.arraycopy(md5(packet, secret), 0, packet, 4, 16);
         return packet;
+    }
+
+    /**
+     * An Access-Request for {@code username} and {@code password} with the random
+     * {@code requestAuthenticator}: the password hidden with the secret (RFC 2865, 5.2), {@code extra}
+     * attributes (NAS-IP-Address), and a Message-Authenticator last, HMAC-MD5 of the packet (RFC 3579).
+     */
+    public static byte[] accessRequest(final int identifier, final byte[] requestAuthenticator, final String username,
+                                       final String password, final List<Attribute> extra, final byte[] secret) {
+        final List<Attribute> attributes = new ArrayList<>();
+        attributes.add(Attribute.string(USER_NAME, username));
+        attributes.add(new Attribute(0, USER_PASSWORD,
+                hidePassword(password.getBytes(StandardCharsets.UTF_8), secret, requestAuthenticator)));
+        attributes.addAll(extra);
+        attributes.add(new Attribute(0, MESSAGE_AUTHENTICATOR, new byte[16]));
+        final byte[] packet = assemble(ACCESS_REQUEST, identifier, requestAuthenticator, attributes);
+        System.arraycopy(hmacMd5(packet, secret), 0, packet, packet.length - 16, 16);
+        return packet;
+    }
+
+    /** RFC 2865, 5.2: the password padded to 16 octets, each block XORed with an MD5 chain over the secret. */
+    static byte[] hidePassword(final byte[] password, final byte[] secret, final byte[] requestAuthenticator) {
+        if (password.length > 128) {
+            throw new IllegalArgumentException("RADIUS passwords are at most 128 octets");
+        }
+        final byte[] padded = Arrays.copyOf(password, Math.max(16, (password.length + 15) / 16 * 16));
+        byte[] previous = requestAuthenticator;
+        for (int block = 0; block < padded.length; block += 16) {
+            final byte[] key = md5(secret, previous);
+            for (int i = 0; i < 16; i++) {
+                padded[block + i] ^= key[i];
+            }
+            previous = Arrays.copyOfRange(padded, block, block + 16);
+        }
+        return padded;
     }
 
     /** An ACK or NAK to a request whose authenticator was {@code requestAuthenticator}. */
@@ -203,6 +257,16 @@ public final class RadiusPacket {
         final ByteBuffer packet = ByteBuffer.allocate(length);
         packet.put((byte) code).put((byte) identifier).putShort((short) length).put(authenticator).put(body.toByteArray());
         return packet.array();
+    }
+
+    private static byte[] hmacMd5(final byte[] packet, final byte[] secret) {
+        try {
+            final Mac mac = Mac.getInstance("HmacMD5");
+            mac.init(new SecretKeySpec(secret, "HmacMD5"));
+            return mac.doFinal(packet);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static byte[] md5(final byte[] packet, final byte[] secret) {

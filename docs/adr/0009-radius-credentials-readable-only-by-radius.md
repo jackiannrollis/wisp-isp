@@ -16,6 +16,7 @@ docs/07 required PPPoE passwords and per-router RADIUS shared secrets to be enve
   - Only the views `radius_client_v3` and `v_radius_auth_v3`, which run as their owner, read `secret`, and `isp_radius` has SELECT on those views alone (N2).
   - A test proves both directions as `isp_app`.
   - Amended 2026-10-20 (step 8, ADR 0011): `isp_worker`, the tunnel worker's role, is the second reader of router secrets, to sign CoA and Disconnect (N5). It has SELECT on `radius_client_v3` (`tenant_id`, `nasname`, `secret`) only, never on `network_radius_credential` or any PPPoE password, and reads the secret when it sends, never caching it, so a rotated secret takes effect on the next request. `DatabaseGrantsIT` pins this exactly. A future Go service for CoA would use the same role.
+  - Amended 2026-10-27 (ADR 0019, T4): `isp_worker` also reads the PPPoE passwords of the internal probe tenant's lines, and of no other tenant, through `v_radius_probe_credential_v1`, for the synthetic login probe: the worker logs those lines in through each node every minute, as a router would. The view's tenant id is a literal of its definition, not a parameter or a setting, so the role cannot widen it; `DatabaseGrantsIT` pins the grant and `ProbeIT` proves the role reads exactly the probe lines and no other tenant's line password, through `radius_client_v3` (router secrets only) or any other relation.
 - The platform generates every value with `SecureRandom`, from letters and digits without look-alikes:
   - PPPoE passwords have 16 characters.
   - Shared secrets have 32 characters.

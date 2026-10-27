@@ -30,7 +30,7 @@ So the drills that can run now rehearse the single-node behaviour on staging and
 
 ### The login check
 
-The check is manual: a real Access-Request through FreeRADIUS and the database view (docs/06), not the Status-Server probe the monitoring uses (`CorebaltRadiusSlow` measures that round trip only; a synthetic login probe is an open item, see the end). On the host, with the drill line's number and password:
+The check is manual: a real Access-Request through FreeRADIUS and the database view (docs/06), not the Status-Server probe the monitoring uses (`CorebaltRadiusSlow` measures that round trip only; the synthetic login probe, ADR 0019, logs the probe tenant's lines in every minute, but a drill still checks a real ISP line by hand). On the host, with the drill line's number and password:
 
 ```sh
 cd /srv/corebalt/stack
@@ -109,6 +109,6 @@ One file per drill in `drills/`, from `drills/TEMPLATE.md`, committed with the n
 
 ## Open items
 
-- A synthetic login probe for the monitoring (docs/08 names the real RADIUS response time; `CorebaltRadiusSlow` approximates it with the Status-Server round trip) needs a credential FreeRADIUS accepts on every production node: a probe tenant with a router and a line, which would appear in tenant counts and in the per-subscriber metering of Q1. Decide whether to create one; until then the login check is manual, as above.
+- The synthetic login probe now runs on every hub (ADR 0019): during a drill, `CorebaltRadiusLoginProbeFailed` for the node taken down is expected and must clear when it is back.
 - The recovery time for a lost core (drill C) is not stated anywhere; the first rehearsal measures it.
 - Drills D and E, and the production RADIUS drill, follow the Nairobi node (Q2).

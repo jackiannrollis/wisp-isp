@@ -9,6 +9,9 @@ public interface PackageCatalog {
 
     Optional<PackageSummary> find(UUID packageId);
 
+    /** A new package in the current tenant; the probe setup creates the probe tenant's with it (ADR 0019). */
+    PackageDto create(PackageRequest request);
+
     /** Case-insensitive; names are unique per tenant. */
     Optional<PackageSummary> findByName(String name);
 

@@ -45,7 +45,8 @@ class ListFiltersIT extends IntegrationTest {
         // S1: a line stored ACTIVE whose expiry and grace have passed is listed as RESTRICTED, derived in SQL.
         OwnerSql.client().sql("""
                         update subscriptions_subscription set state = 'ACTIVE', expires_at = now() - interval '5 days',
-                            grace_days = 1, activated_at = now() - interval '35 days'
+                            grace_days = 1, activated_at = now() - interval '35 days',
+                            activation_cause = coalesce(activation_cause, 'RENEWAL')
                         where router_id = :r
                         """)
                 .param("r", UUID.fromString(r1)).update();

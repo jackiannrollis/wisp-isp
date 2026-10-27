@@ -75,8 +75,13 @@ platform (ADR 0018): the reporting module times each callback payment that lifts
 router's answer or a new session, within 10 minutes; matching over callback payments; manual reconnects
 recorded directly (the admin app's "Disconnect sessions" within 2 hours after a payment, support's "Paid
 but still offline") plus the reconnect alerts; on the console's tenant page, the platform API, per-tenant
-gauges and three alerts (slow: warning; missed or three slow in an hour: critical). Not yet: the Nairobi
-node (pending Q2).
+gauges and three alerts (slow: warning; missed or three slow in an hour: critical). S12: a line leaves
+PENDING for ACTIVE only by RENEWAL, IMPORTED or PROBE, the cause stored and enforced by the database and
+an ArchUnit test. The synthetic RADIUS login probe (ADR 0019): an INTERNAL probe tenant made by the
+platform-only `probe-setup` command (`stackctl probe-setup`; the lab seed locally), whose far-future and
+expired lines each hub's tunnel worker logs in every minute through its FreeRADIUS, from a fixed address
+on an internal network; passwords through the probe-only view (T4); `CorebaltRadiusLoginProbeFailed` per
+hub and line. Not yet: the Nairobi node (pending Q2).
 
 ## Commands
 
@@ -125,7 +130,7 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Stop (add `-v` to drop data) | `infra\scripts\down.ps1` | `infra/scripts/down.sh` |
 | Follow logs | `infra\scripts\logs.ps1 backend` | `infra/scripts/logs.sh backend` |
 | Run migrations only | `infra\scripts\migrate.ps1` | `infra/scripts/migrate.sh` |
-| Load the network-lab fixtures (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
+| Load the network-lab fixtures and set up the login probe (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
 | RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
 | Daraja sandbox round-trip (needs `DARAJA_SANDBOX_*` and an https `CALLBACK_BASE_URL` in `.env`; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
 | Africa's Talking sandbox round-trip (needs `AT_SANDBOX_*` and an https `CALLBACK_BASE_URL`; skips otherwise) | `infra\scripts\at-sandbox.ps1` | `infra/scripts/at-sandbox.sh` |

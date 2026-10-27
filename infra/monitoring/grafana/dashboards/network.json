@@ -950,7 +950,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (tenant) (count_over_time({service=\"freeradius\"} | radius_outcome=~\"OK|incorrect\" | regexp `\\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != \"\" [5m]))",
+          "expr": "sum by (tenant) (count_over_time({service=\"freeradius\"} | radius_outcome=~\"OK|incorrect\" | regexp `\\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != \"\" | tenant != \"CBPR\" [5m]))",
           "legendFormat": "{{tenant}}",
           "queryType": "range"
         }
@@ -1009,7 +1009,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (tenant) (count_over_time({service=\"freeradius\"} | radius_outcome=\"incorrect\" | regexp `\\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != \"\" [5m]))",
+          "expr": "sum by (tenant) (count_over_time({service=\"freeradius\"} | radius_outcome=\"incorrect\" | regexp `\\[(?P<tenant>[A-Z]+)[0-9]{6}` | tenant != \"\" | tenant != \"CBPR\" [5m]))",
           "legendFormat": "{{tenant}}",
           "queryType": "range"
         }
@@ -1395,6 +1395,89 @@
           "range": true
         }
       ]
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "RADIUS login probe by hub and line (ADR 0019)",
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 24,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failing",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Logs in",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (hub, line) (isp_probe_radius_login_ok)",
+          "legendFormat": "hub {{hub}} · {{line}}",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "description": "The tunnel worker of each hub logs in the probe tenant's two lines through its FreeRADIUS every minute: the far-future line must get the full profile, the expired one the restricted profile (CorebaltRadiusLoginProbeFailed)."
     }
   ],
   "description": "FreeRADIUS counters and the per-tenant view from its auth log; the WireGuard hub's peers (docs/06, docs/08)."

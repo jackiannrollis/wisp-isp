@@ -107,9 +107,12 @@ GROUP BY t.id
 ON CONFLICT (tenant_id) DO UPDATE
     SET last_value = greatest(customers_number_counter.last_value, EXCLUDED.last_value);
 
+-- S12: a fixture line past PENDING carries RENEWAL, as if it had been paid; a re-run keeps whatever cause a
+-- line already has (a cause never changes), even where it resets the line's state.
 INSERT INTO subscriptions_subscription (id, tenant_id, customer_id, package_id, router_id,
                                         pppoe_username, state, expires_at, grace_days, static_ip,
-                                        paused_at, pause_until, terminated_at, cycle_started_at)
+                                        paused_at, pause_until, terminated_at, cycle_started_at,
+                                        activation_cause)
 SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, t.id,
        ('01900000-0000-7000-8000-0000000c' || lpad(to_hex(l.n), 4, '0'))::uuid,
        CASE l.code WHEN 'CB' THEN '01900000-0000-7000-8000-0000000000e1'::uuid
@@ -120,13 +123,16 @@ SELECT ('01900000-0000-7000-8000-0000000b' || lpad(to_hex(l.n), 4, '0'))::uuid, 
        now() - l.paused_ago, now() + l.pause_left,
        CASE WHEN l.state = 'TERMINATED' THEN now() + l.expires_in + interval '1 day' END,
        -- Fair use counts from the last renewal (N9): lines that have been renewed get a cycle start.
-       CASE WHEN l.state IN ('ACTIVE', 'PAUSED') THEN now() - interval '2 days' END
+       CASE WHEN l.state IN ('ACTIVE', 'PAUSED') THEN now() - interval '2 days' END,
+       CASE WHEN l.state <> 'PENDING' THEN 'RENEWAL' END
 FROM lab_line l JOIN tenancy_tenant t ON t.code = l.code
 ON CONFLICT (id) DO UPDATE
     SET state = EXCLUDED.state, expires_at = EXCLUDED.expires_at, grace_days = EXCLUDED.grace_days,
         static_ip = EXCLUDED.static_ip, paused_at = EXCLUDED.paused_at,
         pause_until = EXCLUDED.pause_until, terminated_at = EXCLUDED.terminated_at,
-        cycle_started_at = EXCLUDED.cycle_started_at, updated_at = now();
+        cycle_started_at = EXCLUDED.cycle_started_at,
+        activation_cause = coalesce(subscriptions_subscription.activation_cause, EXCLUDED.activation_cause),
+        updated_at = now();
 
 -- Customer statuses: CB000021 left and is ARCHIVED; everyone else is ACTIVE (re-runs restore that).
 UPDATE customers_customer

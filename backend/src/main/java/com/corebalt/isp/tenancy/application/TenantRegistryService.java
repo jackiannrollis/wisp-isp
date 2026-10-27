@@ -5,6 +5,7 @@ import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.shared.web.ConflictException;
 import com.corebalt.isp.shared.web.InvalidRequestException;
 import com.corebalt.isp.shared.web.NotFoundException;
+import com.corebalt.isp.tenancy.api.ProbeTenant;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -28,12 +29,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 class TenantRegistryService implements TenantRegistry {
 
     private static final String SELECT = "select id, code, name, subdomain, status, cutover_window_until from tenancy_tenant ";
+    /** ADR 0019: an INTERNAL tenant (the probe tenant) is invisible to every lookup of the registry. */
+    private static final String VISIBLE = "status <> 'INTERNAL' and ";
 
     /**
      * Names the platform serves itself under the domain (infra/web/Caddyfile, ADR 0016): a tenant
      * portal there would never be reached, since the web front answers those names first.
      */
-    static final Set<String> RESERVED_SUBDOMAINS = Set.of("admin", "pay", "console", "www", "api", "hub-a", "hub-b");
+    static final Set<String> RESERVED_SUBDOMAINS =
+            Set.of("admin", "pay", "console", "www", "api", "hub-a", "hub-b", ProbeTenant.SUBDOMAIN);
 
     /** The longest cutover window the console may open (ADR 0014). */
     static final Duration MAX_CUTOVER_WINDOW = Duration.ofDays(30);
@@ -50,7 +54,8 @@ class TenantRegistryService implements TenantRegistry {
 
     @Override
     public Optional<TenantRef> find(final UUID tenantId) {
-        return inScope(() -> jdbc.sql(SELECT + "where id = :id").param("id", tenantId).query(TenantRegistryService::row).optional());
+        return inScope(() -> jdbc.sql(SELECT + "where " + VISIBLE + "id = :id").param("id", tenantId)
+                .query(TenantRegistryService::row).optional());
     }
 
     @Override
@@ -59,7 +64,7 @@ class TenantRegistryService implements TenantRegistry {
             return Optional.empty();
         }
         final String value = codeOrSubdomain.strip();
-        return inScope(() -> jdbc.sql(SELECT + "where code = :code or subdomain = :subdomain")
+        return inScope(() -> jdbc.sql(SELECT + "where " + VISIBLE + "(code = :code or subdomain = :subdomain)")
                 .param("code", value.toUpperCase(Locale.ROOT))
                 .param("subdomain", value.toLowerCase(Locale.ROOT))
                 .query(TenantRegistryService::row)
@@ -68,7 +73,21 @@ class TenantRegistryService implements TenantRegistry {
 
     @Override
     public List<TenantRef> list() {
-        return inScope(() -> jdbc.sql(SELECT + "order by code").query(TenantRegistryService::row).list());
+        return inScope(() -> jdbc.sql(SELECT + "where status <> 'INTERNAL' order by code").query(TenantRegistryService::row).list());
+    }
+
+    @Override
+    public void ensureProbeTenant() {
+        inScope(() -> jdbc.sql("""
+                        insert into tenancy_tenant (id, code, name, subdomain, status)
+                        values (:id, :code, :name, :subdomain, 'INTERNAL')
+                        on conflict (id) do nothing
+                        """)
+                .param("id", ProbeTenant.ID)
+                .param("code", ProbeTenant.CODE)
+                .param("name", ProbeTenant.NAME)
+                .param("subdomain", ProbeTenant.SUBDOMAIN)
+                .update());
     }
 
     @Override

@@ -15,6 +15,8 @@
 #                              at start only, so run it after a router is registered or its secret replaced
 #                              (infra/ops/runbooks/pilot-onboarding.md); sessions stay up, a login during
 #                              the restart is retried by the router
+#   stackctl probe-setup       set up this hub's synthetic login probe (ADR 0019): the probe tenant, its two
+#                              lines and this hub's probe NAS at the worker's probe address; safe to run again
 # Backups, the restore drill and disaster recovery: backupctl, beside this script.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -126,7 +128,16 @@ case "${1:-}" in
         [ -f images.env ] || { echo "stackctl: nothing deployed yet (no images.env)" >&2; exit 1; }
         compose restart freeradius >/dev/null 2>&1 || { echo "stackctl: FreeRADIUS did not restart (docker compose logs freeradius)" >&2; exit 1; }
         echo "stackctl: FreeRADIUS restarted; it read the routers and their secrets (radius_client_v3) at start" ;;
+    probe-setup)
+        [ -f images.env ] || { echo "stackctl: nothing deployed yet (no images.env)" >&2; exit 1; }
+        hub=$(sed -n 's/^WORKER_HUB=//p' .env | head -1)
+        address=$(sed -n 's/^PROBE_WORKER_ADDRESS=//p' .env | head -1)
+        # MSYS_NO_PATHCONV: the local test runs this from Git Bash, which would rewrite /app/app.jar.
+        MSYS_NO_PATHCONV=1 compose exec -T api-1 java -jar /app/app.jar probe-setup "${hub:-A}" "${address:-172.31.255.2}" \
+            || { echo "stackctl: the probe setup failed (above)" >&2; exit 1; }
+        compose restart freeradius >/dev/null 2>&1 || { echo "stackctl: FreeRADIUS did not restart (docker compose logs freeradius)" >&2; exit 1; }
+        echo "stackctl: FreeRADIUS restarted with the probe NAS; the worker probes within a minute (isp_probe_radius_login_ok)" ;;
     *)
-        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2
+        sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2
         exit 2 ;;
 esac

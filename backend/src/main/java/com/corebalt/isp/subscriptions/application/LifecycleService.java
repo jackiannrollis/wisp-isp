@@ -136,6 +136,25 @@ public class LifecycleService {
         return views.toDto(line);
     }
 
+    /**
+     * S12, ADR 0019: a line of the probe tenant activated with the expiry the probe needs, by the platform's
+     * probe setup only (through {@link ProbeLineService}). An audit row, and SubscriptionStateChanged with
+     * {@link Cause#PROBE}, which no consumer acts on.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public SubscriptionDto activateForProbe(final UUID subscriptionId, final Instant expiresAt) {
+        final Subscription line =
+                lines.findForUpdate(subscriptionId).orElseThrow(() -> new NotFoundException("Subscription"));
+        final Instant now = clock.instant();
+        final Map<String, Object> before = snapshot(line);
+        final Transition transition = line.activateForProbe(expiresAt, now);
+        audit.record(new AuditEntry("subscriptions.activated_for_probe", "subscription", line.getId(), before,
+                snapshot(line), null));
+        outbox.publish(new SubscriptionStateChanged(UuidV7.next(clock), line.getTenantId(), now, line.getId(),
+                line.getCustomerId(), transition.from().name(), transition.to().name(), Cause.PROBE));
+        return views.toDto(line);
+    }
+
     private SubscriptionDto apply(
             final UUID subscriptionId,
             final String action,

@@ -65,6 +65,8 @@ class DatabaseGrantsIT extends IntegrationTest {
                 "radius_client_v3.tenant_id:SELECT",
                 "radius_client_v3.nasname:SELECT",
                 "radius_client_v3.secret:SELECT",
+                // T4, ADR 0019: the probe tenant's line passwords, and no other tenant's (ProbeIT).
+                "v_radius_probe_credential_v1:SELECT",
                 "outbox_event:INSERT",
                 "shared_processed_event:INSERT");
     }
