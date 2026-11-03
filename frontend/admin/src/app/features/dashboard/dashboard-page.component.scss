@@ -20,7 +20,7 @@
 
 .strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
   overflow: hidden;
   transition: opacity 120ms ease;
 
@@ -388,7 +388,23 @@ app-chart {
   }
 
   .cell {
+    min-width: 0;
     padding: var(--app-space-3) var(--app-space-4);
     border-bottom: var(--app-border);
+  }
+
+  .queue-row {
+    align-items: flex-start;
+    padding-inline: var(--app-space-3);
+  }
+
+  .queue-action {
+    max-width: 35%;
+    white-space: normal;
+    text-align: end;
+  }
+
+  .split {
+    padding-inline: var(--app-space-3);
   }
 }

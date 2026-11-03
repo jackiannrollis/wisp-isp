@@ -131,10 +131,10 @@ class AccountSettingsIT extends IntegrationTest {
 
         // The account is set up with the keys; from then on the sender ID and window are the Owner's.
         assertThat(keys.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"FIRST","sandbox":true,"windowStart":"07:00","windowEnd":"21:00",
+                {"partnerId":"fake-partner-id","senderId":"FIRST","windowStart":"07:00","windowEnd":"21:00",
                  "apiKey":"fake-at-key-for-tests"}""").status()).isEqualTo(200);
         final JsonNode kept = keys.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"OTHER","sandbox":true,"windowStart":"06:00","windowEnd":"23:00"}""").json();
+                {"partnerId":"fake-partner-id","senderId":"OTHER","windowStart":"06:00","windowEnd":"23:00"}""").json();
         assertThat(kept.get("senderId").asString()).isEqualTo("FIRST");
         assertThat(kept.get("windowStart").asString()).isEqualTo("07:00");
 

@@ -132,18 +132,18 @@ Templates and timing are per tenant. Defaults:
 
 **Templates and cost.** Every default fits one GSM-7 SMS (160 characters) with realistic values. Tenants may reword any template; the editor shows the rendered sample and the number of SMS parts (GSM-7: 160, then 153 per part; any other character switches to UCS-2: 70, then 67), so a change that doubles the bill is visible. Placeholders come from a fixed list with no secrets (M3). The only messages that carry a secret are fixed and not editable: the portal sign-in code, and a staff member's temporary password when staff choose "send by SMS" (Q11, valid 72 hours, changed at first sign-in, audited); both are logged with the secret masked.
 
-**Delivery (Africa's Talking).** Each tenant uses its own Africa's Talking account, API key and registered sender ID; recipients are always in E.164.
-- Sent: `100`, `101`, `102`.
-- Failed for good, never retried, the number flagged for staff: `403` invalid number, `404` unsupported number, `406` blacklisted.
-- The tenant's problem, held and retried hourly while tenant staff and the platform are alerted: `405` insufficient credit, `402` sender ID refused, HTTP 401 API key refused. The alert clears on the next successful send.
+**Delivery (Celcom Africa, ADR 0020).** Each tenant connects its partner ID, API key and registered sender ID. Keys stay encrypted and write-only; the client sends international digits from the stored E.164 recipient using JSON POST, never credentials in a URL.
+- Sent: `200` with the matching recipient and a nonempty message ID. This is provider acceptance, not handset delivery.
+- Failed for good, never retried, the number flagged for staff: `1003` invalid mobile number.
+- The tenant's problem, held and retried hourly while tenant staff and the platform are alerted: `1004` insufficient credit, `1001` sender ID refused, `1006` or HTTP 401/403 credentials refused. The alert clears on the next successful send.
 - Anything else (server errors, timeouts): retried after 1, 5 and 30 minutes, then dead-lettered and alerted.
-- Delivery reports: `Success` is delivered; `Failed` and `Rejected` are failed with the reason kept; `Buffered` leaves the message sent; a report for an unknown message is dropped. The report URL carries a secret token (Africa's Talking publishes no fixed source addresses).
+- Delivery is queried with the tenant credentials and the stored Celcom message ID, without resending. The live-verified matching message-id, delivery-status 32 and DeliveredToTerminal response marks DELIVERED. Unknown codes remain SENT. Only messages explicitly sent through Celcom are polled (up to 48 hours); legacy callback routes remain isolated.
 
 Each notification has a `dedupe_key` of event, subscription and `expires_at`, so a rerun of the reminder job never sends a duplicate. The subscriptions module raises each due reminder once as a `SubscriptionReminderDue` event (recorded per dedupe key in `subscriptions_reminder`); the notifications module renders and sends it. Day counts (3 days, 1 day, due today) use the tenant's local dates; a window the job missed is skipped, and `RESTRICTED` is raised only in the first day after grace. Reminders are evaluated hourly in the tenant's time zone and sent in a sending window (default 07:00 to 21:00) except `PAYMENT_RECEIVED` and `RESTORED`, which go out immediately.
 
-### SMS sandbox round-trip
+### Celcom live test
 
-Request shapes and the answer-to-behaviour mapping are pinned by tests against a fake Africa's Talking. To confirm against the sandbox: create a sandbox app and a sender ID, open a number in the simulator, start a tunnel to Caddy, set `AT_SANDBOX_API_KEY`, `AT_SANDBOX_SENDER_ID`, `AT_SANDBOX_TEST_NUMBER` and `CALLBACK_BASE_URL` in `infra/.env`, set the delivery report URL that the script prints in the sandbox dashboard, and run `infra\scripts\at-sandbox.ps1` (or `.sh`). It records a cash payment for CB000001 and waits for the SMS to be delivered.
+Contract tests use a fake Celcom server. For a live send, set CELCOM_PARTNER_ID, CELCOM_API_KEY, CELCOM_SENDER_ID and CELCOM_TEST_NUMBER in the ignored backend/.env. Set SMS_ALLOWLIST in infra/.env to that test number in E.164 and recreate the local backend. Run infra/scripts/celcom-check.ps1; it records a fake KES 1 cash payment on CB000001, verifies its receipt-specific notification is accepted, and restores the customer profile. It requires the container allowlist to match exactly, and disables the account on failure. A callback tunnel is not needed to send. Confirm phone receipt separately; automatic delivery uses the live-verified lookup contract in ADR 0020.
 
 ## Grace policy
 

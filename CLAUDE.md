@@ -10,26 +10,28 @@ invent an answer). Long-form docs and ADRs are in `docs/`.
 
 ## Current phase
 
-Steps 1 and 3 to 7 of the v1 build order (docs/09) are done; step 2, the network lab, is done
-except its Hyper-V half (`infra/lab/scripts/lab.ps1`), which has not run yet, so CoA/Disconnect,
-the restricted-mode rules and Session-Timeout on a real router are unproven (status note in
-`infra/lab/README.md`). FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v7`; `AccessPolicy`
+Steps 1 to 7 of the v1 build order (docs/09) are done. Step 2's Hyper-V lab now runs on two MikroTik
+CHR 7.24.5 VMs (2026-11-02): WireGuard, PPPoE, CoA/Disconnect, restricted-mode rules and the
+one-minute Session-Timeout are verified against RouterOS, along with automatic restoration after a
+fake cash payment through the local API (4.287 seconds, one credit and receipt, idempotent replay).
+See `infra/lab/validation-2026-11-02.md`; physical ISP hardware and the live provider sandboxes remain
+separate checks. FreeRADIUS reads `radius_client_v3` and `v_radius_auth_v7`; `AccessPolicy`
 agrees with the view under test (S3), fair use and data caps included (step 8b, N9); credentials follow ADR 0009. Money: M-Pesa callbacks, manual
 payments, suspense and reconciliation (payments); ledger and receipts (billing); renewals and
-`CreditApplied` (subscriptions). Notifications: SMS through each tenant's Africa's Talking account,
+`CreditApplied` (subscriptions). Notifications: SMS through each tenant's Celcom Africa account (ADR 0020),
 one payment message per payment, reminders in the sending window, templates with part counts.
-Daraja and Africa's Talking are verified against fakes only; their sandbox scripts have not run.
+Celcom sending is verified live (2026-11-02): the payment notification reached the configured test phone; delivery lookup also confirmed DeliveredToTerminal. Daraja C2B sandbox registration, one processed payment callback, one credit/receipt and RESTRICTED-to-FULL renewal are verified. The checker now separates C2B 600000 from Express 174379; reusing the Express shortcode caused the misleading 500.003.1001 error. A KES 1 STK retry on the requested handset also completed (code 0), with one processed callback, matched payment, ledger credit and receipt. See infra/lab/providers-validation-2026-11-02.md.
+The combined Daraja C2B callback-to-CHR restoration test passed at 22:28 EAT: observed FULL in 4.357 seconds, platform CUT_OFF/NEW_SESSION in 3.328 seconds, one credit/renewal/receipt, no post-payment manual reconnect. See infra/lab/daraja-restore-validation-2026-11-02.md. Provider-state follow-up confirmed on 2026-11-03: identical valid-token requests repeatedly failed on one retained connection and succeeded on another. ADR 0022 now retires failed pools for the next call, keeps the token and never automatically replays payments; live Java 25 recovery passed, as did 179 unit and 285 integration tests. See infra/lab/daraja-state-validation-2026-11-03.md.
 Step 8 (dashboard and portal) is in progress. Done: sign-in and tokens (ADR 0010: staff, portal,
 platform admins, impersonation), RADIUS accounting into partitioned `radacct` with the usage roll-up,
 and the tunnel worker (ADR 0011) polling routers over RouterOS REST and sending CoA/Disconnect
-(N5; proven against a fake router and radclient, not yet on a real router). The dashboard and portal
+(N5; verified against the Hyper-V CHR lab as well as fake routers and radclient). The dashboard and portal
 APIs are done too (`/api/v1/dashboard`; `/api/v1/portal/...` per module), and every v1 screen of the
 admin Angular app. Step 8b, fair use and data caps, is done (N9: cycle usage in `network_line_usage`,
 `UsageThresholdReached` with Disconnect and one SMS; package limits and usage against the allowance on
 screen). The portal Angular app is done: PIN sign-in with an SMS code to set or reset the PIN (Q7
 default), lines with status and usage, Pay Now per line and pay-all by STK with the restore wait and
-the 90-second router fallback, payments, receipts and the wallet statement. Its SMS-code sign-in and a
-live STK payment are covered by tests only (no Africa's Talking or Daraja account locally). The
+the 90-second router fallback, payments, receipts and the wallet statement. Its SMS-code sign-in is covered by tests; sandbox STK succeeded on the requested handset (Celcom and Daraja credentials are in the ignored backend/.env). The
 Playwright suite (ADR 0012: sign-in, customer search, Pay Now through a fake Daraja to "Internet
 restored") runs against the real stack in its own CI job.
 Step 9 (production) is in progress; nothing has run on a real host yet. Done: cancel before
@@ -136,11 +138,11 @@ signing key with `infra\scripts\jwt-key.ps1` (`infra/scripts/jwt-key.sh`).
 | Run migrations only | `infra\scripts\migrate.ps1` | `infra/scripts/migrate.sh` |
 | Load the network-lab fixtures and set up the login probe (restarts FreeRADIUS) | `infra\lab\scripts\seed.ps1` | `infra/lab/scripts/seed.sh` |
 | RADIUS lab login, e.g. `CB000004` (after seeding) | `infra\scripts\radtest.ps1 CB000004` | `infra/scripts/radtest.sh CB000004` |
-| Daraja sandbox round-trip (needs `DARAJA_SANDBOX_*` and an https `CALLBACK_BASE_URL` in `.env`; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
-| Africa's Talking sandbox round-trip (needs `AT_SANDBOX_*` and an https `CALLBACK_BASE_URL`; skips otherwise) | `infra\scripts\at-sandbox.ps1` | `infra/scripts/at-sandbox.sh` |
+| Daraja sandbox round-trip (credentials in backend/.env and an https CALLBACK_BASE_URL in infra/.env; skips otherwise) | `infra\scripts\daraja-sandbox.ps1` | `infra/scripts/daraja-sandbox.sh` |
+| Celcom live SMS check (credentials in backend/.env, running backend allowlisted to the test number) | infra/scripts/celcom-check.ps1 | PowerShell 7: infra/scripts/celcom-check.ps1 |
 | Create or rotate the JWT signing key in `.env` (ADR 0010) | `infra\scripts\jwt-key.ps1 [-Rotate]` | `infra/scripts/jwt-key.sh [--rotate]` |
 | Break-glass reset of a platform admin (prints a temporary password once) | `infra\scripts\reset-platform-admin.ps1 <email>` | `infra/scripts/reset-platform-admin.sh <email>` |
-| Stack for the end-to-end suite: the backend on the fake Daraja (ADR 0012); the seed flag loads the lab fixtures. Run `up` afterwards to restore the real sandbox | `infra\e2e\up.ps1 [-Seed]` | `infra/e2e/up.sh [--seed]` |
+| Isolated browser-test stack with fake Daraja/Celcom (ADR 0012); reset its disposable fixtures before a complete rerun, including console bootstrap | `infra\e2e\up.ps1 -Fresh -Seed` | `sh infra/e2e/up.sh --fresh --seed` |
 | Staging and production hosts (Ansible, cosign, crane in a container; runbook `infra/ops/README.md`) | `infra\ops\ops.ps1 lint\|secrets\|bootstrap\|provision\|init-disk\|unlock\|deploy\|rollback\|backup\|drill\|backup-status\|monitoring <inventory> [-Limit host] [-Release sha]` | `infra/ops/ops.sh …` |
 | Test the staging/production compose stack locally (local TLS, lab seed, routing checks, the monitoring project with its configuration checks, rule unit tests, targets, probes, Loki and Grafana, deploys, backups against a local S3, restore drill and disaster recovery, a RADIUS login) | `bash infra/stack/test.sh` (Git Bash); `… down` removes it; Grafana at `http://127.0.0.1:3000` | `infra/stack/test.sh` |
 | Test the playbooks against a throwaway Debian 13 container | `bash infra/ansible/tests/converge.sh` (Git Bash) | `infra/ansible/tests/converge.sh` |

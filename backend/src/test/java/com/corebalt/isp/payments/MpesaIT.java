@@ -69,8 +69,47 @@ class MpesaIT extends IntegrationTest {
                 """);
         assertThat(configured.status()).as(configured.body()).isEqualTo(200);
         final String confirmation = configured.json().get("callbackUrls").get("c2bConfirmation").asString();
-        token = confirmation.replaceAll(".*/callbacks/mpesa/([^/]+)/.*", "$1");
+        assertThat(confirmation).doesNotContainIgnoringCase("mpesa");
+        token = confirmation.replaceAll(".*/callbacks/payments/([^/]+)/.*", "$1");
         assertThat(configured.body()).doesNotContain("fake-secret").doesNotContain("fake-passkey");
+    }
+
+    @Test
+    void aProviderRejectionIsASafeUpstreamErrorInsteadOfAnInternalError() {
+        DARAJA.respond("/mpesa/c2b/v2/registerurl", 400,
+                "{\"errorCode\":\"400.003.02\",\"errorMessage\":\"fake-secret echoed by provider\"}");
+        try {
+            final var response = api.post("/api/v1/settings/mpesa/register-urls", "{}");
+            assertThat(response.status()).isEqualTo(502);
+            assertThat(response.body()).contains("payment-provider-error", "400.003.02")
+                    .doesNotContain("fake-secret", "fake-key", "fake-passkey");
+        } finally {
+            DARAJA.respond("/mpesa/c2b/v2/registerurl", 200,
+                    "{\"OriginatorCoversationID\":\"fake-conversation\",\"ResponseCode\":\"0\",\"ResponseDescription\":\"Success\"}");
+        }
+    }
+
+    @Test
+    void theOldCallbackPathRemainsAnAliasForAlreadyRegisteredUrls() throws Exception {
+        final var response = http.send(HttpRequest.newBuilder(URI.create(
+                        "http://localhost:" + port + "/callbacks/mpesa/" + token + "/c2b/validation"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void aProviderServiceFailureDoesNotTellStaffTheirCredentialsAreWrong() {
+        DARAJA.respond("/mpesa/c2b/v2/registerurl", 500, "{\"errorCode\":\"500.003.1001\"}");
+        try {
+            final var response = api.post("/api/v1/settings/mpesa/register-urls", "{}");
+            assertThat(response.status()).isEqualTo(502);
+            assertThat(response.body()).contains("payment-provider-error", "500.003.1001", "Try again")
+                    .doesNotContain("Check the M-Pesa account settings", "fake-secret", "fake-key");
+        } finally {
+            DARAJA.respond("/mpesa/c2b/v2/registerurl", 200,
+                    "{\"OriginatorCoversationID\":\"fake-conversation\",\"ResponseCode\":\"0\",\"ResponseDescription\":\"Success\"}");
+        }
     }
 
     @Test
@@ -191,7 +230,7 @@ class MpesaIT extends IntegrationTest {
         assertThat(validation.statusCode()).isEqualTo(200);
         assertThat(validation.body()).contains("\"ResultCode\":0");
         final HttpResponse<String> unknown = http.send(HttpRequest.newBuilder(
-                        URI.create("http://localhost:" + port + "/callbacks/mpesa/not-a-real-token-at-all-xyz/c2b/confirmation"))
+                        URI.create("http://localhost:" + port + "/callbacks/payments/not-a-real-token-at-all-xyz/c2b/confirmation"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(unknown.statusCode()).isEqualTo(404);
@@ -204,7 +243,7 @@ class MpesaIT extends IntegrationTest {
         assertThat(request.get("status").asString()).isEqualTo("PENDING");
         final var sent = DARAJA.requestsTo("/mpesa/stkpush/v1/processrequest").getLast().body();
         assertThat(sent).contains("\"PhoneNumber\":\"254712345678\"").contains("\"AccountReference\":\"" + wanjikuNumber + "\"")
-                .contains("\"Amount\":1000").contains("/callbacks/mpesa/" + token + "/stk");
+                .contains("\"Amount\":1000").contains("/callbacks/payments/" + token + "/stk");
 
         final String txn = txn();
         callback("stk", fixture("stk-callback-success.json", Map.of("CHECKOUT", checkout, "AMOUNT", "1000", "TRANS_ID", txn)));
@@ -353,7 +392,7 @@ class MpesaIT extends IntegrationTest {
     }
 
     private HttpResponse<String> callback(final String path, final String body) throws IOException, InterruptedException {
-        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/mpesa/" + token + "/" + path))
+        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/payments/" + token + "/" + path))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .build(),

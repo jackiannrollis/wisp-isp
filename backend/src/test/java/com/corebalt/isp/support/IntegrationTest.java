@@ -46,8 +46,8 @@ public abstract class IntegrationTest {
     /** One fake Daraja for the whole test JVM (production-shaped answers; see FakeDaraja). */
     protected static final FakeDaraja DARAJA = new FakeDaraja();
 
-    /** One fake Africa's Talking for the whole test JVM. */
-    protected static final FakeAfricasTalking AT = new FakeAfricasTalking();
+    /** One fake Celcom Africa for the whole test JVM. */
+    protected static final FakeCelcom SMS = new FakeCelcom();
 
     /** One fake RouterOS REST API for the whole test JVM; routers are 127.x tunnel addresses. */
     protected static final FakeRouterOs ROUTER_OS = new FakeRouterOs();
@@ -89,8 +89,7 @@ public abstract class IntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("isp.mpesa.daraja.sandbox-url", DARAJA::baseUrl);
         registry.add("isp.mpesa.daraja.production-url", DARAJA::baseUrl);
-        registry.add("isp.sms.at.sandbox-url", AT::baseUrl);
-        registry.add("isp.sms.at.production-url", AT::baseUrl);
+        registry.add("isp.sms.celcom.base-url", SMS::baseUrl);
         registry.add("isp.network.onboarding.hub-a.public-key-file", () -> HUB_PUBLIC_KEY_FILE.toString());
         registry.add("isp.network.onboarding.hub-a.endpoint", () -> HUB_ENDPOINT);
         registry.add("isp.network.onboarding.portal-address", () -> PORTAL_ADDRESS);

@@ -34,7 +34,8 @@ public class DarajaClient {
     public static final ZoneId EAT = ZoneId.of("Africa/Nairobi");
     static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final Object transportLock = new Object();
+    private Transport transport = new Transport();
     private final JsonMapper json;
     private final Clock clock;
     private final String sandboxUrl;
@@ -189,29 +190,71 @@ public class DarajaClient {
     }
 
     private JsonNode send(final HttpRequest.Builder request) {
-        final HttpResponse<String> response;
+        final Transport selected = borrowTransport();
         try {
-            response = http.send(request.timeout(Duration.ofSeconds(20)).build(), HttpResponse.BodyHandlers.ofString());
-        } catch (java.io.IOException e) {
-            throw new DarajaException("unreachable", null, e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new DarajaException("interrupted", null, e);
+            final HttpResponse<String> response;
+            try {
+                response = selected.http.send(request.timeout(Duration.ofSeconds(20)).build(), HttpResponse.BodyHandlers.ofString());
+            } catch (java.io.IOException e) {
+                throw new DarajaException("unreachable", null, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new DarajaException("interrupted", null, e);
+            }
+            JsonNode body;
+            try {
+                body = json.readTree(response.body());
+            } catch (RuntimeException e) {
+                body = null;
+            }
+            if (response.statusCode() / 100 != 2) {
+                final String errorCode = body == null ? null : body.path("errorCode").asString(null);
+                if (response.statusCode() / 100 == 5 && "500.003.1001".equals(errorCode)) {
+                    retireTransport(selected);
+                }
+                // An ambiguous provider failure must never replay a money-moving POST here.
+                throw new DarajaException("HTTP " + response.statusCode(), errorCode, null);
+            }
+            if (body == null) {
+                throw new DarajaException("unreadable response", null, null);
+            }
+            return body;
+        } finally {
+            releaseTransport(selected);
         }
-        JsonNode body;
-        try {
-            body = json.readTree(response.body());
-        } catch (RuntimeException e) {
-            body = null;
+    }
+
+    private Transport borrowTransport() {
+        synchronized (transportLock) {
+            transport.inFlight++;
+            return transport;
         }
-        if (response.statusCode() / 100 != 2) {
-            final String errorCode = body == null ? null : body.path("errorCode").asString(null);
-            throw new DarajaException("HTTP " + response.statusCode(), errorCode, null);
+    }
+
+    /** ADR 0022: discard a failing pool for the next call, retaining the valid OAuth token. */
+    private void retireTransport(final Transport failed) {
+        synchronized (transportLock) {
+            if (transport == failed) {
+                transport = new Transport();
+                failed.retired = true;
+            }
         }
-        if (body == null) {
-            throw new DarajaException("unreadable response", null, null);
+    }
+
+    private void releaseTransport(final Transport selected) {
+        synchronized (transportLock) {
+            selected.inFlight--;
+            if (selected.retired && selected.inFlight == 0) {
+                selected.http.shutdown();
+            }
         }
-        return body;
+    }
+
+    /** Counters are guarded by transportLock; retirement never interrupts an in-flight call. */
+    private static final class Transport {
+        private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        private int inFlight;
+        private boolean retired;
     }
 
     private URI uri(final Credentials credentials, final String path) {

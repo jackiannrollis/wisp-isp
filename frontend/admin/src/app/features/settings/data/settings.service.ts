@@ -17,7 +17,7 @@ export type Template = components['schemas']['TemplateView'];
 export type Placeholder = components['schemas']['PlaceholderView'];
 
 /**
- * `/api/v1/settings/...`: M-Pesa and Africa's Talking accounts (settings.secrets; credentials are
+ * `/api/v1/settings/...`: M-Pesa and Celcom Africa accounts (settings.secrets; credentials are
  * write-only, T4), and SMS templates (settings.notifications, M3). A missing account is `null`.
  */
 @Injectable({ providedIn: 'root' })

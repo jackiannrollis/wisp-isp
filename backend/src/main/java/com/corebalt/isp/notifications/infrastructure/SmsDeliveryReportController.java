@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Africa's Talking delivery reports (form-encoded {@code id}, {@code status},
+ * Historical Africa's Talking delivery reports only (form-encoded {@code id}, {@code status},
  * {@code failureReason}, ...). No JWT; the tenant comes from the path token. Africa's Talking does
  * not publish fixed source addresses, so this path has no IP allowlist: the unguessable token is
  * the guard, and a report can only move an existing message's status.

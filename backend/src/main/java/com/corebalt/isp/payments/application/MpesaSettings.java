@@ -172,7 +172,7 @@ public class MpesaSettings {
     }
 
     private String url(final String token, final String path) {
-        return callbackBaseUrl + "/callbacks/mpesa/" + token + "/" + path;
+        return callbackBaseUrl + "/callbacks/payments/" + token + "/" + path;
     }
 
     private String token() {

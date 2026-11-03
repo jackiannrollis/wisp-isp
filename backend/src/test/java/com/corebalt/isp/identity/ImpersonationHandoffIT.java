@@ -122,8 +122,8 @@ class ImpersonationHandoffIT extends IntegrationTest {
         final String lineId = ownerApi.post("/api/v1/subscriptions", "{\"customerId\":\"" + customerId + "\",\"packageId\":\""
                 + packageId + "\",\"routerId\":\"" + routerId + "\"}").json().get("subscription").get("id").asString();
         assertThat(ownerApi.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"HANDOFF","sandbox":true,"apiKey":"fake-at-key"}""").status()).isEqualTo(200);
-        assertThat(ownerApi.get("/api/v1/settings/notifications").json().hasNonNull("deliveryReportUrl")).isTrue();
+                {"partnerId":"fake-partner-id","senderId":"HANDOFF","apiKey":"fake-at-key"}""").status()).isEqualTo(200);
+        assertThat(ownerApi.get("/api/v1/settings/notifications").json().get("provider").asString()).isEqualTo("CELCOM_AFRICA");
 
         final Api acting = new Api(port, JSON.readTree(exchange(start().get("code").asString()).body()).get("accessToken").asString());
         final Map<String, Api.Response> refused = Map.of(

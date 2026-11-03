@@ -23,6 +23,9 @@ Each record states the context, the decision and its consequences at the time it
 | [0017](0017-impersonation-hand-off.md) | Impersonation hand-off from the console to the admin app | Proposed (Q17) |
 | [0018](0018-gate1-measured-by-the-platform.md) | Gate 1 measured by the platform | Accepted |
 | [0019](0019-synthetic-radius-login-probe.md) | The synthetic RADIUS login probe and the internal probe tenant | Accepted |
+| [0020](0020-celcom-africa-sms.md) | Celcom Africa for SMS; separate credentials and verified send acknowledgements | Accepted |
+| [0021](0021-neutral-payment-callback-paths.md) | Provider-neutral callback paths and safe Daraja rejection details | Accepted |
+| [0022](0022-daraja-connection-recovery.md) | Recover a failed Daraja connection pool without replaying payments | Accepted |
 
 ## Writing a new record
 

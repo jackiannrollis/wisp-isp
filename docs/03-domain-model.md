@@ -35,7 +35,7 @@ erDiagram
 | `sms_sender_id` | Registered with the SMS provider |
 | `status` | `TRIAL`, `ACTIVE`, `SUSPENDED` |
 
-**tenant_secret** — `tenant_id`, `kind` (`MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, `MPESA_SHORTCODE`, `SMS_API_KEY`, …), `ciphertext`, `key_version`. Envelope-encrypted, never returned by the API after entry.
+**tenant_secret** — `tenant_id`, `kind` (`MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, `MPESA_SHORTCODE`, `CELCOM_SMS_API_KEY`, …), `ciphertext`, `key_version`. Envelope-encrypted, never returned by the API after entry.
 
 ## identity
 

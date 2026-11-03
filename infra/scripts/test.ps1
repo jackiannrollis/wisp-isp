@@ -8,11 +8,11 @@ function Invoke-Step([string] $dir, [scriptblock] $block) {
 }
 Invoke-Step "$root/backend" { .\mvnw.cmd -B verify }
 Invoke-Step "$root/frontend" {
-    npm ci; if ($LASTEXITCODE -ne 0) { return }
-    npm run lint; if ($LASTEXITCODE -ne 0) { return }
-    npm run format:check; if ($LASTEXITCODE -ne 0) { return }
-    npm run build; if ($LASTEXITCODE -ne 0) { return }
-    npm run test
+    npm.cmd ci; if ($LASTEXITCODE -ne 0) { return }
+    npm.cmd run lint; if ($LASTEXITCODE -ne 0) { return }
+    npm.cmd run format:check; if ($LASTEXITCODE -ne 0) { return }
+    npm.cmd run build; if ($LASTEXITCODE -ne 0) { return }
+    npm.cmd run test
 }
 Invoke-Step "$root/infra" { docker compose --env-file .env.example config --quiet }
 Write-Host "All checks passed."

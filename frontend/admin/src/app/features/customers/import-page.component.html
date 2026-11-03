@@ -86,7 +86,7 @@
           {{ p.activation?.total ?? 0 }}
           @if (p.activation?.total) {
             <small
-              >{{ p.activation?.expired }} already expired, {{ p.activation?.future }} ahead</small
+              >{{ p.activation.expired }} already expired, {{ p.activation.future }} ahead</small
             >
           }
         </dd>
@@ -96,14 +96,14 @@
           <dt>Paid until</dt>
           <dd>
             <small
-              >{{ date(p.activation?.earliestPaidUntil) }} to
-              {{ date(p.activation?.latestPaidUntil) }}</small
+              >{{ date(p.activation.earliestPaidUntil) }} to
+              {{ date(p.activation.latestPaidUntil) }}</small
             >
           </dd>
         </div>
         <div>
           <dt>Time granted</dt>
-          <dd>{{ money(p.activation?.valueGranted) }}</dd>
+          <dd>{{ money(p.activation.valueGranted) }}</dd>
         </div>
       }
     </dl>

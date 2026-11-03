@@ -59,7 +59,7 @@ jobs:
         run: npm run test
 
   e2e:
-    name: End-to-end (Playwright against the stack, fake Daraja)
+    name: Browser regression (isolated stack, fake providers)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -68,17 +68,7 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Write infra/.env with throwaway secrets (ADR 0012)
-        working-directory: infra
-        run: |
-          cp .env.example .env
-          for name in POSTGRES_SUPERUSER_PASSWORD ISP_DB_OWNER_PASSWORD ISP_DB_APP_PASSWORD ISP_DB_WORKER_PASSWORD \
-                      RADIUS_DB_PASSWORD RABBITMQ_PASSWORD RADIUS_LAB_SECRET; do
-            sed -i "s|^$name=.*|$name=ci-$(openssl rand -hex 16)|" .env
-          done
-          sed -i "s|^ISP_MASTER_KEY=.*|ISP_MASTER_KEY=$(openssl rand -base64 32)|" .env
-          sh scripts/jwt-key.sh
-      - name: Start the e2e stack and load the lab fixtures
+      - name: Start the isolated stack and load fake fixtures
         run: sh infra/e2e/up.sh --seed
       - name: Install frontend dependencies
         working-directory: frontend
@@ -86,15 +76,15 @@ jobs:
       - name: Type-check the suite
         working-directory: frontend
         run: npm run e2e:typecheck
-      - name: Run the suite (sign-in, customer search, Pay Now)
+      - name: Run admin, portal and console browser journeys
         working-directory: frontend
         run: npm run e2e
-      - name: Backend and fake Daraja logs
+      - name: Backend and fake provider logs
         if: failure()
         working-directory: infra
-        run: docker compose -f docker-compose.yml -f e2e/compose.e2e.yml logs --no-color backend fake-daraja | tail -n 300
+        run: docker compose -p corebalt-e2e --env-file e2e/.env -f e2e/compose.isolated.yml logs --no-color backend fake-daraja | tail -n 300
       - name: Upload the Playwright report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report

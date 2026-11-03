@@ -60,7 +60,7 @@ tests:
           - exp_labels: { severity: warning }
             exp_annotations:
               summary: "4 SMS message(s) given up after retries"
-              description: "Africa's Talking refused or never accepted them (notifications_notification, status DEAD): the tenant's credentials or balance, or the provider. The admin app's notifications page shows them per tenant."
+              description: "Celcom Africa refused or never accepted them (notifications_notification, status DEAD): the tenant's credentials or balance, or the provider. The admin app's notifications page shows them per tenant."
       - eval_time: 20m
         alertname: CorebaltStaffAlertsOpen
         exp_alerts: []

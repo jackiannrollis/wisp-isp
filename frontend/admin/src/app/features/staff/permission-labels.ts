@@ -71,7 +71,7 @@ export const PERMISSION_LABELS: Record<string, PermissionLabel> = {
   },
   'settings.secrets': {
     label: 'Account keys',
-    description: "Set M-Pesa and Africa's Talking credentials.",
+    description: 'Set M-Pesa and Celcom Africa credentials.',
     group: 'Administration',
   },
   'settings.write': {

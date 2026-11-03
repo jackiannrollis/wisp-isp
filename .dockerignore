@@ -1,0 +1,13 @@
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/target
+**/dist
+**/.angular
+**/test-results
+**/playwright-report
+**/.idea
+infra/lab/out
+infra/lab/images

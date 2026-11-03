@@ -60,7 +60,7 @@ context/            this folder
 - `GET` lists: `page`, `size` (max 200), `sort`, filter parameters named after fields; responses carry `items`, `page`, `size`, `total`.
 - Writes that move money or change access require an `Idempotency-Key` header (1 to 100 characters, unique per tenant); replays return the original result with `Idempotent-Replayed: true`, and the same key with a different request is a 422. `shared.web.IdempotentRequests` stores the response in the business transaction. Responses that carry a secret (show-once passwords) are not idempotent: a replay would reveal the secret again.
 - Timestamps in ISO 8601 UTC; money as `{ "amount": 250000, "currency": "KES" }` in minor units.
-- Callback endpoints (`/callbacks/mpesa/<tenant token>/...`) are outside `/api/v1`, unauthenticated by JWT, IP-restricted, and respond within one second.
+- Callback endpoints (`/callbacks/payments/<tenant token>/...`) are outside `/api/v1`, unauthenticated by JWT, IP-restricted, and respond within one second.
 - OpenAPI generated from code and published at `/api/docs`; the frontend's models are generated from it in CI.
 - WebSocket topic `/topic/tenant/<id>/dashboard` (pushing dashboard counters and router status) is deferred to v2 (decisions.md 2026-10-20); until then the admin app polls `GET /api/v1/dashboard` every 30 seconds.
 

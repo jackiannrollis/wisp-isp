@@ -6,7 +6,7 @@ import com.corebalt.isp.notifications.api.OneTimeCodes;
 import com.corebalt.isp.notifications.application.SmsSender;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.support.Api;
-import com.corebalt.isp.support.FakeAfricasTalking;
+import com.corebalt.isp.support.FakeCelcom;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
@@ -44,10 +44,10 @@ class SmsAllowlistIT extends IntegrationTest {
     @BeforeEach
     void tenantWithSms() {
         tenant = TestTenants.create(jdbc, tx);
-        AT.registerSender("LABISP");
+        SMS.registerSender("LABISP");
         final Api.Response settings = new Api(port, tenant).put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"LABISP","sandbox":true,"apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
-                """.formatted(FakeAfricasTalking.API_KEY));
+                {"partnerId":"fake-partner-id","senderId":"LABISP","apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
+                """.formatted(FakeCelcom.API_KEY));
         assertThat(settings.status()).as(settings.body()).isEqualTo(200);
     }
 
@@ -61,15 +61,15 @@ class SmsAllowlistIT extends IntegrationTest {
         assertThat(message("allowlist-listed")).containsEntry("status", "SENT");
         assertThat(message("allowlist-other")).containsEntry("status", "SUPPRESSED")
                 .containsEntry("failure_reason", "Not on this environment's SMS allowlist");
-        assertThat(AT.requestsTo(OTHER)).isEmpty();
-        assertThat(AT.requestsTo(LISTED)).hasSize(1);
+        assertThat(SMS.requestsTo(OTHER)).isEmpty();
+        assertThat(SMS.requestsTo(LISTED)).hasSize(1);
     }
 
     @Test
     void M3_aSignInCodeToAnUnlistedNumberIsNeverSent() {
         assertThat(TenantContext.callAsTenant(tenant, () -> codes.sendSignInCode(null, OTHER, "123456")))
                 .isEqualTo(OneTimeCodes.Delivery.NOT_CONFIGURED);
-        assertThat(AT.requestsTo(OTHER)).isEmpty();
+        assertThat(SMS.requestsTo(OTHER)).isEmpty();
         final Map<String, Object> logged = OwnerSql.client().sql("""
                         select status, body, failure_reason from notifications_notification
                         where tenant_id = :t and recipient = :r

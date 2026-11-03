@@ -17,7 +17,6 @@ import { of } from 'rxjs';
 
 import { errorMessage } from '../../core/api/requests';
 import { PermissionService } from '../../core/permissions/permission.service';
-import { CopyButtonComponent } from '../../shared/ui/copy-button.component';
 import { formatDateTime } from '../../shared/ui/format';
 import { SettingsService, SmsRequest } from './data/settings.service';
 
@@ -25,7 +24,7 @@ const TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 const SENDER_ID = /^[A-Za-z0-9 _-]{1,11}$/;
 
 /**
- * The tenant's Africa's Talking account and the reminder sending window (M2). Saving needs
+ * The tenant's Celcom Africa account and the reminder sending window (M2). Saving needs
  * settings.secrets because the API key travels with it; the key is write-only (T4).
  */
 @Component({
@@ -37,7 +36,6 @@ const SENDER_ID = /^[A-Za-z0-9 _-]{1,11}$/;
     MatInputModule,
     MatSlideToggleModule,
     MatSnackBarModule,
-    CopyButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sms-settings.component.html',
@@ -49,7 +47,7 @@ export class SmsSettingsComponent {
   private readonly permissions = inject(PermissionService);
 
   protected readonly date = formatDateTime;
-  /** The Africa's Talking account and its key (settings.secrets, T4). */
+  /** The Celcom Africa account and its key (settings.secrets, T4). */
   protected readonly canEdit = computed(() =>
     this.permissions.permissions().has('settings.secrets'),
   );
@@ -74,13 +72,13 @@ export class SmsSettingsComponent {
     stream: ({ params }) => (params.canEdit ? this.settings.secrets() : of([])),
   });
   protected readonly apiKeySetAt = computed(
-    () => (this.keySetAt.value() ?? []).find((s) => s.kind === 'SMS_API_KEY')?.updatedAt ?? null,
+    () =>
+      (this.keySetAt.value() ?? []).find((s) => s.kind === 'CELCOM_SMS_API_KEY')?.updatedAt ?? null,
   );
 
   protected readonly form = inject(NonNullableFormBuilder).group({
-    atUsername: ['', [Validators.required, Validators.maxLength(100)]],
+    partnerId: ['', [Validators.required, Validators.maxLength(100)]],
     senderId: ['', [Validators.required, Validators.pattern(SENDER_ID)]],
-    sandbox: [false],
     enabled: [true],
     windowStart: ['07:00', [Validators.required, Validators.pattern(TIME)]],
     windowEnd: ['21:00', [Validators.required, Validators.pattern(TIME)]],
@@ -92,9 +90,8 @@ export class SmsSettingsComponent {
       const current = this.current.value();
       if (current) {
         this.form.patchValue({
-          atUsername: current.atUsername ?? '',
+          partnerId: current.partnerId ?? '',
           senderId: current.senderId ?? '',
-          sandbox: !!current.sandbox,
           enabled: current.enabled ?? true,
           windowStart: current.windowStart ?? '07:00',
           windowEnd: current.windowEnd ?? '21:00',
@@ -105,7 +102,7 @@ export class SmsSettingsComponent {
     effect(() => {
       const account = this.canEdit();
       const sending = this.canEditSending();
-      for (const name of ['atUsername', 'sandbox', 'enabled', 'apiKey'] as const) {
+      for (const name of ['partnerId', 'enabled', 'apiKey'] as const) {
         this.toggle(name, account);
       }
       for (const name of ['senderId', 'windowStart', 'windowEnd'] as const) {
@@ -121,9 +118,8 @@ export class SmsSettingsComponent {
       return;
     }
     const request: SmsRequest = {
-      atUsername: v.atUsername.trim(),
+      partnerId: v.partnerId.trim(),
       senderId: v.senderId.trim(),
-      sandbox: v.sandbox,
       enabled: v.enabled,
       windowStart: v.windowStart,
       windowEnd: v.windowEnd,

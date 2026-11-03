@@ -10,6 +10,9 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -49,15 +52,15 @@ class DarajaClientContractTest {
 
     @Test
     void c2bRegisterUrlIsV2WithResponseTypeCompleted() {
-        client.registerUrls(CREDENTIALS, "https://isp.example/callbacks/mpesa/t/c2b/confirmation",
-                "https://isp.example/callbacks/mpesa/t/c2b/validation");
+        client.registerUrls(CREDENTIALS, "https://isp.example/callbacks/payments/t/c2b/confirmation",
+                "https://isp.example/callbacks/payments/t/c2b/validation");
         final var request = daraja.requestsTo("/mpesa/c2b/v2/registerurl").getFirst();
         assertThat(request.header("Authorization")).isEqualTo("Bearer fake-access-token");
         assertThat(body(request)).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "ShortCode", "174379",
                 "ResponseType", "Completed",
-                "ConfirmationURL", "https://isp.example/callbacks/mpesa/t/c2b/confirmation",
-                "ValidationURL", "https://isp.example/callbacks/mpesa/t/c2b/validation"));
+                "ConfirmationURL", "https://isp.example/callbacks/payments/t/c2b/confirmation",
+                "ValidationURL", "https://isp.example/callbacks/payments/t/c2b/validation"));
     }
 
     @Test
@@ -125,6 +128,73 @@ class DarajaClientContractTest {
                 .hasMessage("Daraja: HTTP 400 (400.002.02)")
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("fake"));
         assertThat(CREDENTIALS.toString()).doesNotContain("fake-secret").doesNotContain("fake-passkey");
+    }
+
+    @Test
+    void serviceFailureRetiresTheConnectionButKeepsTheValidTokenForAnExplicitRetry() {
+        daraja.respond("/mpesa/c2b/v2/registerurl", 500, "{\"errorCode\":\"500.003.1001\"}");
+        assertThatThrownBy(() -> client.registerUrls(CREDENTIALS, "https://isp.example/c", "https://isp.example/v"))
+                .isInstanceOf(DarajaClient.DarajaException.class);
+        assertThat(daraja.requestsTo("/mpesa/c2b/v2/registerurl")).hasSize(1);
+        daraja.respond("/mpesa/c2b/v2/registerurl", 200, "{\"ResponseCode\":\"00000000\"}");
+        assertThat(client.registerUrls(CREDENTIALS, "https://isp.example/c", "https://isp.example/v").responseCode())
+                .isEqualTo("00000000");
+        client.registerUrls(CREDENTIALS, "https://isp.example/c", "https://isp.example/v");
+        final var requests = daraja.requestsTo("/mpesa/c2b/v2/registerurl");
+        assertThat(requests).hasSize(3);
+        assertThat(requests.get(1).connectionPort()).isNotEqualTo(requests.get(0).connectionPort());
+        assertThat(requests.get(2).connectionPort()).isEqualTo(requests.get(1).connectionPort());
+        assertThat(daraja.requestsTo("/oauth/v1/generate")).hasSize(1);
+    }
+
+    @Test
+    void anAmbiguousStkServiceFailureIsNeverAutomaticallyReplayed() {
+        daraja.respond("/mpesa/stkpush/v1/processrequest", 500, "{\"errorCode\":\"500.003.1001\"}");
+        assertThatThrownBy(() -> client.stkPush(CREDENTIALS, 1, "254708374149", "CB1", "Internet", "https://isp.example/c"))
+                .isInstanceOf(DarajaClient.DarajaException.class);
+        assertThat(daraja.requestsTo("/mpesa/stkpush/v1/processrequest")).hasSize(1);
+    }
+
+    @Test
+    void theNormalPendingQueryResultKeepsItsConnection() {
+        assertThat(client.stkQuery(CREDENTIALS, "ws_CO_1").stillProcessing()).isTrue();
+        assertThat(client.stkQuery(CREDENTIALS, "ws_CO_1").stillProcessing()).isTrue();
+        final var requests = daraja.requestsTo("/mpesa/stkpushquery/v1/query");
+        assertThat(requests).hasSize(2);
+        assertThat(requests.get(1).connectionPort()).isEqualTo(requests.get(0).connectionPort());
+    }
+
+    @Test
+    void retiringOneFailedPoolDoesNotInterruptAnotherInFlightRequest() throws Exception {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor(); var concurrent = new FakeDaraja(executor)) {
+            final var provider = new DarajaClient(json, CLOCK, concurrent.baseUrl(), "http://unused.invalid");
+            provider.accessToken(CREDENTIALS);
+            final var started = new CountDownLatch(1);
+            final var release = new CountDownLatch(1);
+            concurrent.beforeNextAnswer("/mpesa/c2b/v2/registerurl", () -> {
+                started.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) { throw new IllegalStateException("test provider wait timed out"); }
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(error);
+                }
+            });
+            final var pending = executor.submit(() -> provider.registerUrls(CREDENTIALS, "https://isp.example/c", "https://isp.example/v"));
+            try {
+                assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+                concurrent.respond("/mpesa/transactionstatus/v1/query", 500, "{\"errorCode\":\"500.003.1001\"}");
+                assertThatThrownBy(() -> provider.transactionStatus(CREDENTIALS, "FAKE-TXN", "https://isp.example/r", "https://isp.example/t"))
+                        .isInstanceOf(DarajaClient.DarajaException.class);
+            } finally {
+                release.countDown();
+            }
+            assertThat(pending.get(10, TimeUnit.SECONDS).responseCode()).isEqualTo("0");
+            provider.registerUrls(CREDENTIALS, "https://isp.example/c", "https://isp.example/v");
+            final var requests = concurrent.requestsTo("/mpesa/c2b/v2/registerurl");
+            assertThat(requests).hasSize(2);
+            assertThat(requests.get(1).connectionPort()).isNotEqualTo(requests.get(0).connectionPort());
+        }
     }
 
     @SuppressWarnings("unchecked")

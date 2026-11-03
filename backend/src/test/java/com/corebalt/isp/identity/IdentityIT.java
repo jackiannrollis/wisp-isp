@@ -7,7 +7,7 @@ import com.corebalt.isp.identity.domain.Credentials;
 import com.corebalt.isp.shared.security.Permissions;
 import com.corebalt.isp.support.Api;
 import com.corebalt.isp.support.Catalog;
-import com.corebalt.isp.support.FakeAfricasTalking;
+import com.corebalt.isp.support.FakeCelcom;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
@@ -330,13 +330,13 @@ class IdentityIT extends IntegrationTest {
         final String password = invited.json().get("temporaryPassword").asString();
         assertThat(invited.json().get("smsDelivery").asString()).isEqualTo("SENT");
         assertThat(invited.json().get("staff").get("phone").asString()).as("stored in E.164").isEqualTo(e164);
-        final String message = AT.requestsTo(e164).getLast().form().get("message");
+        final String message = SMS.requestsTo(e164).getLast().form().get("message");
         assertThat(message).contains(password).contains("72 hours").hasSizeLessThanOrEqualTo(160);
 
         final String id = invited.json().get("staff").get("id").asString();
         final String reset = owner.post("/api/v1/staff/" + id + "/temporary-password?sendSms=true").json()
                 .get("temporaryPassword").asString();
-        assertThat(AT.requestsTo(e164).getLast().form().get("message")).contains(reset);
+        assertThat(SMS.requestsTo(e164).getLast().form().get("message")).contains(reset);
 
         // Never stored or audited in clear (A3): the log body is masked, the audit row names only the outcome.
         assertThat(OwnerSql.client().sql("""
@@ -410,7 +410,7 @@ class IdentityIT extends IntegrationTest {
         }
         assertThat(post("/api/v1/portal-auth/code", Map.of("tenant", tenant.code(), "phone", customer.e164())).status())
                 .isEqualTo(429);
-        assertThat(AT.requestsTo(customer.e164())).hasSize(3);
+        assertThat(SMS.requestsTo(customer.e164())).hasSize(3);
     }
 
     @Test
@@ -420,7 +420,7 @@ class IdentityIT extends IntegrationTest {
         final Http answer = post("/api/v1/portal-auth/code", Map.of("tenant", tenant.code(), "phone", stranger));
         assertThat(answer.status()).isEqualTo(202);
         assertThat(answer.body()).contains("If this number belongs to an account");
-        assertThat(AT.requestsTo(stranger)).isEmpty();
+        assertThat(SMS.requestsTo(stranger)).isEmpty();
     }
 
     @Test
@@ -747,10 +747,10 @@ class IdentityIT extends IntegrationTest {
     }
 
     private Customer customerWithSms(final String name) {
-        AT.registerSender("LABISP");
+        SMS.registerSender("LABISP");
         assertThat(owner.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"LABISP","sandbox":true,"apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
-                """.formatted(FakeAfricasTalking.API_KEY)).status()).isEqualTo(200);
+                {"partnerId":"fake-partner-id","senderId":"LABISP","apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
+                """.formatted(FakeCelcom.API_KEY)).status()).isEqualTo(200);
         final String e164 = phone();
         final String local = "0" + e164.substring(4);
         final String id = Catalog.customer(owner, name, local);
@@ -762,7 +762,7 @@ class IdentityIT extends IntegrationTest {
     }
 
     private static String smsCode(final String e164) {
-        final String message = AT.requestsTo(e164).getLast().form().get("message");
+        final String message = SMS.requestsTo(e164).getLast().form().get("message");
         final Matcher matcher = Pattern.compile("^(\\d{6}) is your ").matcher(message);
         assertThat(matcher.find()).as(message).isTrue();
         return matcher.group(1);

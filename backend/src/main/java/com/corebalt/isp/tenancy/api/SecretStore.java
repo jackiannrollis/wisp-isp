@@ -40,6 +40,8 @@ public interface SecretStore {
         /** The path token of the tenant's callback URLs; the route table keeps only its hash. */
         MPESA_CALLBACK_TOKEN,
         SMS_API_KEY,
+        /** Celcom key kept separate from credentials of the retired SMS provider (ADR 0020). */
+        CELCOM_SMS_API_KEY,
         /** The path token of the tenant's SMS delivery-report URL; the route table keeps only its hash. */
         SMS_CALLBACK_TOKEN
     }

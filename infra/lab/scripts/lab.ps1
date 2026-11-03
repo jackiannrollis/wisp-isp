@@ -9,22 +9,27 @@
       onboard                     configure the router (lab base + onboarding script) and the client, peer
                                   the router with the hub, load the lab fixtures, dial CB000001
       status                      tunnel, RADIUS client, PPPoE sessions and queues on the router
-      login <user>                redial the client as <user> (password lab-password)
+      login <user>                redial the client as <user>; -ExpectReject asserts a rejected profile
       check                       from the client: HTTP, HTTPS, ping and DNS, to prove FULL or RESTRICTED
       set-line <user> <interval>  move a line's expires_at to now() + interval (e.g. '-10 days')
       coa <user> <rate>           RADIUS CoA: change Mikrotik-Rate-Limit in place (e.g. 2M/4M)
       disconnect <user>           RADIUS Disconnect-Request: drop the session so the client redials
+      session-timeout             expire CB000001 in one minute and prove a timed redial to RESTRICTED
       stop | start | destroy      stop, start or delete both VMs (destroy keeps the downloaded image)
 
-    Requires Hyper-V and membership of "Hyper-V Administrators" (or an elevated shell).
+    VM creation and discovery require Hyper-V permissions. For the other commands, known addresses
+    can be supplied with -RouterAddress and -ClientAddress without an elevated shell.
     LAB ONLY: the routers are managed over plain HTTP REST on the Hyper-V Default Switch.
 #>
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet("create", "onboard", "status", "login", "check", "set-line", "coa", "disconnect", "stop", "start", "destroy")]
+    [ValidateSet("create", "onboard", "status", "login", "check", "set-line", "coa", "disconnect", "session-timeout", "stop", "start", "destroy")]
     [string] $Command,
     [Parameter(Position = 1)] [string] $Arg1,
-    [Parameter(Position = 2)] [string] $Arg2
+    [Parameter(Position = 2)] [string] $Arg2,
+    [string] $RouterAddress,
+    [string] $ClientAddress,
+    [switch] $ExpectReject
 )
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -68,6 +73,12 @@ function Invoke-Compose {
 }
 
 function Get-VmAddress([string] $Name) {
+    $address = if ($Name -eq $RouterVm) { $RouterAddress } else { $ClientAddress }
+    if ($address) {
+        $parsed = [Net.IPAddress]::Parse($address)
+        if ($parsed.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) { throw "lab address must be IPv4" }
+        return $parsed.ToString()
+    }
     # CHR reports its addresses through Hyper-V integration (KVP); fall back to the host's ARP cache.
     $deadline = (Get-Date).AddMinutes(3)
     $adapter = Get-VMNetworkAdapter -VMName $Name | Where-Object SwitchName -eq $WanSwitch
@@ -99,7 +110,10 @@ function Invoke-Ros([string] $Address, [string] $Script, [string] $Password = $A
 }
 
 function Get-Ros([string] $Address, [string] $Path) {
-    return Invoke-RestMethod -Uri "http://$Address/rest/$Path" -Headers (New-RosHeaders $AdminPassword) -TimeoutSec 30
+    # Invoke-RestMethod emits a JSON array as one pipeline object. Return the stored result so
+    # PowerShell enumerates rows before callers filter them (notably the ether1 DHCP client).
+    $rows = Invoke-RestMethod -Uri "http://$Address/rest/$Path" -Headers (New-RosHeaders $AdminPassword) -TimeoutSec 30
+    return $rows
 }
 
 function Wait-Ros([string] $Address) {
@@ -148,6 +162,7 @@ function Send-Radius([string] $Type, [string[]] $Attributes) {
         Push-Location $InfraDir
         docker compose exec -T -e RADIUS_ATTRS freeradius sh -c `
             'printf "%s" "$RADIUS_ATTRS" | radclient -x -r 3 -t 3 "$1:3799" "$2" "$RADIUS_LAB_SECRET"' sh $ChrTunnelIp $Type
+        if ($LASTEXITCODE -ne 0) { throw "RADIUS $Type request failed" }
     } finally {
         Pop-Location
         Remove-Item Env:RADIUS_ATTRS -ErrorAction SilentlyContinue
@@ -156,6 +171,17 @@ function Send-Radius([string] $Type, [string[]] $Attributes) {
 
 function Assert-Username([string] $User) {
     if ($User -notmatch '^[A-Z]{2,4}[0-9]{6}(-[0-9]+)?$') { throw "not a lab username: '$User'" }
+}
+
+function Set-LabExpiry([string] $User, [string] $Interval) {
+    Assert-Username $User
+    if ($Interval -notmatch '^-?\d+ (minute|hour|day)s?$') { throw "interval like '30 days' or '-10 days'" }
+    $env:PGPASSWORD = Get-EnvValue $values "ISP_DB_OWNER_PASSWORD"
+    try {
+        Invoke-Compose exec -T -e PGPASSWORD postgres psql -h localhost -U isp_owner -d isp -v ON_ERROR_STOP=1 -c `
+            "update subscriptions_subscription set expires_at = now() + interval '$Interval', updated_at = now() where pppoe_username = '$User' returning pppoe_username, state, expires_at" | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "setting the lab expiry failed" }
+    } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
 }
 
 function Show-RouterSessions([string] $Router) {
@@ -277,8 +303,10 @@ switch ($Command) {
             -Headers @{ Authorization = "Bearer $($session.accessToken)" } -ContentType "application/json" `
             -Body (@{ username = "corebalt-api"; password = $restPassword } | ConvertTo-Json) | Out-Null
 
-        $ping = Invoke-Ros $router ":put [/ping $HubTunnelIp count=3]"
-        Write-Host "Tunnel: router -> hub $HubTunnelIp, $($ping.Trim())/3 replies"
+        $ping = Invoke-Ros $router (':put ("COREBALT-PING=" . [/ping ' + $HubTunnelIp + ' count=3])')
+        $pingReplies = if ($ping -match '(?m)^COREBALT-PING=(\d+)\s*$') { [int] $Matches[1] } else { throw "unreadable tunnel ping result" }
+        Write-Host "Tunnel: router -> hub $HubTunnelIp, $pingReplies/3 replies"
+        if ($pingReplies -eq 0) { throw "WireGuard tunnel did not answer" }
 
         Write-Host "Configuring the PPPoE client as CB000001"
         Invoke-Ros $client (Format-Template "pppoe-client.rsc.tmpl" @{
@@ -300,24 +328,27 @@ switch ($Command) {
     "login" {
         Assert-Username $Arg1
         $client = Get-VmAddress $ClientVm
-        Set-ClientUser $client $Arg1 | Out-Null
+        $connected = Set-ClientUser $client $Arg1
+        if ($ExpectReject -and $connected) { throw "Expected $Arg1 to be rejected, but it connected" }
+        if (-not $ExpectReject -and -not $connected) { throw "Expected $Arg1 to connect" }
         Show-RouterSessions (Get-VmAddress $RouterVm)
     }
 
     "check" {
         $client = Get-VmAddress $ClientVm
-        $http = Invoke-Ros $client ':do { :put ([/tool fetch url="http://example.com/" output=user as-value]->"data") } on-error={ :put "FETCH-FAILED" }'
-        $https = Invoke-Ros $client ':do { /tool fetch url="https://example.com/" output=none; :put "REACHABLE" } on-error={ :put "BLOCKED" }'
-        $ping = Invoke-Ros $client ':put [/ping 1.1.1.1 count=3]'
-        $dns = Invoke-Ros $client ':do { :put [:resolve example.com] } on-error={ :put "DNS-FAILED" }'
+        $http = Invoke-Ros $client ':do { :put ([/tool fetch url="http://example.com/" output=user as-value idle-timeout=5s]->"data") } on-error={ :put "FETCH-FAILED" }'
+        $https = Invoke-Ros $client ':do { :local result [/tool fetch url="https://example.com/" output=user as-value idle-timeout=5s]; :put "REACHABLE" } on-error={ :put "BLOCKED" }'
+        $ping = Invoke-Ros $client ':put ("COREBALT-PING=" . [/ping 1.1.1.1 count=3])'
+        $pingReplies = if ($ping -match '(?m)^COREBALT-PING=(\d+)\s*$') { [int] $Matches[1] } else { throw "unreadable client ping result" }
+        $dns = Invoke-Ros $client ':do { /ip dns cache flush; :put [:resolve example.com] } on-error={ :put "DNS-FAILED" }'
         $payPage = $http -match "corebalt-lab-paypage"
         Write-Host ("HTTP  http://example.com/  -> " + $(if ($payPage) { "redirected to the pay page" } elseif ($http -match "Example Domain") { "the real site" } else { $http.Trim() }))
         Write-Host "HTTPS https://example.com/ -> $($https.Trim())"
-        Write-Host "PING  1.1.1.1              -> $($ping.Trim())/3 replies"
+        Write-Host "PING  1.1.1.1              -> $pingReplies/3 replies"
         Write-Host "DNS   example.com          -> $($dns.Trim())"
-        if ($payPage -and $https.Trim() -eq "BLOCKED" -and $ping.Trim() -eq "0" -and $dns -notmatch "FAILED") {
+        if ($payPage -and $https.Trim() -eq "BLOCKED" -and $pingReplies -eq 0 -and $dns -notmatch "FAILED") {
             Write-Host "RESTRICTED as designed (docs/06): DNS works, HTTP goes to the pay page, everything else is dropped."
-        } elseif ($http -match "Example Domain" -and $https.Trim() -eq "REACHABLE") {
+        } elseif ($http -match "Example Domain" -and $https.Trim() -eq "REACHABLE" -and $pingReplies -gt 0 -and $dns -notmatch "FAILED") {
             Write-Host "FULL internet access."
         } else {
             Write-Host "Neither FULL nor RESTRICTED: check 'lab.ps1 status' and the FreeRADIUS logs."
@@ -326,14 +357,40 @@ switch ($Command) {
     }
 
     "set-line" {
-        Assert-Username $Arg1
-        if ($Arg2 -notmatch '^-?\d+ (minute|hour|day)s?$') { throw "interval like '30 days' or '-10 days'" }
-        $env:PGPASSWORD = Get-EnvValue $values "ISP_DB_OWNER_PASSWORD"
-        try {
-            Invoke-Compose exec -T -e PGPASSWORD postgres psql -h localhost -U isp_owner -d isp -c `
-                "update subscriptions_subscription set expires_at = now() + interval '$Arg2', updated_at = now() where pppoe_username = '$Arg1' returning pppoe_username, state, expires_at" | Out-Host
-        } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
+        Set-LabExpiry $Arg1 $Arg2
         Write-Host "The live session keeps its profile until Session-Timeout or a Disconnect (lab.ps1 disconnect $Arg1)."
+    }
+
+    "session-timeout" {
+        $router = Get-VmAddress $RouterVm
+        $client = Get-VmAddress $ClientVm
+        # The seeded line has zero grace. Its next login must therefore get about 60 seconds,
+        # after which the router itself must redial into RESTRICTED, with no Disconnect request.
+        Set-LabExpiry 'CB000001' '1 minute'
+        if (-not (Set-ClientUser $client 'CB000001')) { throw 'The short FULL session did not connect' }
+        $before = Get-Ros $router 'ppp/active' | Where-Object name -eq 'CB000001' | Select-Object -First 1
+        if (-not $before.'session-id' -or $before.address -notlike '10.10.0.*') { throw 'Expected a FULL session before the timeout' }
+        Write-Host "Waiting for Session-Timeout on $($before.'session-id') (no Disconnect sent)."
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        $observed = $false
+        while ($timer.Elapsed.TotalSeconds -lt 90) {
+            $after = Get-Ros $router 'ppp/active' | Where-Object name -eq 'CB000001' | Select-Object -First 1
+            if ($after -and $after.'session-id' -ne $before.'session-id' -and $after.address -like '10.11.0.*') {
+                $observed = $true
+                break
+            }
+            Start-Sleep -Seconds 2
+        }
+        $timer.Stop()
+        if (-not $observed) { throw 'The router did not redial into RESTRICTED after Session-Timeout' }
+        $outDir = Join-Path $LabDir 'out'
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $result = [ordered]@{completedAt=(Get-Date).ToString('o');beforeSessionId=$before.'session-id';
+            afterSessionId=$after.'session-id';restrictedAddress=$after.address;
+            observedRedialSeconds=[Math]::Round($timer.Elapsed.TotalSeconds,3);manualDisconnect=$false}
+        $result | ConvertTo-Json | Set-Content (Join-Path $outDir 'session-timeout.result.json')
+        $result | ConvertTo-Json | Write-Host
+        Show-RouterSessions $router
     }
 
     "coa" {

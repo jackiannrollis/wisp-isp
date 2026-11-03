@@ -87,7 +87,7 @@ class Gate1IT extends IntegrationTest {
                  "consumerKey":"fake-key","consumerSecret":"fake-secret","passkey":"fake-passkey"}
                 """);
         assertThat(configured.status()).as(configured.body()).isEqualTo(200);
-        token = configured.json().get("callbackUrls").get("c2bConfirmation").asString().replaceAll(".*/callbacks/mpesa/([^/]+)/.*", "$1");
+        token = configured.json().get("callbackUrls").get("c2bConfirmation").asString().replaceAll(".*/callbacks/payments/([^/]+)/.*", "$1");
 
         pay();
         awaitCreditsApplied(1);
@@ -372,7 +372,7 @@ class Gate1IT extends IntegrationTest {
                  "BusinessShortCode":"600984","BillRefNumber":"%s","MSISDN":"2547 ***** 222","FirstName":"AKINYI"}
                 """.formatted(txn, customerNumber);
         final HttpResponse<String> ack = HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/mpesa/" + token + "/c2b/confirmation"))
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/payments/" + token + "/c2b/confirmation"))
                         .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(ack.statusCode()).as(ack.body()).isEqualTo(200);

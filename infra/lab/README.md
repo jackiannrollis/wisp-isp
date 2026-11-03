@@ -1,17 +1,23 @@
 # Network lab (step 2 of the v1 build order)
 
 Proves the network half of the core flow before any business code exists: a MikroTik router asks
-FreeRADIUS, FreeRADIUS answers from PostgreSQL (`v_radius_auth_v2`), expired customers land in a
+FreeRADIUS, FreeRADIUS answers from PostgreSQL (`v_radius_auth_v7`), expired customers land in a
 walled garden with a pay page, and CoA/Disconnect change a live session. See docs/06 and ADRs
 0004, 0006 and 0007.
 
-> **Status (2026-10-19).** The Docker half is verified: `RadiusAuthIT` passes locally and in CI, and
-> the hub, FreeRADIUS and the pay page run in the compose stack. The Hyper-V half (`lab.ps1` and
-> the `routeros/` templates) is written and parses but has **not yet run against real routers**, so
-> CoA/Disconnect (N5) and the restricted-mode rules (N3, ADR 0007) are not proven yet. Likely first
-> failures: Windows Firewall blocking UDP 51820 or TCP 8089 from the Default Switch, a fresh CHR
-> refusing REST with an empty admin password, and two untried RouterOS settings (`/radius
-> timeout=1500ms`, the WireGuard peer `name=`).
+> **Status (2026-11-02).** The Hyper-V lab now runs on two MikroTik CHR 7.24.5 VMs. WireGuard,
+> PPPoE, the full and restricted profiles, CoA/Disconnect, and automatic restoration after a fake
+> cash payment are verified against RouterOS. The payment restored a new full-speed session in
+> 4.287 seconds (4.150 seconds on the final repeat), with one ledger credit, one renewal debit,
+> one receipt and an idempotent replay. The one-minute Session-Timeout and suspended, pending and
+> cross-tenant login rejections also passed. This is a manual
+> payment, outside Gate 1. Celcom SMS and Daraja C2B sandbox credit/renewal are now verified in
+> `providers-validation-2026-11-02.md`, alongside a successful KES 1 STK sandbox callback/credit/receipt.
+> The combined Daraja callback-to-CHR test also passed: FULL was observed in 4.357 seconds,
+> with the platform recording 3.328 seconds; see `daraja-restore-validation-2026-11-02.md`.
+> Provider connection recovery was subsequently confirmed live; see `daraja-state-validation-2026-11-03.md`.
+> Physical ISP routers and node B remain separate.
+> See [the validation record](validation-2026-11-02.md) for the checks and limitations.
 
 ```
  Hyper-V                                         Docker Desktop (infra/docker-compose.yml)
@@ -33,7 +39,7 @@ walled garden with a pay page, and CoA/Disconnect change a live session. See doc
 
 - `RadiusAuthIT` (in `./mvnw verify` and CI) builds the FreeRADIUS image, loads `seed.sql` into the
   real tables (tenants, packages, customers, routers, lines, credentials) and checks every profile,
-  Session-Timeout and the tenant check over real RADIUS against `v_radius_auth_v3`.
+  Session-Timeout and the tenant check over real RADIUS against `v_radius_auth_v7`.
 - `infra/lab/scripts/seed.ps1` loads the same fixtures into the running stack; then
   `infra\scripts\radtest.ps1 CB000004` shows a RESTRICTED accept from inside the container.
 
@@ -75,6 +81,12 @@ infra\lab\scripts\lab.ps1 status      # tunnel, PPPoE sessions, queues, address 
 infra\lab\scripts\lab.ps1 check       # FULL: real sites over HTTP and HTTPS
 ```
 
+After creating the VMs, non-administrators may supply their current management addresses to
+`onboard`, `status`, `login`, `check`, `set-line`, `coa`, `disconnect` and `session-timeout`, e.g.
+`lab.ps1 check -RouterAddress 192.168.207.224 -ClientAddress 192.168.194.168`. These example addresses
+are from the recorded run; use the addresses printed by `create` on your machine. Without overrides,
+the script discovers them through Hyper-V, which requires an elevated shell or group membership.
+
 The onboarding script is the platform's own template, `backend/src/main/resources/routeros/onboarding.rsc.tmpl` (the API renders it for real routers, ADR 0013; the lab renders it the same way with a key pair from the hub container), the eight steps of docs/06 in order;
 `routeros/lab-base.rsc.tmpl` is what a real ISP router already has (WAN, NAT, resolver).
 
@@ -100,11 +112,35 @@ infra\lab\scripts\lab.ps1 disconnect CB000001
 infra\lab\scripts\lab.ps1 check
 
 # Rejected profiles never get a session (the client keeps retrying, as docs/06 warns):
-infra\lab\scripts\lab.ps1 login CB000006
+infra\lab\scripts\lab.ps1 login CB000006 -ExpectReject
 ```
 
 In the product, steps 3 and 4 are driven by events (`SubscriptionStateChanged`,
-`SubscriptionRenewed`) and the network module sends the CoA/Disconnect; here they are manual.
+`SubscriptionRenewed`) and the network module sends the CoA/Disconnect. The sequence above is manual;
+to verify the actual payment road instead, leave CB000001 expired and connected in RESTRICTED, then run:
+
+```powershell
+infra\lab\scripts\payment-restore.ps1 -RouterAddress <router-management-IP>
+```
+
+It signs into the localhost API as the seeded lab admin, records a fake cash payment for the
+renewal shortfall, and waits up to 60 seconds for the real tunnel worker to reconnect the CHR into
+FULL. It sends no Disconnect and does not edit the expiry. It checks the new session ID, full queue,
+single payment credit and receipt, and replays the same idempotency key. Results go to the ignored
+`infra/lab/out/payment-restore.result.json`. This is not a Daraja round-trip or Gate 1 measurement.
+
+For a genuine sandbox callback through the same restricted CHR session, use
+`infra/lab/scripts/daraja-restore.ps1 -RouterAddress <router-management-IP>`. This needs the public
+HTTPS callback tunnel, sandbox credentials in `backend/.env`, and an expired/restricted CB000001
+visible in accounting. It simulates the renewal shortfall, makes no post-payment Disconnect,
+and checks the new FULL session, one credit/charge/receipt, and the platform's CUT_OFF restoration
+record within 60 seconds. See [the combined validation](daraja-restore-validation-2026-11-02.md)
+for commands, timings and the provider-state follow-up. This is a sandbox observation, not the
+pilot's two-cycle Gate 1.
+
+`lab.ps1 session-timeout` sets CB000001's expiry one minute ahead, redials it into FULL, then waits
+for the router to redial itself into RESTRICTED without a Disconnect. It leaves the line expired;
+run the payment check afterwards to restore it. Results go to `out/session-timeout.result.json`.
 
 ## Limits of the lab
 

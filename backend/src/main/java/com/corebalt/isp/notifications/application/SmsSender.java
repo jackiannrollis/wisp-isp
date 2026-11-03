@@ -2,7 +2,7 @@ package com.corebalt.isp.notifications.application;
 
 import com.corebalt.isp.notifications.api.CustomerNotified;
 import com.corebalt.isp.notifications.domain.SendOutcome;
-import com.corebalt.isp.notifications.infrastructure.AfricasTalkingClient;
+import com.corebalt.isp.notifications.infrastructure.CelcomClient;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.outbox.OutboxPublisher;
 import com.corebalt.isp.shared.tenant.TenantContext;
@@ -40,7 +40,7 @@ public class SmsSender {
     private final TransactionTemplate tx;
     private final SmsSettings settings;
     private final SmsAllowlist allowlist;
-    private final AfricasTalkingClient provider;
+    private final CelcomClient provider;
     private final OutboxPublisher outbox;
     private final TenantIterator tenants;
     private final Clock clock;
@@ -52,7 +52,7 @@ public class SmsSender {
             final TransactionTemplate tx,
             final SmsSettings settings,
             final SmsAllowlist allowlist,
-            final AfricasTalkingClient provider,
+            final CelcomClient provider,
             final OutboxPublisher outbox,
             final TenantIterator tenants,
             final Clock clock,
@@ -123,10 +123,10 @@ public class SmsSender {
 
     private SendOutcome send(final SmsSettings.Account account, final Claimed message) {
         try {
-            final AfricasTalkingClient.Result result = provider.send(
-                    account.sandbox(), account.username(), account.apiKey(), account.senderId(), message.recipient(), message.body());
+            final CelcomClient.Result result = provider.send(
+                    account.partnerId(), account.apiKey(), account.senderId(), message.recipient(), message.body());
             return SendOutcome.ofRecipient(result.statusCode(), result.status(), result.messageId());
-        } catch (AfricasTalkingClient.TransportFailure e) {
+        } catch (CelcomClient.TransportFailure e) {
             return SendOutcome.ofTransport(e.httpStatus(), e.getMessage());
         }
     }
@@ -186,6 +186,7 @@ public class SmsSender {
         jdbc.sql("""
                         update notifications_notification
                         set status = :status, next_attempt_at = :next, attempts = :attempts,
+                            sms_provider = case when cast(:messageId as text) is not null then 'CELCOM_AFRICA' else sms_provider end,
                             provider_status = coalesce(:providerStatus, provider_status), failure_reason = :failure,
                             provider_message_id = coalesce(:messageId, provider_message_id), sent_at = coalesce(:sentAt, sent_at),
                             updated_at = :now
@@ -241,7 +242,8 @@ public class SmsSender {
                                 failure_reason = case when :status = 'FAILED' then :reason else failure_reason end,
                                 delivered_at = case when :status = 'DELIVERED' then :now else delivered_at end,
                                 updated_at = :now
-                            where provider_message_id = :messageId and status in ('SENT', 'DELIVERED', 'FAILED')
+                            where provider_message_id = :messageId and sms_provider = 'AFRICAS_TALKING'
+                              and status in ('SENT', 'DELIVERED', 'FAILED')
                             """)
                     .param("providerStatus", status)
                     .param("status", newStatus)

@@ -75,7 +75,13 @@ Each tenant connects its own Paybill or Till through a Daraja app whose credenti
 
 ### Callback handling
 
-1. The endpoint is per tenant, with a random path token (`/callbacks/mpesa/<token>/...`); requests from outside Safaricom's published IP ranges are rejected. The token is kept as an encrypted tenant secret; the platform-wide route table that finds the tenant holds only its SHA-256. Behind the proxy the source address comes from `X-Forwarded-For`, trusted only from internal proxies, so the backend port is never exposed directly.
+**Provider connection recovery (ADR 0022).** A 5xx / `500.003.1001` response retires that HTTP pool
+for the next request. It keeps the valid OAuth token and lets concurrent in-flight calls finish.
+The failed POST is not automatically replayed. A normal pending STK query (`500.001.1001`) does
+not trigger this recovery. A fresh connection can also fail upstream; staff receive a safe
+provider-unavailable problem rather than instructions to replace credentials.
+
+1. The endpoint is per tenant, with a random path token (`/callbacks/payments/<token>/...`); requests from outside Safaricom's published IP ranges are rejected. The token is kept as an encrypted tenant secret; the platform-wide route table that finds the tenant holds only its SHA-256. Behind the proxy the source address comes from `X-Forwarded-For`, trusted only from internal proxies, so the backend port is never exposed directly.
 2. The raw payload is stored first, even when it is not valid JSON, then processing begins after the response; a failure after storage is retried from the stored copy by a sweeper. A body that cannot be read is kept with its error for investigation.
 3. A unique constraint on (`tenant_id`, `provider_txn_id`) makes every payment exist once; a duplicate callback returns success to M-Pesa without side effects. An STK payment to a Paybill also arrives as a C2B confirmation with the same TransID: whichever arrives first creates the payment, the other only links to it.
 4. Matching runs in order: exact `BillRefNumber` equals a customer number → exactly a customer's old-system reference (`legacy_account_ref`, kept by the cutover import or set on the customer page; compared trimmed and upper-cased; before normalisation, because an old reference such as `1238` would otherwise read as the short form of a customer number that exists after the import) → normalised reference (trim, upper-case, strip spaces, dots and hyphens, ignore a line suffix such as `-2`, tolerate a missing tenant prefix) → the payer's number when Daraja sends it plain or as a SHA-256 hash of the 2547… form, and it belongs to exactly one customer → otherwise `UNMATCHED`. Current C2B v2 confirmations mask the number (`2547 ***** 126`); a masked number is never matched automatically.
@@ -106,11 +112,16 @@ Request shapes are pinned by contract tests against a fake Daraja; the sandbox o
 
 1. Create an app on developer.safaricom.co.ke with the Lipa na M-Pesa Online and M-Pesa Sandbox products; note the consumer key and secret and the sandbox passkey.
 2. Start a tunnel to Caddy, for example `cloudflared tunnel --url http://localhost:8088`, and note its https URL.
-3. In `infra/.env` set `CALLBACK_BASE_URL` (the tunnel URL), `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET` and `DARAJA_SANDBOX_PASSKEY`; restart the stack and load the lab fixtures (`infra\scripts\up.ps1`, `infra\lab\scripts\seed.ps1`).
-4. Run `infra\scripts\daraja-sandbox.ps1` (or `.sh`). It configures tenant CB for the sandbox, registers the C2B URLs, simulates a C2B payment to CB000004 and waits until the ledger has credited it and the line is FULL, then sends an STK Push to the sandbox test number and waits for its result.
-5. The last step, the CoA to the router, is reported as skipped: the sandbox payment has no live session on a real router. CoA and Disconnect are proven against a fake router by `CoaWorkerIT` and on a real router by the network lab (`lab.ps1`).
+3. In `infra/.env` set `CALLBACK_BASE_URL` (the tunnel URL). In the ignored `backend/.env` set `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET` and `DARAJA_SANDBOX_PASSKEY`; optional `DARAJA_SANDBOX_C2B_SHORTCODE` (default `600000`), `DARAJA_SANDBOX_STK_SHORTCODE` (default `174379`) and `DARAJA_SANDBOX_TEST_MSISDN` override the verified sandbox defaults. The older `DARAJA_SANDBOX_SHORTCODE` is now an STK-only alias. Restart the backend. Load the lab fixtures only for a fresh lab (`infra\lab\scripts\seed.ps1` resets scenarios).
+4. Run `infra\scripts\daraja-sandbox.ps1` (the `.sh` wrapper also requires PowerShell 7). It configures tenant CB with the C2B shortcode, registers neutral `/callbacks/payments/` URLs, requires CB000004 to start RESTRICTED, simulates a C2B payment and checks a new matched payment, one ledger credit, one receipt and FULL access. It saves this result before switching tenant CB to the STK shortcode and requiring a COMPLETED STK Push. `-C2bOnly` stops after the C2B check, leaving CB's sandbox settings on its C2B shortcode. `-CredentialsFile` selects another credentials file; `infra/.env` remains a fallback for existing setups.
+5. This check restores CB000004's entitlement. CoA and Disconnect are separately proven against a fake router by `CoaWorkerIT` and against CHR by the network lab (`lab.ps1`); the sandbox script does not claim a live router restoration.
 
 If a sandbox callback is refused, the backend logs `Callback refused from <ip>`: Safaricom's sandbox may call from addresses outside the published production list; add it with `ISP_MPESA_CALLBACKALLOWEDCIDRS` for the lab only.
+
+Do not reuse the Express test shortcode for C2B. On 2026-11-02, an otherwise identical registration
+returned `500.003.1001` with `174379`, but HTTP 200 / `00000000` with `600000`, on both v1 and v2.
+The apparent service-unavailable error was caused by the wrong sandbox shortcode. The application's
+v2 registration endpoint remains correct. See `infra/lab/providers-validation-2026-11-02.md`.
 
 ## Dashboard figures
 

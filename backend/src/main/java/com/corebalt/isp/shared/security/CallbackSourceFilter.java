@@ -33,7 +33,8 @@ public class CallbackSourceFilter extends OncePerRequestFilter {
     /** Only provider callbacks with published source addresses (M-Pesa) are checked. */
     @Override
     protected boolean shouldNotFilter(final HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(request.getContextPath() + "/callbacks/mpesa/");
+        final String path = request.getRequestURI().substring(request.getContextPath().length());
+        return !path.startsWith("/callbacks/payments/") && !path.startsWith("/callbacks/mpesa/");
     }
 
     @Override

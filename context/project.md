@@ -19,7 +19,7 @@ A multi-tenant SaaS for Kenyan ISPs, WISPs and Wi-Fi vendors: customers, package
 | AAA | FreeRADIUS 3.2 with `rlm_sql` reading PostgreSQL views `radius_client` and `v_radius_auth`; two nodes (Hetzner and Nairobi) |
 | Routers | MikroTik RouterOS v7: PPPoE (v1) and hotspot (v2); RADIUS CoA/Disconnect on UDP 3799; REST API and SNMP for monitoring; WireGuard tunnels to two hubs |
 | Payments | M-Pesa Daraja: C2B Paybill confirmation and validation, STK Push, STK Query, Transaction Status |
-| Messaging | Africa's Talking SMS (v1); WhatsApp and email (v2) |
+| Messaging | Celcom Africa SMS (v1); WhatsApp and email (v2) |
 | Infrastructure | Docker Compose, Caddy, Hetzner core; PostgreSQL replica, FreeRADIUS node B and WireGuard hub B in a Nairobi data centre; Prometheus, Grafana, Loki |
 
 ## Modules (Spring Modulith, one deployable)

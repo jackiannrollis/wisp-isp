@@ -64,9 +64,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SMS settings and the delivery-report URL to give Africa's Talking (never the API key) */
+        /** Celcom Africa account and sending window (never the API key) */
         get: operations["view"];
-        /** Africa's Talking account (API key write-only), sender ID and sending window (M2) */
+        /** Celcom Africa account (API key write-only), sender ID and sending window (M2) */
         put: operations["configure"];
         post?: never;
         delete?: never;
@@ -2103,18 +2103,17 @@ export interface components {
             value: string;
         };
         SmsSettingsRequest: {
-            atUsername: string;
+            partnerId: string;
             senderId: string;
-            sandbox: boolean;
             enabled?: boolean;
             windowStart?: string;
             windowEnd?: string;
             apiKey?: string;
         };
         SmsSettingsView: {
-            atUsername?: string;
+            provider?: string;
+            partnerId?: string;
             senderId?: string;
-            sandbox?: boolean;
             enabled?: boolean;
             windowStart?: string;
             windowEnd?: string;
@@ -2773,7 +2772,7 @@ export interface components {
         };
         StoredSecret: {
             /** @enum {string} */
-            kind?: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
+            kind?: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "CELCOM_SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
             /** Format: int32 */
             keyVersion?: number;
             /** Format: date-time */
@@ -3324,7 +3323,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                kind: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
+                kind: "MPESA_CONSUMER_KEY" | "MPESA_CONSUMER_SECRET" | "MPESA_PASSKEY" | "MPESA_INITIATOR_NAME" | "MPESA_SECURITY_CREDENTIAL" | "MPESA_CALLBACK_TOKEN" | "SMS_API_KEY" | "CELCOM_SMS_API_KEY" | "SMS_CALLBACK_TOKEN";
             };
             cookie?: never;
         };

@@ -1,31 +1,33 @@
 // A stand-in for Safaricom Daraja for the end-to-end suite (ADR 0012): production-shaped answers,
 // and for every STK Push a success result callback to the CallBackURL of the request, a moment later,
 // as the customer entering their M-Pesa PIN would cause. Never used outside the e2e compose override.
-import { createServer } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
 
 const PORT = Number(process.env.PORT ?? 8095);
 const CALLBACK_DELAY_MS = Number(process.env.CALLBACK_DELAY_MS ?? 1500);
 const pushes = [];
+const messages = [];
 
 const json = (res, status, body) => {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 };
 
 const readBody = (req) =>
   new Promise((resolve) => {
-    let data = '';
-    req.on('data', (chunk) => (data += chunk));
-    req.on('end', () => resolve(data));
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => resolve(data));
   });
 
 /** M-Pesa receipt numbers are 10 upper-case characters; a new one per payment (P1). */
-const receipt = () => 'E2E' + randomBytes(4).toString('hex').toUpperCase().slice(0, 7);
+const receipt = () =>
+  "E2E" + randomBytes(4).toString("hex").toUpperCase().slice(0, 7);
 
 const timestamp = () => {
   const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n) => String(n).padStart(2, "0");
   return Number(
     `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
       `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`,
@@ -39,13 +41,13 @@ async function sendResult(push) {
         MerchantRequestID: push.merchantRequestId,
         CheckoutRequestID: push.checkoutRequestId,
         ResultCode: 0,
-        ResultDesc: 'The service request is processed successfully.',
+        ResultDesc: "The service request is processed successfully.",
         CallbackMetadata: {
           Item: [
-            { Name: 'Amount', Value: push.amount },
-            { Name: 'MpesaReceiptNumber', Value: push.receipt },
-            { Name: 'TransactionDate', Value: timestamp() },
-            { Name: 'PhoneNumber', Value: Number(push.phone) },
+            { Name: "Amount", Value: push.amount },
+            { Name: "MpesaReceiptNumber", Value: push.receipt },
+            { Name: "TransactionDate", Value: timestamp() },
+            { Name: "PhoneNumber", Value: Number(push.phone) },
           ],
         },
       },
@@ -53,8 +55,8 @@ async function sendResult(push) {
   };
   try {
     const response = await fetch(push.callbackUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     push.callbackStatus = response.status;
@@ -62,17 +64,62 @@ async function sendResult(push) {
     push.callbackStatus = `failed: ${error.message}`;
   }
   // The callback URL carries the tenant's private token, so only its path shape is logged.
-  console.log(`STK ${push.checkoutRequestId}: result callback answered ${push.callbackStatus}`);
+  console.log(
+    `STK ${push.checkoutRequestId}: result callback answered ${push.callbackStatus}`,
+  );
 }
 
 const server = createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://fake-daraja');
+  const url = new URL(req.url, "http://fake-daraja");
   const body = await readBody(req);
 
-  if (url.pathname === '/health') {
-    return json(res, 200, { status: 'UP', pushes: pushes.length });
+  if (url.pathname === "/health") {
+    return json(res, 200, {
+      status: "UP",
+      testOnly: true,
+      pushes: pushes.length,
+      sms: messages.length,
+    });
   }
-  if (url.pathname === '/__pushes') {
+  // Test-only Celcom responses: no real recipient or provider is contacted.
+  if (url.pathname === "/api/services/sendsms/") {
+    const request = JSON.parse(body || "{}");
+    const message = {
+      messageId: `e2e-sms-${randomBytes(6).toString("hex")}`,
+      mobileTail: String(request.mobile ?? "").slice(-4),
+      message: String(request.message ?? ""),
+      deliveryChecks: 0,
+    };
+    messages.push(message);
+    return json(res, 200, {
+      responses: [
+        {
+          "respose-code": 200,
+          "response-description": "Success",
+          mobile: String(request.mobile),
+          messageid: message.messageId,
+        },
+      ],
+    });
+  }
+  if (url.pathname === "/api/services/getdlr/") {
+    const request = JSON.parse(body || "{}");
+    const message = messages.find(
+      (m) => m.messageId === String(request.messageID),
+    );
+    if (!message) return json(res, 200, { "response-code": 1008 });
+    message.deliveryChecks++;
+    return json(res, 200, {
+      "response-code": 200,
+      "message-id": message.messageId,
+      "delivery-status": 32,
+      "delivery-description": "DeliveredToTerminal",
+    });
+  }
+  if (url.pathname === "/__sms") {
+    return json(res, 200, messages);
+  }
+  if (url.pathname === "/__pushes") {
     return json(
       res,
       200,
@@ -84,23 +131,26 @@ const server = createServer(async (req, res) => {
       })),
     );
   }
-  if (url.pathname === '/oauth/v1/generate') {
-    return json(res, 200, { access_token: 'fake-e2e-access-token', expires_in: '3599' });
-  }
-  if (url.pathname === '/mpesa/c2b/v2/registerurl') {
+  if (url.pathname === "/oauth/v1/generate") {
     return json(res, 200, {
-      OriginatorCoversationID: 'e2e-register',
-      ResponseCode: '0',
-      ResponseDescription: 'Success',
+      access_token: "fake-e2e-access-token",
+      expires_in: "3599",
     });
   }
-  if (url.pathname === '/mpesa/stkpush/v1/processrequest') {
-    const request = JSON.parse(body || '{}');
+  if (url.pathname === "/mpesa/c2b/v2/registerurl") {
+    return json(res, 200, {
+      OriginatorCoversationID: "e2e-register",
+      ResponseCode: "0",
+      ResponseDescription: "Success",
+    });
+  }
+  if (url.pathname === "/mpesa/stkpush/v1/processrequest") {
+    const request = JSON.parse(body || "{}");
     const push = {
-      merchantRequestId: `e2e-${randomBytes(4).toString('hex')}`,
-      checkoutRequestId: `ws_CO_e2e_${randomBytes(8).toString('hex')}`,
+      merchantRequestId: `e2e-${randomBytes(4).toString("hex")}`,
+      checkoutRequestId: `ws_CO_e2e_${randomBytes(8).toString("hex")}`,
       amount: Number(request.Amount),
-      phone: String(request.PhoneNumber ?? ''),
+      phone: String(request.PhoneNumber ?? ""),
       callbackUrl: request.CallBackURL,
       receipt: receipt(),
       callbackStatus: null,
@@ -110,20 +160,23 @@ const server = createServer(async (req, res) => {
     return json(res, 200, {
       MerchantRequestID: push.merchantRequestId,
       CheckoutRequestID: push.checkoutRequestId,
-      ResponseCode: '0',
-      ResponseDescription: 'Success. Request accepted for processing',
-      CustomerMessage: 'Success. Request accepted for processing',
+      ResponseCode: "0",
+      ResponseDescription: "Success. Request accepted for processing",
+      CustomerMessage: "Success. Request accepted for processing",
     });
   }
-  if (url.pathname === '/mpesa/stkpushquery/v1/query') {
+  if (url.pathname === "/mpesa/stkpushquery/v1/query") {
     // As Daraja answers while the customer has not finished: the callback decides.
     return json(res, 500, {
-      requestId: 'e2e-query',
-      errorCode: '500.001.1001',
-      errorMessage: 'The transaction is being processed',
+      requestId: "e2e-query",
+      errorCode: "500.001.1001",
+      errorMessage: "The transaction is being processed",
     });
   }
-  return json(res, 404, { errorCode: '404.001.01', errorMessage: 'Resource not found' });
+  return json(res, 404, {
+    errorCode: "404.001.01",
+    errorMessage: "Resource not found",
+  });
 });
 
 server.listen(PORT, () => console.log(`Fake Daraja listening on ${PORT}`));

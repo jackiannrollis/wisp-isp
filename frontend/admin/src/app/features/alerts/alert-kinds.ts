@@ -29,22 +29,22 @@ export const ALERT_KINDS: Record<string, AlertKind> = {
   },
   SMS_CREDIT_EXHAUSTED: {
     label: 'SMS credit used up',
-    action: "Top up the Africa's Talking account. Waiting messages are retried every hour.",
+    action: 'Top up the Celcom Africa account. Waiting messages are retried every hour.',
     icon: IconMessageOff,
   },
   SENDER_ID_INVALID: {
     label: 'Sender ID refused',
-    action: "Check the sender ID in SMS settings against your Africa's Talking account.",
+    action: 'Check the sender ID in SMS settings against your Celcom Africa account.',
     icon: IconMessageOff,
   },
   SMS_AUTH_FAILED: {
     label: 'SMS API key refused',
-    action: "Enter the current Africa's Talking API key in SMS settings.",
+    action: 'Enter the current Celcom Africa API key in SMS settings.',
     icon: IconMessageOff,
   },
   SMS_DEAD_LETTERED: {
     label: 'SMS could not be sent',
-    action: "A message failed after every retry. Check the Africa's Talking status page.",
+    action: 'A message failed after every retry. Check the Celcom Africa status page.',
     icon: IconMessageOff,
   },
 };

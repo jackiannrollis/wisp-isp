@@ -17,7 +17,10 @@ let line: Line | null = null;
 test.beforeAll(async () => {
   // Pay Now goes through Daraja; this suite only ever talks to the fake one (ADR 0012).
   const fake = await fetch(`${LAB.fakeDaraja}/health`).catch(() => null);
-  test.skip(!fake?.ok, 'Start the stack with infra/e2e/up first: Pay Now needs the fake Daraja.');
+  expect(
+    fake?.ok,
+    'Start the isolated stack with infra/e2e/up: Pay Now needs the fake Daraja.',
+  ).toBeTruthy();
 
   staff = await staffApi();
   // Obvious fakes; the fake Daraja accepts any. The Daraja sandbox script sets its own again.

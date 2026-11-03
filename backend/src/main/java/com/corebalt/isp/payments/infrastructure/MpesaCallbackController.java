@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Validation accepts every payment (Q10 default: rely on the suspense queue).
  */
 @RestController
-@RequestMapping("/callbacks/mpesa/{token}")
+@RequestMapping({"/callbacks/payments/{token}", "/callbacks/mpesa/{token}"})
 @Hidden
 class MpesaCallbackController {
 

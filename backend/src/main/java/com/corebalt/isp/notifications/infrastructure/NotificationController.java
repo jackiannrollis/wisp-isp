@@ -58,7 +58,7 @@ class NotificationController {
 
     @PutMapping("/api/v1/settings/notifications")
     @PreAuthorize("hasAuthority('settings.secrets')")
-    @Operation(summary = "Africa's Talking account (API key write-only), sender ID and sending window (M2)")
+    @Operation(summary = "Celcom Africa account (API key write-only), sender ID and sending window (M2)")
     SmsSettings.SettingsView configure(@Valid @RequestBody final SmsSettings.SettingsRequest request) {
         return settings.configure(request);
     }
@@ -72,7 +72,7 @@ class NotificationController {
 
     @GetMapping("/api/v1/settings/notifications")
     @PreAuthorize("hasAuthority('settings.notifications')")
-    @Operation(summary = "SMS settings and the delivery-report URL to give Africa's Talking (never the API key)")
+    @Operation(summary = "Celcom Africa account and sending window (never the API key)")
     SmsSettings.SettingsView view() {
         return settings.view();
     }

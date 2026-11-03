@@ -2,7 +2,7 @@ package com.corebalt.isp.notifications.application;
 
 import com.corebalt.isp.notifications.api.OneTimeCodes;
 import com.corebalt.isp.notifications.domain.SendOutcome;
-import com.corebalt.isp.notifications.infrastructure.AfricasTalkingClient;
+import com.corebalt.isp.notifications.infrastructure.CelcomClient;
 import com.corebalt.isp.shared.id.UuidV7;
 import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.tenancy.api.TenantRegistry;
@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** {@link OneTimeCodes} over the tenant's Africa's Talking account; the logged body has the code masked. */
+/** {@link OneTimeCodes} over the tenant's Celcom Africa account; the logged body has the code masked. */
 @Service
 class OneTimeCodeSender implements OneTimeCodes {
 
@@ -31,7 +31,7 @@ class OneTimeCodeSender implements OneTimeCodes {
     private final TransactionTemplate tx;
     private final SmsSettings settings;
     private final SmsAllowlist allowlist;
-    private final AfricasTalkingClient provider;
+    private final CelcomClient provider;
     private final TenantRegistry tenants;
     private final Clock clock;
 
@@ -40,7 +40,7 @@ class OneTimeCodeSender implements OneTimeCodes {
             final TransactionTemplate tx,
             final SmsSettings settings,
             final SmsAllowlist allowlist,
-            final AfricasTalkingClient provider,
+            final CelcomClient provider,
             final TenantRegistry tenants,
             final Clock clock) {
         this.jdbc = jdbc;
@@ -83,10 +83,10 @@ class OneTimeCodeSender implements OneTimeCodes {
         }
         SendOutcome outcome;
         try {
-            final AfricasTalkingClient.Result result = provider.send(account.get().sandbox(), account.get().username(),
+            final CelcomClient.Result result = provider.send(account.get().partnerId(),
                     account.get().apiKey(), account.get().senderId(), e164, body);
             outcome = SendOutcome.ofRecipient(result.statusCode(), result.status(), result.messageId());
-        } catch (AfricasTalkingClient.TransportFailure e) {
+        } catch (CelcomClient.TransportFailure e) {
             outcome = SendOutcome.ofTransport(e.httpStatus(), e.getMessage());
         }
         if (outcome instanceof SendOutcome.Sent sent) {
@@ -112,9 +112,9 @@ class OneTimeCodeSender implements OneTimeCodes {
         tx.executeWithoutResult(s -> jdbc.sql("""
                         insert into notifications_notification
                             (id, tenant_id, customer_id, recipient, template_key, body, dedupe_key, status, scheduled_for,
-                             next_attempt_at, attempts, provider_message_id, failure_reason, sent_at, created_at, updated_at)
+                             next_attempt_at, attempts, provider_message_id, failure_reason, sent_at, created_at, updated_at, sms_provider)
                         values (:id, :tenantId, :customerId, :recipient, :template, :body, :dedupe, :status, :now,
-                                :now, 1, :messageId, :reason, :sentAt, :now, :now)
+                                :now, 1, :messageId, :reason, :sentAt, :now, :now, 'CELCOM_AFRICA')
                         """)
                 .param("id", UuidV7.next(clock))
                 .param("tenantId", TenantContext.requireTenantId())

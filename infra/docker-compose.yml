@@ -73,6 +73,8 @@ services:
       # Public HTTPS origin Safaricom calls (a tunnel to Caddy :8088 in the lab), docs/05.
       CALLBACK_BASE_URL: ${CALLBACK_BASE_URL:-http://localhost:8088}
       ISP_REDIS_HOST: redis
+      # Local live-provider checks may send only to explicitly allowlisted test numbers.
+      ISP_SMS_ALLOWLIST: ${SMS_ALLOWLIST:-}
       # Token signing key (ADR 0010): environment only, never a file in the image.
       ISP_JWT_KID: ${ISP_JWT_KID:?run infra/scripts/jwt-key first}
       ISP_JWT_PRIVATE_KEY: ${ISP_JWT_PRIVATE_KEY:?run infra/scripts/jwt-key first}

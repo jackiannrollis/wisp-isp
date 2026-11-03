@@ -8,6 +8,20 @@ import org.junit.jupiter.api.Test;
 class CallbackSourceFilterTest {
 
     @Test
+    void bothNeutralAndLegacyCallbackPathsKeepTheSourceAddressGuard() throws Exception {
+        final var filter = new CallbackSourceFilter(List.of("127.0.0.1/32"));
+        for (final String path : List.of("/callbacks/payments/token/c2b/confirmation", "/callbacks/mpesa/token/c2b/confirmation")) {
+            final var request = new org.springframework.mock.web.MockHttpServletRequest("POST", path);
+            request.setRemoteAddr("203.0.113.10");
+            final var response = new org.springframework.mock.web.MockHttpServletResponse();
+            final var chain = new org.springframework.mock.web.MockFilterChain();
+            filter.doFilter(request, response, chain);
+            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(chain.getRequest()).isNull();
+        }
+    }
+
+    @Test
     void onlyAllowedNetworksPass() {
         final CallbackSourceFilter filter =
                 new CallbackSourceFilter(List.of("196.201.214.200/32", " 172.16.0.0/12", "::1/128"));

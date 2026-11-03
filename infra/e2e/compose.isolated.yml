@@ -1,0 +1,78 @@
+# Disposable browser-regression stack. No working-lab volumes, credentials or real providers.
+name: corebalt-e2e
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: fake-e2e-postgres-password
+      POSTGRES_DB: postgres
+      ISP_DB_OWNER_PASSWORD: fake-e2e-owner-password
+      ISP_DB_APP_PASSWORD: fake-e2e-app-password
+      ISP_DB_WORKER_PASSWORD: fake-e2e-worker-password
+      RADIUS_DB_PASSWORD: fake-e2e-radius-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d isp]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: isp
+      RABBITMQ_DEFAULT_PASS: fake-e2e-rabbit-password
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, check_port_connectivity]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:8.8
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  fake-daraja:
+    build: fake-daraja
+    image: corebalt/isp-fake-daraja:e2e
+    ports: ["127.0.0.1:${E2E_FAKE_DARAJA_PORT:-28095}:8095"]
+  backend:
+    build: ../../backend
+    image: corebalt/e2e-backend:local
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      ISP_DB_URL: jdbc:postgresql://postgres:5432/isp
+      ISP_DB_OWNER_USER: isp_owner
+      ISP_DB_OWNER_PASSWORD: fake-e2e-owner-password
+      ISP_DB_APP_USER: isp_app
+      ISP_DB_APP_PASSWORD: fake-e2e-app-password
+      ISP_RABBITMQ_HOST: rabbitmq
+      ISP_RABBITMQ_USER: isp
+      ISP_RABBITMQ_PASSWORD: fake-e2e-rabbit-password
+      ISP_REDIS_HOST: redis
+      ISP_MASTER_KEY: ${E2E_MASTER_KEY:?run node infra/e2e/create-env.mjs}
+      ISP_JWT_KID: e2e-local
+      ISP_JWT_PRIVATE_KEY: ${E2E_JWT_PRIVATE_KEY:?run node infra/e2e/create-env.mjs}
+      SPRING_APPLICATION_JSON: >-
+        {"isp":{"mpesa":{"daraja":{"sandbox-url":"http://fake-daraja:8095","production-url":"http://fake-daraja:8095"}},"sms":{"celcom":{"base-url":"http://fake-daraja:8095"},"initial-delay":"1s","interval":"1s","delivery-interval":"1s"}}}
+      CALLBACK_BASE_URL: http://backend:8080
+      ISP_ALLOWED_ORIGINS: http://localhost:4300,http://localhost:4301,http://localhost:4302
+      ISP_ADMIN_APP_URL: http://localhost:4300
+      ISP_BOOTSTRAP_ADMIN_EMAIL: browser-admin@corebalt.example.test
+      ISP_BOOTSTRAP_ADMIN_PASSWORD: fake-browser-bootstrap-password
+      ISP_HUB_A_PUBLIC_KEY_FILE: /fixtures/hub.pub
+      ISP_HUB_A_ENDPOINT: hub-e2e.example.test
+    volumes:
+      - ./hub.pub:/fixtures/hub.pub:ro
+    ports: ["127.0.0.1:${E2E_BACKEND_PORT:-28080}:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      fake-daraja: { condition: service_healthy }
+volumes:
+  postgres-data:

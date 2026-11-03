@@ -6,7 +6,7 @@ One Spring Boot modular monolith owns all business logic. PostgreSQL is the sing
 
 ```
    Angular web apps             M-Pesa Daraja                SMS gateway
-   (admin, portal)           (callbacks, STK Push)        (Africa's Talking)
+   (admin, portal)           (callbacks, STK Push)        (Celcom Africa)
           │ HTTPS                     │                           ▲
           ▼                           ▼                           │
  ┌─────────────────────────────────────────────────────────────────────────┐
@@ -45,7 +45,7 @@ One Spring Boot modular monolith owns all business logic. PostgreSQL is the sing
 | Router control | RouterOS v7 REST API and RADIUS CoA/Disconnect (UDP 3799), all over WireGuard | Reaches routers behind NAT and dynamic IPs; enables instant reconnect |
 | Router monitoring | SNMP and RouterOS REST polling into Prometheus | CPU, RAM, uptime, traffic and online users per router |
 | Payments | M-Pesa Daraja: C2B Paybill, STK Push, Transaction Status; cards, bank and Trilho later | Paybill with the customer number as account reference identifies the payer automatically |
-| Messaging | Africa's Talking SMS; WhatsApp and email in v2 | SMS reaches every subscriber, including restricted ones |
+| Messaging | Celcom Africa SMS; WhatsApp and email in v2 | SMS reaches every subscriber, including restricted ones |
 | Observability | Prometheus, Grafana, Loki; structured JSON logs with tenant and correlation IDs | One place to see routers, RADIUS, queues and the API |
 | Infrastructure | Docker Compose on Hetzner for the core; one FreeRADIUS node, a PostgreSQL replica and a WireGuard hub in a Nairobi data centre; Caddy for TLS | Cheap compute for the core; in-country logins survive an international link outage |
 | Later, only if needed | A Go service for telemetry and accounting ingest, consuming the same RabbitMQ events | When router polling or accounting volume outgrows the monolith |

@@ -5,8 +5,8 @@ import { APIRequestContext, Page, expect, request } from '@playwright/test';
  * (CLAUDE.md). Override them through the environment, never on a command line.
  */
 export const LAB = {
-  api: process.env['E2E_API_URL'] ?? 'http://localhost:8080',
-  fakeDaraja: process.env['E2E_FAKE_DARAJA_URL'] ?? 'http://localhost:8095',
+  api: process.env['E2E_API_URL'] ?? 'http://127.0.0.1:28080',
+  fakeDaraja: process.env['E2E_FAKE_DARAJA_URL'] ?? 'http://127.0.0.1:28095',
   tenant: process.env['E2E_TENANT'] ?? 'CB',
   adminEmail: process.env['E2E_ADMIN_EMAIL'] ?? 'lab-admin@corebalt.example.test',
   adminPassword: process.env['E2E_ADMIN_PASSWORD'] ?? 'lab-admin-password',
@@ -44,6 +44,10 @@ export async function staffApi(): Promise<APIRequestContext> {
   expect(login.ok(), 'lab admin sign-in (load infra/lab/seed.sql first)').toBeTruthy();
   const { accessToken } = (await login.json()) as { accessToken: string };
   await anonymous.dispose();
+  const header = JSON.parse(Buffer.from(accessToken.split('.')[0], 'base64url').toString()) as {
+    kid: string;
+  };
+  expect(header.kid, 'Refusing browser-test writes against a non-e2e backend').toBe('e2e-local');
   return request.newContext({
     baseURL: LAB.api,
     extraHTTPHeaders: { Authorization: `Bearer ${accessToken}` },

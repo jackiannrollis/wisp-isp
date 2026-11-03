@@ -4,12 +4,18 @@ $InfraDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $LabDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 # Reads infra/.env into a hashtable (KEY=VALUE lines; # comments and blank lines ignored).
-function Read-DotEnv {
-    $path = Join-Path $InfraDir ".env"
+function Read-DotEnv([string] $Path = (Join-Path $InfraDir '.env')) {
+    $path = $Path
     if (-not (Test-Path $path)) { throw "infra/.env missing: copy infra/.env.example and set passwords" }
     $values = @{}
     foreach ($line in Get-Content $path) {
-        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') { $values[$Matches[1]] = $Matches[2] }
+        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') {
+            $key = $Matches[1]; $value = $Matches[2]
+            if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+                $value = $value.Substring(1, $value.Length - 2)
+            }
+            $values[$key] = $value
+        }
     }
     return $values
 }

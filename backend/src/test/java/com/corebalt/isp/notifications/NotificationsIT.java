@@ -10,7 +10,7 @@ import com.corebalt.isp.shared.tenant.TenantContext;
 import com.corebalt.isp.subscriptions.api.SubscriptionReminderDue;
 import com.corebalt.isp.support.Api;
 import com.corebalt.isp.support.Catalog;
-import com.corebalt.isp.support.FakeAfricasTalking;
+import com.corebalt.isp.support.FakeCelcom;
 import com.corebalt.isp.support.IntegrationTest;
 import com.corebalt.isp.support.OwnerSql;
 import com.corebalt.isp.support.TestTenants;
@@ -35,7 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 
 /**
- * SMS end to end against the fake Africa's Talking (docs/04 Reminders, docs/05, M1-M3): the one
+ * SMS end to end against the fake Celcom Africa (docs/04 Reminders, docs/05, M1-M3): the one
  * payment message and its variants, the sending window, the answer-to-behaviour mapping, delivery
  * reports and the template editor. Numbers, names and keys are fakes.
  */
@@ -50,7 +50,9 @@ class NotificationsIT extends IntegrationTest {
     @Autowired TransactionTemplate tx;
     @Autowired OutboxRelay relay;
     @Autowired SmsSender sender;
+    @Autowired com.corebalt.isp.notifications.application.SmsDeliveryReports reports;
     @Autowired MessageComposer composer;
+    @Autowired com.corebalt.isp.tenancy.api.SecretStore secrets;
 
     TestTenants.Created tenant;
     Api api;
@@ -66,13 +68,16 @@ class NotificationsIT extends IntegrationTest {
     void tenantWithSms() {
         tenant = TestTenants.createWithCode(jdbc, tx);
         api = new Api(port, tenant.id());
-        AT.registerSender("LABISP");
+        SMS.registerSender("LABISP");
         final Api.Response settings = api.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"LABISP","sandbox":true,"apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
-                """.formatted(FakeAfricasTalking.API_KEY));
+                {"partnerId":"fake-partner-id","senderId":"LABISP","apiKey":"%s","windowStart":"00:00","windowEnd":"23:59"}
+                """.formatted(FakeCelcom.API_KEY));
         assertThat(settings.status()).as(settings.body()).isEqualTo(200);
-        assertThat(settings.body()).doesNotContain(FakeAfricasTalking.API_KEY);
-        deliveryUrl = settings.json().get("deliveryReportUrl").asString().replaceAll("^https?://[^/]+", "http://localhost:" + port);
+        assertThat(settings.body()).doesNotContain(FakeCelcom.API_KEY);
+        assertThat(settings.json().hasNonNull("deliveryReportUrl")).isFalse();
+        final String callbackToken = TenantContext.callAsTenant(tenant.id(), () -> tx.execute(s ->
+                secrets.reveal(com.corebalt.isp.tenancy.api.SecretStore.SecretKind.SMS_CALLBACK_TOKEN).orElseThrow()));
+        deliveryUrl = "http://localhost:" + port + "/callbacks/sms/" + callbackToken + "/delivery";
         packageId = Catalog.pppoePackage(api, "Home 10");
         routerId = Catalog.router(api, "Utawala-01").json().get("router").get("id").asString();
         phone = nextPhone();
@@ -91,8 +96,9 @@ class NotificationsIT extends IntegrationTest {
         assertThat(sms.get("recipient")).isEqualTo(phone);
 
         assertThat(TenantContext.callAsTenant(tenant.id(), sender::sendDue)).isOne();
-        final FakeAfricasTalking.Recorded sent = AT.requestsTo(phone).getLast();
-        assertThat(sent.form()).containsEntry("from", "LABISP").containsEntry("to", phone).containsEntry("username", "sandbox");
+        final FakeCelcom.Recorded sent = SMS.requestsTo(phone).getLast();
+        assertThat(sent.form()).containsEntry("shortcode", "LABISP").containsEntry("mobile", phone.substring(1))
+                .containsEntry("partnerID", FakeCelcom.PARTNER_ID);
         assertThat(message("PAYMENT_RECEIVED:" + paymentId).get("status")).isEqualTo("SENT");
         assertThat(OwnerSql.client().sql("select count(*) from outbox_event where event_type = 'CustomerNotified' and tenant_id = :t")
                 .param("t", tenant.id()).query(Long.class).single()).isOne();
@@ -184,7 +190,7 @@ class NotificationsIT extends IntegrationTest {
         final LocalTime start = nowLocal.plusMinutes(10).isAfter(nowLocal) ? nowLocal.plusMinutes(10) : LocalTime.of(0, 0);
         final LocalTime end = start.plusMinutes(5).isAfter(start) ? start.plusMinutes(5) : LocalTime.of(23, 59);
         api.put("/api/v1/settings/notifications", """
-                {"atUsername":"sandbox","senderId":"LABISP","sandbox":true,"windowStart":"%s","windowEnd":"%s"}
+                {"partnerId":"fake-partner-id","senderId":"LABISP","windowStart":"%s","windowEnd":"%s"}
                 """.formatted(start.toString().substring(0, 5), end.toString().substring(0, 5)));
         final SubscriptionReminderDue reminder = new SubscriptionReminderDue(UUID.randomUUID(), tenant.id(), Instant.now(),
                 UUID.fromString(line), UUID.fromString(customerId), "EXPIRING_3D", Instant.now().plus(Duration.ofDays(3)),
@@ -199,13 +205,13 @@ class NotificationsIT extends IntegrationTest {
     }
 
     @Test
-    void invalidAndBlacklistedNumbersFailForGoodAndAreFlagged() {
-        AT.answerFor(phone, 403, "InvalidPhoneNumber");
+    void invalidNumbersFailForGoodAndAreFlagged() {
+        SMS.answerFor(phone, 1003, "Invalid mobile number");
         final String line = openLine();
         packageChange(line);
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
         final Map<String, Object> failed = latest();
-        assertThat(failed).containsEntry("status", "FAILED").containsEntry("failure_reason", "403 InvalidPhoneNumber");
+        assertThat(failed).containsEntry("status", "FAILED").containsEntry("failure_reason", "1003 Invalid mobile number");
         final JsonNode flags = api.get("/api/v1/notifications/phone-flags").json();
         assertThat(flags.get(0).get("phone").asString()).isEqualTo(phone);
         assertThat(flags.get(0).get("status").asString()).isEqualTo("INVALID_NUMBER");
@@ -213,13 +219,13 @@ class NotificationsIT extends IntegrationTest {
         packageChange(line);
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
         assertThat(latest()).containsEntry("status", "SUPPRESSED");
-        assertThat(AT.requestsTo(phone)).hasSize(1);
-        AT.reset(phone);
+        assertThat(SMS.requestsTo(phone)).hasSize(1);
+        SMS.reset(phone);
     }
 
     @Test
     void insufficientCreditWaitsHourlyAlertsAndClearsOnTheNextSuccess() {
-        AT.answerFor(phone, 405, "InsufficientBalance");
+        SMS.answerFor(phone, 1004, "Low bulk credits");
         final String line = openLine();
         packageChange(line);
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
@@ -228,7 +234,7 @@ class NotificationsIT extends IntegrationTest {
         assertThat(((java.sql.Timestamp) waiting.get("next_attempt_at")).toInstant()).isAfter(Instant.now().plus(Duration.ofMinutes(55)));
         assertThat(api.get("/api/v1/notifications/alerts").json().get("items").get(0).get("kind").asString()).isEqualTo("SMS_CREDIT_EXHAUSTED");
 
-        AT.reset(phone);
+        SMS.reset(phone);
         OwnerSql.client().sql("update notifications_notification set next_attempt_at = now() where tenant_id = :t").param("t", tenant.id()).update();
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
         assertThat(latest()).containsEntry("status", "SENT");
@@ -238,7 +244,7 @@ class NotificationsIT extends IntegrationTest {
 
     @Test
     void serverErrorsAreRetriedWithBackoffThenDeadLettered() {
-        AT.failFor(phone, 502);
+        SMS.failFor(phone, 502);
         final String line = openLine();
         packageChange(line);
         for (int attempt = 1; attempt <= 4; attempt++) {
@@ -247,13 +253,13 @@ class NotificationsIT extends IntegrationTest {
         }
         assertThat(latest()).containsEntry("status", "DEAD").containsEntry("attempts", 4);
         assertThat(api.get("/api/v1/notifications/alerts").body()).contains("SMS_DEAD_LETTERED");
-        assertThat(AT.requestsTo(phone)).hasSize(4);
-        AT.reset(phone);
+        assertThat(SMS.requestsTo(phone)).hasSize(4);
+        SMS.reset(phone);
     }
 
     @Test
     void anUnregisteredSenderIdIsATenantProblem() {
-        api.put("/api/v1/settings/notifications", "{\"atUsername\":\"sandbox\",\"senderId\":\"NOTREG\",\"sandbox\":true}");
+        api.put("/api/v1/settings/notifications", "{\"partnerId\":\"fake-partner-id\",\"senderId\":\"NOTREG\"}");
         packageChange(openLine());
         TenantContext.runAsTenant(tenant.id(), sender::sendDue);
         assertThat(latest()).containsEntry("status", "QUEUED_RETRY");
@@ -261,9 +267,8 @@ class NotificationsIT extends IntegrationTest {
     }
 
     @Test
-    void deliveryReportsMoveTheStatus() throws Exception {
-        packageChange(openLine());
-        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+    void legacyDeliveryReportsMoveTheStatusOfHistoricalMessages() throws Exception {
+        legacyMessage();
         final String messageId = (String) latest().get("provider_message_id");
         assertThat(report(deliveryUrl, messageId, "Buffered", null)).isEqualTo(200);
         assertThat(latest()).containsEntry("status", "SENT").containsEntry("provider_status", "Buffered");
@@ -275,11 +280,68 @@ class NotificationsIT extends IntegrationTest {
     }
 
     @Test
-    void aFailedDeliveryKeepsTheReason() throws Exception {
-        packageChange(openLine());
-        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+    void aFailedLegacyDeliveryKeepsTheReason() throws Exception {
+        legacyMessage();
         report(deliveryUrl, (String) latest().get("provider_message_id"), "Rejected", "DeliveryFailure");
         assertThat(latest()).containsEntry("status", "FAILED").containsEntry("failure_reason", "Rejected: DeliveryFailure");
+    }
+
+    private void legacyMessage() {
+        packageChange(openLine());
+        OwnerSql.client().sql("update notifications_callback_route set sms_provider = 'AFRICAS_TALKING' where tenant_id = :t")
+                .param("t", tenant.id()).update();
+        OwnerSql.client().sql("update notifications_notification set status = 'SENT', provider_message_id = :m where tenant_id = :t")
+                .param("m", "legacy-" + UUID.randomUUID()).param("t", tenant.id()).update();
+    }
+
+    @Test
+    void legacyCallbackCannotClaimDeliveryOfACelcomMessage() throws Exception {
+        packageChange(openLine());
+        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+        assertThat(report(deliveryUrl, (String) latest().get("provider_message_id"), "Success", null)).isEqualTo(404);
+        assertThat(latest()).containsEntry("status", "SENT");
+    }
+
+    @Test
+    void celcomDeliveryLookupConfirmsDeliveryWithoutSendingAgain() {
+        packageChange(openLine());
+        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+        assertThat(latest()).containsEntry("status", "SENT");
+        assertThat(TenantContext.callAsTenant(tenant.id(), reports::checkDue)).isOne();
+        assertThat(latest()).containsEntry("status", "DELIVERED").containsEntry("provider_status", "DeliveredToTerminal");
+        assertThat(latest().get("delivered_at")).isNotNull();
+        assertThat(TenantContext.callAsTenant(tenant.id(), reports::checkDue)).isZero();
+        assertThat(SMS.requestsTo(phone)).hasSize(1);
+    }
+
+    @Test
+    void unknownDeliveryAndLegacyRowsAreNeverClaimedAsDelivered() {
+        packageChange(openLine());
+        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+        final String id = (String) latest().get("provider_message_id");
+        SMS.deliveryResponse(id, "{\"response-code\":200,\"message-id\":\"" + id
+                + "\",\"delivery-status\":99,\"delivery-description\":\"" + FakeCelcom.API_KEY + "\"}");
+        assertThat(TenantContext.callAsTenant(tenant.id(), reports::checkDue)).isOne();
+        assertThat(latest()).containsEntry("status", "SENT").containsEntry("provider_status", "Celcom delivery status 99");
+        assertThat(TenantContext.callAsTenant(tenant.id(), reports::checkDue)).isZero();
+        OwnerSql.client().sql("update notifications_notification set sms_provider = 'AFRICAS_TALKING', delivery_check_at = null where tenant_id = :t")
+                .param("t", tenant.id()).update();
+        assertThat(TenantContext.callAsTenant(tenant.id(), reports::checkDue)).isZero();
+        assertThat(SMS.requestsTo(phone)).hasSize(1);
+    }
+
+    @Test
+    void oldProviderCredentialsAreNotUsedForCelcomAndAKeyIsRequiredToConnect() {
+        OwnerSql.client().sql("update notifications_settings set sms_provider = 'AFRICAS_TALKING', celcom_partner_id = null where tenant_id = :t")
+                .param("t", tenant.id()).update();
+        packageChange(openLine());
+        TenantContext.runAsTenant(tenant.id(), sender::sendDue);
+        assertThat(SMS.requestsTo(phone)).isEmpty();
+        assertThat(latest()).containsEntry("status", "QUEUED_RETRY");
+        OwnerSql.client().sql("delete from tenancy_tenant_secret where tenant_id = :t and kind = 'CELCOM_SMS_API_KEY'")
+                .param("t", tenant.id()).update();
+        assertThat(api.put("/api/v1/settings/notifications",
+                "{\"partnerId\":\"fake-partner-id\",\"senderId\":\"LABISP\"}").status()).isEqualTo(400);
     }
 
     @Test
@@ -312,7 +374,7 @@ class NotificationsIT extends IntegrationTest {
     void anUnrecognisedReferenceIsAnsweredOnlyWhenTheNumberIsPlain() throws Exception {
         final String token = api.put("/api/v1/settings/mpesa", """
                 {"shortcode":"600984","shortcodeType":"PAYBILL","sandbox":true,"consumerKey":"k","consumerSecret":"s","passkey":"p"}
-                """).json().get("callbackUrls").get("c2bConfirmation").asString().replaceAll(".*/callbacks/mpesa/([^/]+)/.*", "$1");
+                """).json().get("callbackUrls").get("c2bConfirmation").asString().replaceAll(".*/callbacks/payments/([^/]+)/.*", "$1");
         final String payer = nextPhone();
         confirmation(token, "QKN" + PHONES.get() + "A", "HOUSE 4", payer.substring(1));
         confirmation(token, "QKN" + PHONES.get() + "B", "HOUSE 4", "2547 ***** 126");
@@ -332,7 +394,7 @@ class NotificationsIT extends IntegrationTest {
                 {"TransactionType":"Pay Bill","TransID":"%s","TransTime":"20261117143012","TransAmount":"700.00",
                  "BusinessShortCode":"600984","BillRefNumber":"%s","MSISDN":"%s","FirstName":"JOHN"}
                 """.formatted(txn, ref, msisdn);
-        HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/mpesa/" + token + "/c2b/confirmation"))
+        HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/callbacks/payments/" + token + "/c2b/confirmation"))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }

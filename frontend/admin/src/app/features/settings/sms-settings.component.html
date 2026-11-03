@@ -4,12 +4,16 @@
   <div class="layout">
     <form class="panel form" [formGroup]="form" (ngSubmit)="save()">
       <h2 class="section-title">
-        {{ current.value() ? "Africa's Talking account" : "Connect Africa's Talking" }}
+        {{
+          current.value()?.provider === 'CELCOM_AFRICA'
+            ? 'Celcom Africa account'
+            : 'Connect Celcom Africa'
+        }}
       </h2>
       @if (!current.value()) {
         <p class="help">
-          Messages go out through your own Africa's Talking account. Until it is connected, no SMS
-          is sent.
+          Messages go out through your own Celcom Africa account. Until it is connected, no SMS is
+          sent.
         </p>
       }
       @if (!canEdit()) {
@@ -19,14 +23,14 @@
         <p class="help">The sender ID and sending window are set by the account Owner.</p>
       }
       <mat-form-field appearance="outline">
-        <mat-label>Username</mat-label>
-        <input matInput formControlName="atUsername" autocomplete="off" />
-        <mat-hint>Your Africa's Talking app username</mat-hint>
+        <mat-label>Partner ID</mat-label>
+        <input matInput formControlName="partnerId" autocomplete="off" />
+        <mat-hint>Your Celcom Africa partner ID</mat-hint>
       </mat-form-field>
       <mat-form-field appearance="outline">
         <mat-label>Sender ID</mat-label>
         <input matInput formControlName="senderId" maxlength="11" />
-        <mat-hint>Up to 11 letters or digits, approved by Africa's Talking</mat-hint>
+        <mat-hint>Up to 11 characters, approved by Celcom Africa</mat-hint>
       </mat-form-field>
       @if (canEdit()) {
         <mat-form-field appearance="outline">
@@ -47,9 +51,6 @@
         </mat-form-field>
       }
       <mat-slide-toggle formControlName="enabled">Send messages</mat-slide-toggle>
-      <mat-slide-toggle formControlName="sandbox">
-        Africa's Talking sandbox (test only)
-      </mat-slide-toggle>
 
       <h3 class="sub-title">Sending window</h3>
       <p class="help">
@@ -83,24 +84,12 @@
       }
     </form>
 
-    <!-- The server leaves the URL out while Corebalt support impersonates: its token is a secret (ADR 0017). -->
-    @if (current.value()?.deliveryReportUrl; as deliveryReportUrl) {
-      <section class="panel side" aria-labelledby="dlr-title">
-        <h2 id="dlr-title" class="section-title">Delivery reports</h2>
-        <p class="help">
-          Paste this into the delivery report callback of your Africa's Talking app, so each
-          message's status reaches the platform. It contains a private token.
-        </p>
-        <dl class="urls">
-          <div>
-            <dt>Delivery report URL</dt>
-            <dd>
-              <code>{{ deliveryReportUrl }}</code>
-              <app-copy-button [value]="deliveryReportUrl" label="delivery report URL" />
-            </dd>
-          </div>
-        </dl>
-      </section>
-    }
+    <section class="panel side" aria-labelledby="dlr-title">
+      <h2 id="dlr-title" class="section-title">Message status</h2>
+      <p class="help">
+        Sent means Celcom Africa accepted the message. Delivery is checked automatically with
+        Celcom; Delivered means the provider confirmed it reached the phone.
+      </p>
+    </section>
   </div>
 }

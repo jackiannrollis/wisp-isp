@@ -41,7 +41,7 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **P3** Matching order: exact account reference → exact match on a customer's old-system reference (`legacy_account_ref`, kept from a cutover, compared trimmed and upper-cased, unique per tenant) → normalised reference → the payer's number, only when it arrives plain or SHA-256-hashed and belongs to exactly one customer → `UNMATCHED` (suspense queue). The old reference comes before normalisation because a digits-only old reference would otherwise read as somebody else's short customer number. A masked number (`2547 ***** 126`) is never matched automatically; staff see a shortlist of customers whose number fits it and assign with an audited click. Never a fuzzy name match.
 - **P4** `PaymentReceived` is written to the outbox in the same transaction as the payment record. Billing alone credits the ledger from it (one `PAYMENT` entry per payment, enforced by a unique ledger reference) and issues the receipt; a matched payment with no ledger entry after 5 minutes raises an alert. Manual payments take the same road.
 - **P5** A manual payment needs the `payments.record_manual` permission, a reference and an audit row.
-- **P6** An STK request with no callback after 2 minutes is queried; after 5 minutes it is `TIMED_OUT` and never silently retried.
+- **P6** An STK request with no callback after 2 minutes is queried; after 5 minutes it is `TIMED_OUT` and never silently retried. A provider connection failure is not permission to replay an STK POST: ADR 0022 replaces a failed connection pool only for a subsequent caller request, preserving in-flight work and the valid OAuth token.
 
 ## Network (docs/06)
 
@@ -61,6 +61,8 @@ Invariants the code must never break. Each has an ID so tests, reviews and commi
 - **M1** Every notification has a `dedupe_key`, unique per tenant, and the same key is never queued twice: reminders use event, subscription and `expires_at`; the payment message uses the payment ID (one SMS per payment); the fair-use and data-cap messages use kind, subscription and `cycle_started_at` (one per cycle); the "we've moved" notice after a cutover import uses the import batch and the customer (one per customer and batch).
 - **M2** Reminders respect the tenant sending window (default 07:00 to 21:00, tenant time zone); the payment message (including its restored variant), the unrecognised-reference reply, package-change messages and the fair-use and data-cap messages (the service changed now) go out immediately.
 - **M3** Messages never include secrets, PINs or full national IDs: templates, including a tenant's own wording, may use only a fixed list of placeholders that carry none of them. Two fixed, non-editable messages are the exceptions: the portal sign-in code, and a staff member's temporary password when staff choose "send by SMS" (Q11). Both are sent at once to the person's own phone, never retried, and logged with the secret masked.
+
+- **M4** SMS uses the tenant's Celcom Africa account (ADR 0020). Its key is envelope-encrypted separately from retired provider keys. A send acknowledgement means SENT, never DELIVERED; DELIVERED requires the matching message ID and the live-verified 32/DeliveredToTerminal lookup response; unknown codes remain unconfirmed. Old callback routes cannot confirm delivery of Celcom messages.
 
 ## Events and jobs (docs/02)
 
